@@ -181,6 +181,25 @@ public final class HotkeyManager: @unchecked Sendable {
         onSignal?(.gesture(mode, action))
     }
 
+    /// Ends a gesture from outside the keyboard — the panel's X or checkmark.
+    /// `process: false` discards; `true` behaves as though the key was released.
+    public func endGesture(_ mode: CleanupMode, process: Bool) {
+        queue.async { [weak self] in
+            guard let self, var gesture = self.gestures[mode] else { return }
+            let action = gesture.abort()
+            self.gestures[mode] = gesture
+            guard process, action != .none else { return }
+            self.onSignal?(.gesture(mode, action))
+        }
+    }
+
+    /// The mode currently recording, if any.
+    public func activeMode(completion: @escaping @Sendable (CleanupMode?) -> Void) {
+        queue.async { [weak self] in
+            completion(self?.gestures.first { $0.value.isRecording }?.key)
+        }
+    }
+
     private func abortAll(reason: String) {
         for mode in gestures.keys {
             guard var gesture = gestures[mode] else { continue }

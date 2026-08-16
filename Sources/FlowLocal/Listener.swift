@@ -13,9 +13,17 @@ final class Listener: @unchecked Sendable {
     private var cursors: [CleanupMode: UInt64] = [:]
     private let lock = NSLock()
     private var status: StatusItem?
+    private var panel: DictationPanel?
     private let asr = AppleASREngine()
     private let cleanup = RoutingCleanupEngine(llm: AppleCleanupEngine())
     private let vocabulary = Vocabulary(aliases: [:])
+    private let learned = LearnedCorrections()
+    private let inserter = TextInserter()
+    /// Last raw ASR output, kept so a correction can be diffed against it.
+    private var lastRaw: String?
+    /// Audio from a cancelled dictation, retained so Undo can still transcribe it.
+    private var cancelledSamples: [Float]?
+    private var cancelledMode: CleanupMode?
 
     /// Retained by the callbacks it installs, so it outlives `run()`.
     @MainActor
@@ -29,6 +37,23 @@ final class Listener: @unchecked Sendable {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         status = StatusItem()
+        status?.onCorrect = { [weak self] in self?.correctLast() }
+
+        let panel = DictationPanel()
+        // Live level comes from the tail of the ring buffer, so the waveform
+        // reflects what the microphone is actually hearing right now.
+        panel.levelProvider = { [weak self] in
+            guard let buffer = self?.capture?.buffer else { return 0 }
+            let recent = buffer.snapshot(lastSeconds: 0.08)
+            guard !recent.isEmpty else { return 0 }
+            let sum = recent.reduce(0.0) { $0 + Double($1) * Double($1) }
+            return (sum / Double(recent.count)).squareRoot()
+        }
+        panel.onCancel = { [weak self] in self?.cancelActive() }
+        panel.onConfirm = { [weak self] in self?.confirmActive() }
+        panel.onUndo = { [weak self] in self?.undoCancel() }
+        self.panel = panel
+        panel.show(.hidden)   // resting pill, always visible
 
         log("\n=== FlowLocal listener — \(Date()) ===")
 
@@ -97,6 +122,7 @@ final class Listener: @unchecked Sendable {
                 Task { @MainActor in
                     self.status?.apply(.recording(mode))
                     self.status?.chime(start: true)
+                    self.panel?.show(.listening(mode: mode))
                 }
 
             case .discardAndRestart:
@@ -127,6 +153,7 @@ final class Listener: @unchecked Sendable {
                     self.status?.apply(.processing)
                     self.status?.chime(start: false)
                     self.status?.report(summary)
+                    self.panel?.show(.processing)
                 }
                 Task { await self.transcribe(samples: samples, mode: mode) }
 
@@ -142,8 +169,12 @@ final class Listener: @unchecked Sendable {
         guard let rate = capture?.buffer.sampleRate else { return }
         let t0 = Date()
         do {
-            let raw = try await asr.transcribe(
-                samples: samples, sampleRate: rate, locale: "en-US")
+            let bias = await learned.biasTerms()
+            let heard = try await asr.transcribe(
+                samples: samples, sampleRate: rate, locale: "en-US", biasTerms: bias)
+            // Repair only fires where a learned correction's context recurs.
+            let raw = await learned.repair(heard)
+            if raw != heard { log("  LEARNED  \"\(heard)\" -> \"\(raw)\"") }
             let asrMs = Date().timeIntervalSince(t0) * 1000
 
             guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -151,10 +182,14 @@ final class Listener: @unchecked Sendable {
                 await MainActor.run {
                     self.status?.apply(.idle)
                     self.status?.report("No speech detected")
+                    self.panel?.show(.failed("No speech detected"))
                 }
                 return
             }
-            log(String(format: "  ASR   %5.0f ms  \"%@\"", asrMs, raw))
+            log(String(format: "  ASR   %5.0f ms  \"%@\"%@", asrMs, raw,
+                       bias.isEmpty ? "" : "  (biased toward \(bias.count) learned term(s))"))
+            lastRaw = raw
+            await MainActor.run { self.status?.allowCorrection(true) }
 
             let t1 = Date()
             var cleaned = raw
@@ -173,15 +208,97 @@ final class Listener: @unchecked Sendable {
             log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
             log(String(format: "  TOTAL %5.0f ms", totalMs))
 
-            await MainActor.run {
-                self.status?.apply(.idle)
-                self.status?.report(String(cleaned.prefix(60)))
+            // M4: put the text where the user is actually typing.
+            do {
+                let method = try await inserter.insert(cleaned)
+                log("  INSERT via \(method.rawValue)")
+                await MainActor.run {
+                    self.status?.apply(.idle)
+                    self.status?.report(String(cleaned.prefix(60)))
+                    self.panel?.flashInserted()
+                }
+            } catch {
+                // Nowhere to type it: show the text in the pill with a copy
+                // button rather than discarding it.
+                log("  INSERT FAILED (\(error)) — showing in panel")
+                await MainActor.run {
+                    self.status?.apply(.idle)
+                    self.status?.report(String(cleaned.prefix(60)))
+                    self.panel?.show(.result(cleaned))
+                }
             }
         } catch {
             log("  ASR FAILED: \(error)")
             await MainActor.run {
                 self.status?.apply(.error("transcription failed"))
                 self.status?.report("ASR failed: \(error)")
+                self.panel?.show(.failed("Transcription failed"))
+            }
+        }
+    }
+
+    /// X button: stop and discard. The audio is kept so Undo can recover it.
+    @MainActor
+    private func cancelActive() {
+        guard let hotkeys, let capture else { return }
+        hotkeys.activeMode { [weak self] mode in
+            guard let self, let mode else { return }
+            hotkeys.endGesture(mode, process: false)
+            self.lock.lock()
+            let started = self.cursors.removeValue(forKey: mode)
+            self.lock.unlock()
+            if let started {
+                let (samples, _) = capture.buffer.read(from: started)
+                self.cancelledSamples = samples
+                self.cancelledMode = mode
+            }
+            log("[\(self.label(mode))] cancelled by user")
+            Task { @MainActor in self.panel?.show(.cancelled) }
+        }
+    }
+
+    /// Checkmark: stop listening now and process what was captured.
+    @MainActor
+    private func confirmActive() {
+        guard let hotkeys else { return }
+        hotkeys.activeMode { mode in
+            guard let mode else { return }
+            hotkeys.endGesture(mode, process: true)
+        }
+    }
+
+    /// Undo: transcribe the audio that was just discarded after all.
+    @MainActor
+    private func undoCancel() {
+        guard let samples = cancelledSamples, let mode = cancelledMode else { return }
+        cancelledSamples = nil
+        cancelledMode = nil
+        log("  undo — transcribing the cancelled audio after all")
+        panel?.show(.processing)
+        Task { await self.transcribe(samples: samples, mode: mode) }
+    }
+
+    /// Opens the correction prompt and learns from whatever the user changes.
+    @MainActor
+    private func correctLast() {
+        guard let raw = lastRaw, let status else { return }
+        guard let corrected = status.askForCorrection(original: raw) else { return }
+        Task {
+            let learnedNow = await self.learned.learnFromEdit(raw: raw, corrected: corrected)
+            if learnedNow.isEmpty {
+                log("  correction ignored — only same-length word swaps are learned")
+                await MainActor.run {
+                    status.report("Not learned (word count changed)")
+                }
+                return
+            }
+            for correction in learnedNow {
+                log("  LEARN  \"\(correction.heard)\" -> \"\(correction.intended)\" "
+                    + "(seen \(correction.timesSeen)x, context: \(correction.before ?? "-")/\(correction.after ?? "-"))")
+            }
+            let total = await self.learned.count()
+            await MainActor.run {
+                status.report("Learned \(learnedNow.count) — \(total) total")
             }
         }
     }

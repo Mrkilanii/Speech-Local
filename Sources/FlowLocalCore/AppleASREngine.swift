@@ -61,17 +61,23 @@ public actor AppleASREngine: ASREngine {
 
     /// Convenience for the hold gesture, where the whole clip is available at
     /// once. Still runs through the streaming analyzer underneath.
-    public func transcribe(samples: [Float], sampleRate: Double, locale: String) async throws -> String {
+    public func transcribe(
+        samples: [Float],
+        sampleRate: Double,
+        locale: String,
+        biasTerms: [String] = []
+    ) async throws -> String {
         let stream = AsyncStream<AudioChunk> { continuation in
             continuation.yield(AudioChunk(samples: samples, sampleRate: sampleRate))
             continuation.finish()
         }
-        return try await run(audio: stream, locale: locale) { _ in }
+        return try await run(audio: stream, locale: locale, biasTerms: biasTerms) { _ in }
     }
 
     private func run(
         audio: AsyncStream<AudioChunk>,
         locale identifier: String,
+        biasTerms: [String] = [],
         onPartial: @escaping @Sendable (String) -> Void
     ) async throws -> String {
         let locale = Locale(identifier: identifier)
@@ -89,7 +95,22 @@ public actor AppleASREngine: ASREngine {
         ) else { throw TranscribeError.formatUnavailable }
 
         let (inputStream, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
+
+        // Learned corrections bias the recognizer toward words the user has
+        // fixed before. This is strictly safer than rewriting output: it nudges
+        // recognition and cannot corrupt an otherwise-correct transcript.
+        let context = AnalysisContext()
+        if !biasTerms.isEmpty {
+            context.contextualStrings[.general] = biasTerms
+        }
+        // The analysisContext parameter exists only on the inits that take
+        // input up front, so the stream is supplied here rather than via a
+        // separate start() call.
+        let analyzer = SpeechAnalyzer(
+            inputSequence: inputStream,
+            modules: [transcriber],
+            analysisContext: context
+        )
 
         // Collect results concurrently: the analyzer will not finish until its
         // input ends, and results arrive while that happens.
@@ -104,8 +125,6 @@ public actor AppleASREngine: ASREngine {
             }
             return best
         }
-
-        try await analyzer.start(inputSequence: inputStream)
 
         for await chunk in audio {
             try Task.checkCancellation()

@@ -40,6 +40,8 @@ final class StatusItem {
     private var lastLine: NSMenuItem
 
     var onQuit: (() -> Void)?
+    var onCorrect: (() -> Void)?
+    private var correctItem: NSMenuItem!
 
     init() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -47,6 +49,10 @@ final class StatusItem {
 
         let menu = NSMenu()
         menu.addItem(lastLine)
+        correctItem = NSMenuItem(
+            title: "Fix last dictation…", action: #selector(correctPressed), keyEquivalent: "")
+        correctItem.isEnabled = false
+        menu.addItem(correctItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(
             title: "Hold Right Option — light-touch", action: nil, keyEquivalent: ""))
@@ -59,7 +65,9 @@ final class StatusItem {
             title: "Quit FlowLocal", action: #selector(quitPressed), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+        menu.autoenablesItems = false
         item.menu = menu
+        correctItem.target = self
 
         apply(.idle)
     }
@@ -80,6 +88,36 @@ final class StatusItem {
     /// window, where a menu-bar glyph change goes unseen.
     func chime(start: Bool) {
         NSSound(named: start ? "Tink" : "Pop")?.play()
+    }
+
+    /// Enabled only once there is something to correct.
+    func allowCorrection(_ allowed: Bool) {
+        correctItem.isEnabled = allowed
+    }
+
+    /// Prompts for the corrected text, seeded with what was produced.
+    /// Returns nil if the user cancels or changes nothing.
+    func askForCorrection(original: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = "Fix this dictation"
+        alert.informativeText = "Correct any misheard words. FlowLocal learns "
+            + "them and will bias future recognition toward them."
+        alert.addButton(withTitle: "Learn")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.stringValue = original
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let edited = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return edited.isEmpty || edited == original ? nil : edited
+    }
+
+    @objc private func correctPressed() {
+        onCorrect?()
     }
 
     @objc private func quitPressed() {

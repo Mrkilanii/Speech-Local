@@ -33,7 +33,52 @@ public struct RulesCleanup: Sendable {
         return Dictionary(uniqueKeysWithValues: words.map { ($0, $0.capitalized) })
     }()
 
-    public init() {}
+    /// How to treat commas the recognizer inserted.
+    ///
+    /// Apple's `SpeechTranscriber` punctuates from prosody, so a pause becomes a
+    /// comma. That is right for natural speech and wrong for someone thinking
+    /// mid-sentence, and the two are indistinguishable from the text alone.
+    public enum CommaPolicy: Sendable {
+        /// Keep the recognizer's commas; fix only mechanically broken ones.
+        case tidy
+        /// Additionally drop commas that do not precede a clause marker.
+        /// Sparser, but never punctuates a hesitation.
+        case sparse
+    }
+
+    public var commaPolicy: CommaPolicy
+
+    public init(commaPolicy: CommaPolicy = .sparse) {
+        self.commaPolicy = commaPolicy
+    }
+
+    /// Words that are never proper nouns, so a capital on them mid-utterance is
+    /// always an artifact rather than a name. Used to undo the sentence break
+    /// Apple's transcriber inserts when the speaker simply pauses to think.
+    static let neverProperNouns: Set<String> = [
+        "a", "an", "the", "and", "but", "or", "so", "because", "if", "when",
+        "while", "that", "this", "these", "those", "it", "its", "we", "you",
+        "they", "he", "she", "them", "us", "our", "your", "their", "his", "her",
+        "is", "was", "are", "were", "be", "been", "am", "do", "does", "did",
+        "have", "has", "had", "will", "would", "should", "could", "can", "may",
+        "might", "must", "need", "want", "think", "know", "make", "made",
+        "get", "got", "go", "going", "went", "come", "came", "take", "took",
+        "see", "saw", "say", "said", "just", "also", "then", "than", "there",
+        "here", "very", "really", "actually", "maybe", "probably", "still",
+        "about", "with", "from", "into", "over", "under", "after", "before",
+        "for", "to", "of", "on", "at", "by", "as", "in", "out", "up", "down",
+        "not", "no", "yes", "okay", "well", "like", "some", "any", "all",
+        "more", "most", "much", "many", "each", "every", "other", "another",
+        "today", "tomorrow", "yesterday", "tonight", "now", "soon", "later",
+    ]
+
+    /// Words that genuinely follow a comma. Used by `.sparse` to keep the commas
+    /// that carry grammar and drop the ones that mark a breath.
+    static let clauseMarkers: Set<String> = [
+        "and", "but", "or", "so", "because", "which", "who", "although",
+        "though", "however", "then", "if", "unless", "while", "whereas",
+        "please", "too", "right", "okay",
+    ]
 
     public func apply(to transcript: String) -> String {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -46,8 +91,10 @@ public struct RulesCleanup: Sendable {
 
         tokens = capitalizeKnownWords(tokens)
         var text = reassemble(tokens)
+        text = tidyCommas(text)
         text = capitalizeSentences(text)
         text = fixStandaloneI(text)
+        text = fixStrayCapitals(text)
         text = ensureTerminalPunctuation(text)
         return text
     }
@@ -107,6 +154,95 @@ public struct RulesCleanup: Sendable {
             return String(text.dropLast()) + "."
         }
         return text + "."
+    }
+
+    /// Repairs comma damage that is wrong under any policy, then applies the
+    /// chosen policy.
+    ///
+    /// Removing a filler strands its punctuation — "um, so" becomes ", so" —
+    /// which is why this must run after filler removal, not before.
+    private func tidyCommas(_ text: String) -> String {
+        var out = text
+
+        // Mechanical repairs, always correct.
+        out = out.replacingOccurrences(of: "\\s*,\\s*,+", with: ",",
+                                       options: [.regularExpression])   // ",  ," -> ","
+        out = out.replacingOccurrences(of: "^\\s*,\\s*", with: "",
+                                       options: [.regularExpression])   // leading comma
+        out = out.replacingOccurrences(of: "\\s+,", with: ",",
+                                       options: [.regularExpression])   // " ," -> ","
+        out = out.replacingOccurrences(of: ",\\s*([.!?])", with: "$1",
+                                       options: [.regularExpression])   // ", ." -> "."
+        out = out.replacingOccurrences(of: ",\\s*$", with: "",
+                                       options: [.regularExpression])   // trailing comma
+
+        guard commaPolicy == .sparse else { return out }
+
+        let words = out.split(whereSeparator: \.isWhitespace).map(String.init)
+
+        // A list ("apples, oranges, and pears") puts commas between items that
+        // are not clause markers. Detect the serial pattern — a comma followed
+        // later by ", and" / ", or" — and keep every comma in that run, or the
+        // list collapses into a single run-on phrase.
+        let looksLikeList: Bool = {
+            var commaCount = 0
+            var hasSerial = false
+            for (index, word) in words.enumerated() where word.hasSuffix(",") {
+                commaCount += 1
+                if index + 1 < words.count {
+                    let next = words[index + 1].lowercased()
+                    if next == "and" || next == "or" || next == "nor" { hasSerial = true }
+                }
+            }
+            return commaCount >= 2 && hasSerial
+        }()
+        if looksLikeList { return out }
+
+        // Otherwise keep a comma only when the next word actually starts a clause.
+        var result: [String] = []
+        for (index, word) in words.enumerated() {
+            guard word.hasSuffix(","), index + 1 < words.count else {
+                result.append(word)
+                continue
+            }
+            let next = words[index + 1]
+                .trimmingCharacters(in: .punctuationCharacters).lowercased()
+            result.append(Self.clauseMarkers.contains(next) ? word : String(word.dropLast()))
+        }
+        return result.joined(separator: " ")
+    }
+
+    /// Lowercases a capital that appears mid-clause with no punctuation before it.
+    ///
+    /// Apple's transcriber capitalizes after a prosodic pause even when it emits
+    /// no terminal punctuation, producing "we should ship it Today" — a capital
+    /// that is ungrammatical on its face. Only words that can never be proper
+    /// nouns are touched, so real names survive.
+    ///
+    /// A capital that *does* follow a full stop is left alone: there is no way
+    /// to tell a real sentence break from a pause-induced one, and deleting a
+    /// legitimate boundary is the worse error.
+    private func fixStrayCapitals(_ text: String) -> String {
+        var words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard words.count > 1 else { return text }
+
+        for index in 1..<words.count {
+            let previous = words[index - 1]
+            // Punctuation before it means the capital is justified.
+            if previous.hasSuffix(".") || previous.hasSuffix("!")
+                || previous.hasSuffix("?") || previous.hasSuffix(":") { continue }
+
+            let word = words[index]
+            let bare = word.trimmingCharacters(in: .punctuationCharacters)
+            guard let first = bare.first, first.isUppercase,
+                  bare != "I", bare.dropFirst().allSatisfy({ !$0.isUppercase }),
+                  Self.neverProperNouns.contains(bare.lowercased())
+            else { continue }
+
+            let trailing = word.suffix(word.count - bare.count)
+            words[index] = bare.prefix(1).lowercased() + bare.dropFirst() + trailing
+        }
+        return words.joined(separator: " ")
     }
 
     /// Capitalizes days and months, preserving any attached punctuation.
