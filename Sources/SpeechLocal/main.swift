@@ -32,6 +32,11 @@ func log(_ line: String) {
 
 let arguments = Set(CommandLine.arguments.dropFirst())
 
+if arguments.contains("--diagnostics") {
+    await Diagnostics.run()
+    exit(0)
+}
+
 if arguments.contains("--listen") {
     Listener.run()
     exit(0)
@@ -52,7 +57,11 @@ if arguments.contains("--request-permissions") {
     exit(0)
 }
 
-await Diagnostics.run()
+// Default: run the app. Double-clicking in Finder passes no arguments, and
+// this previously fell through to a diagnostics run that wrote a log file and
+// exited — so the app appeared not to open at all. Diagnostics are a flag, not
+// the default behaviour.
+Listener.run()
 exit(0)
 
 // MARK: - Permission setup
