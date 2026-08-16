@@ -17,7 +17,7 @@
 | Signing identities | 0 — self-signed cert still required (M0) |
 | Apple Intelligence | **ON**, model downloaded and warm |
 
-## ✅ Status: M0 COMPLETE. Ready for M2 (hotkey + audio).
+## ✅ Status: M0–M4 COMPLETE + M8 docs. Working app, end to end.
 
 Apple Intelligence is on, the model downloaded (~14 min), and latency is
 measured. **The Apple-native path passes the budget** — short dictation is
@@ -285,3 +285,56 @@ truncation signature. On rejection the pipeline falls back to the raw transcript
 `AudioRingBuffer.swift` (lock-free SPSC, continuous preroll for the
 hold-vs-double-tap ambiguity) and `HotkeyGesture.swift` (pure two-gesture state
 machine) are written. **Not yet tested or wired to Core Audio / CGEventTap.**
+
+
+---
+
+## Session 2026-08-16 (afternoon) — M2, M3, M4, M8
+
+**The app works end to end.** Hold Right Option, speak, release, and cleaned
+text is inserted at the cursor in another app. 100/100 tests passing.
+
+| Milestone | State |
+|---|---|
+| M2 hotkey + audio | ✅ CGEventTap, continuous ring buffer, two gestures |
+| M3 ASR | ✅ SpeechTranscriber, ~250–600 ms, no download |
+| M4 insertion | ✅ AX path + ⌘V fallback, verified live in Electron |
+| M5 cleanup | ✅ rules light-touch; LLM full-rewrite behind a loss guard |
+| M6 settings UI | ⬜ not started — hotkeys/vocabulary are constants |
+| M7 diagnostics | 🟡 `make doctor` works; regression corpus not built |
+| M8 release docs | ✅ LICENSE, README, BUILDING |
+
+### Added beyond the plan, at the user's request
+
+- **Learned corrections** (`LearnedCorrections.swift`) — a personal speech
+  footprint. Explicit capture via "Fix last dictation…", bias through
+  `AnalysisContext.contextualStrings`, and context-gated substitution requiring
+  two sightings. Also learns **stutter deletions** ("to today" → "today").
+- **Floating pill** (`DictationPanel.swift`) — capsule at the bottom with a live
+  waveform, ✕/✓ controls, a Copy affordance when nothing is focused, and a
+  resting indicator that is always visible.
+
+### Bugs found by live use, all fixed
+
+1. **AX write silently no-ops in Electron.** Reported settable, accepted the
+   write, returned success, changed nothing. Fixed by deciding verifiability
+   *before* writing — otherwise the paste fallback double-inserts.
+2. **Prosody commas.** Pausing scattered commas. Fixed with a `.sparse` policy:
+   a comma survives only before a clause marker or inside a serial list.
+3. **Stray capitals.** A capital with *no* preceding punctuation is lowercased
+   when the word can never be a proper noun. Capitals after a real full stop are
+   left alone deliberately.
+4. **Stutters.** Split in two: automatic collapse only for non-word fragments,
+   learned corrections for real words like "to today".
+5. **No visible feedback.** M2's first live test read as a total failure when
+   every gesture had worked — the app was simply invisible.
+
+### Next
+
+1. **M6** — settings UI: hotkey binding, vocabulary editor, comma policy toggle,
+   launch-at-login.
+2. **M7** — regression corpus asserting light-touch invariants, with a machine
+   load check (benchmarks are fiction under load; the same config measured 947 ms
+   idle and 7 s at load 52).
+3. Contraction repair (`wasnt` → `wasn't`) — closed set, safe to add.
+4. Publish to GitHub.
