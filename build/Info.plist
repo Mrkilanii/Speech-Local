@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>FlowLocal</string>
+    <key>CFBundleDisplayName</key>
+    <string>FlowLocal</string>
+    <key>CFBundleExecutable</key>
+    <string>FlowLocal</string>
+
+    <!-- Stable across rebuilds. TCC keys grants to signature + bundle ID; a
+         changing identifier makes macOS treat every build as a new app and
+         silently drop Accessibility. -->
+    <key>CFBundleIdentifier</key>
+    <string>dev.kilanii.flowlocal</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+
+    <!-- Menu-bar only: no Dock icon, no main window. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>FlowLocal transcribes your speech on-device. Audio never leaves this Mac.</string>
+
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>

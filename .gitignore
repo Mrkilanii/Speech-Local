@@ -1,0 +1,30 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Assembled app bundle — rebuilt by `make bundle`
+dist/
+
+# Never commit signing material
+*.p12
+*.pem
+*.cer
+*.key
+
+# Models are OS-managed and must never be vendored. Apple's SpeechTranscriber
+# and FoundationModels assets belong to macOS; the repo ships no weights.
+Models/
+*.mlmodelc
+*.safetensors
+*.gguf
+
+# macOS
+.DS_Store
+
+# Local logs written by --diagnostics / --probe
+*.log
+
+# Process artifacts kept private (the review log is not published; scope.md,
+# research.md and PLAN.md deliberately ARE)
+clone-run/PLAN-REVIEW-LOG.md
