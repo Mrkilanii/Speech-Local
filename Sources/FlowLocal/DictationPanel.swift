@@ -99,17 +99,16 @@ final class DictationPanel {
 
         case .result(let text):
             model.state = .result(text)
+            // Long enough to read and copy, short enough not to sit in the way.
+            startCountdown(seconds: 12)
 
         case .cancelled:
             model.state = .cancelled
-            model.undoProgress = 1
-            startUndoCountdown()
+            startCountdown(seconds: 5)
 
         case .failed(let message):
             model.state = .failed(message)
-            dismissTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
-                Task { @MainActor in self.show(.hidden) }
-            }
+            startCountdown(seconds: 4)
         }
 
         resize(for: state)
@@ -118,6 +117,26 @@ final class DictationPanel {
     }
 
     /// Confirms a successful insertion, then gets out of the way quickly.
+    /// Dismisses after `seconds`, publishing progress so the UI can show the
+    /// time remaining rather than vanishing without warning.
+    private func startCountdown(seconds: Double) {
+        model.remaining = 1.0
+        let started = Date()
+        dismissTimer?.invalidate()
+        // The timer is invalidated via the stored property rather than the
+        // closure parameter: passing `timer` into a @MainActor task is a data race.
+        dismissTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { _ in
+            Task { @MainActor in
+                let elapsed = Date().timeIntervalSince(started)
+                self.model.remaining = max(0, 1 - elapsed / seconds)
+                if elapsed >= seconds {
+                    self.dismissTimer?.invalidate()
+                    self.show(.hidden)
+                }
+            }
+        }
+    }
+
     func flashInserted() {
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { _ in
@@ -136,8 +155,13 @@ final class DictationPanel {
         case .cancelled:  size = Metrics.cancelled
         case .failed:     size = Metrics.failed
         case .result(let text):
-            let lines = max(1, min(5, text.count / 60 + 1))
-            size = CGSize(width: 440, height: 62 + CGFloat(lines - 1) * 17)
+            // Must never exceed the screen: an off-screen Copy button is a dead
+            // end, and the text it holds is the user's only copy.
+            let available = (NSScreen.main?.visibleFrame.width ?? 1200) - 120
+            let width = min(440, max(300, available))
+            let perLine = max(1, Int(width / 7.0))
+            let lines = max(1, min(5, text.count / perLine + 1))
+            size = CGSize(width: width, height: 62 + CGFloat(lines - 1) * 17)
         }
         panel.setContentSize(size)
     }
@@ -184,6 +208,8 @@ final class DictationPanel {
 final class PanelModel: ObservableObject {
     @Published var state: DictationPanel.State = .hidden
     @Published var level: Double = 0
+    /// 1 → 0 as the auto-dismiss timer runs.
+    @Published var remaining: Double = 1
     @Published var undoProgress: Double = 1
 
     var onCancel: (() -> Void)?
@@ -215,6 +241,14 @@ private struct PanelView: View {
                 }
             )
             .animation(.spring(response: 0.28, dampingFraction: 0.85), value: model.state)
+    }
+
+    /// States that auto-dismiss and therefore owe the user a countdown.
+    private var showsCountdown: Bool {
+        switch model.state {
+        case .result, .cancelled, .failed: return true
+        default: return false
+        }
     }
 
     @ViewBuilder
