@@ -233,12 +233,28 @@ public actor AppleASREngine: ASREngine {
             return await segments.assembled()
         }
 
+        // Feed the analyzer in slices rather than one buffer.
+        //
+        // A 5-minute hands-free session handed over as a single 4.8M-sample
+        // buffer came back with six words. The analyzer is designed for a
+        // stream: given one enormous input it does not segment it usefully.
+        // Slicing restores the pacing it expects and lets partial results
+        // arrive while the rest is still being fed.
+        let sliceSeconds = 10.0
         for await chunk in audio {
             try Task.checkCancellation()
-            guard let buffer = Self.makeBuffer(
-                samples: chunk.samples, sampleRate: chunk.sampleRate, target: analyzerFormat
-            ) else { throw TranscribeError.conversionFailed }
-            inputContinuation.yield(AnalyzerInput(buffer: buffer))
+            let perSlice = Int(sliceSeconds * chunk.sampleRate)
+            var offset = 0
+            while offset < chunk.samples.count {
+                try Task.checkCancellation()
+                let end = min(offset + perSlice, chunk.samples.count)
+                let slice = Array(chunk.samples[offset..<end])
+                guard let buffer = Self.makeBuffer(
+                    samples: slice, sampleRate: chunk.sampleRate, target: analyzerFormat
+                ) else { throw TranscribeError.conversionFailed }
+                inputContinuation.yield(AnalyzerInput(buffer: buffer))
+                offset = end
+            }
         }
         inputContinuation.finish()
 
