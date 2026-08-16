@@ -1,10 +1,10 @@
 import Testing
 import Foundation
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 private func freshHistory() -> TranscriptHistory {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-history-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-history-\(UUID().uuidString).json")
     return TranscriptHistory(storeURL: url)
 }
 
@@ -96,7 +96,7 @@ private func entry(_ text: String, mode: CleanupMode = .lightTouch,
 @Test func clearRemovesEverythingAndTheFile() async {
     // Turning history off must destroy what was captured, not merely hide it.
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-clear-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-clear-\(UUID().uuidString).json")
     let history = TranscriptHistory(storeURL: url)
     await history.record(entry("sensitive thing"))
     #expect(FileManager.default.fileExists(atPath: url.path))
@@ -111,7 +111,7 @@ private func entry(_ text: String, mode: CleanupMode = .lightTouch,
 
 @Test func historySurvivesReload() async {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-persist-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-persist-\(UUID().uuidString).json")
     let first = TranscriptHistory(storeURL: url)
     await first.record(TranscriptEntry(
         raw: "raw text", cleaned: "Clean text.", mode: .fullRewrite, appName: "Notes"))
@@ -127,7 +127,7 @@ private func entry(_ text: String, mode: CleanupMode = .lightTouch,
 @Test func historyFileIsOwnerReadableOnly() async {
     // It contains everything the user has dictated.
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-perm-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-perm-\(UUID().uuidString).json")
     let history = TranscriptHistory(storeURL: url)
     await history.record(entry("private"))
 
@@ -138,7 +138,7 @@ private func entry(_ text: String, mode: CleanupMode = .lightTouch,
 
 @Test func corruptFileFallsBackToEmpty() async {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-corrupt-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-corrupt-\(UUID().uuidString).json")
     try? "not json at all".write(to: url, atomically: true, encoding: .utf8)
     #expect(await TranscriptHistory(storeURL: url).all().isEmpty)
 }

@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import FlowLocalCore
+import SpeechLocalCore
 
 /// Floating capsule near the bottom of the screen.
 ///

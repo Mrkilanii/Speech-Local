@@ -51,7 +51,7 @@ public actor LearnedCorrections {
     public init(storeURL: URL? = nil) {
         self.storeURL = storeURL ?? FileManager.default
             .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/FlowLocal/corrections.json")
+            .appendingPathComponent("Library/Application Support/SpeechLocal/corrections.json")
         self.corrections = Self.load(from: self.storeURL)
     }
 

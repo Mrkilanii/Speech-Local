@@ -133,7 +133,7 @@ public final class SettingsStore: @unchecked Sendable {
     public init(url: URL? = nil) {
         self.url = url ?? FileManager.default
             .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/FlowLocal/settings.json")
+            .appendingPathComponent("Library/Application Support/SpeechLocal/settings.json")
         self.cached = Self.load(from: self.url)
     }
 

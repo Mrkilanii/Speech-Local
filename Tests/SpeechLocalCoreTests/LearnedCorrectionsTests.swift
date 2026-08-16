@@ -1,11 +1,11 @@
 import Testing
 import Foundation
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 /// Each test gets its own store so nothing touches the real corrections file.
 private func freshStore() -> LearnedCorrections {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-test-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-test-\(UUID().uuidString).json")
     return LearnedCorrections(storeURL: url)
 }
 
@@ -128,7 +128,7 @@ private func freshStore() -> LearnedCorrections {
 
 @Test func correctionsSurviveReload() async {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-persist-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-persist-\(UUID().uuidString).json")
     let first = LearnedCorrections(storeURL: url)
     for _ in 0..<2 {
         _ = await first.learnFromEdit(raw: "we should tip it", corrected: "we should ship it")

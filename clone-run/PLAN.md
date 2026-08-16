@@ -1,4 +1,4 @@
-# Plan — FlowLocal: a fully local dictation app for macOS
+# Plan — SpeechLocal: a fully local dictation app for macOS
 
 ## Context
 
@@ -89,7 +89,7 @@ in someone else's app.
 ## Architecture
 
 ```
-FlowLocal.app                       (LSUIElement menu-bar app)
+SpeechLocal.app                       (LSUIElement menu-bar app)
   Core/
     HotkeyManager.swift             CGEventTap; constant-time callback; handles
                                     tapDisabledByTimeout/ByUserInput; tags own synthetic events
@@ -394,7 +394,7 @@ deterministic sampling. Writes results to a log and prints `ALL CHECKS PASS`.
   name in the app name, icon, or branding, and do not copy their assets.
 - **Repo hygiene before first push:** the working directory is currently
   `whisper copy` — the space breaks build tooling and is a poor repo name.
-  Rename to something like `flowlocal` before `git init`.
+  Rename to something like `speechlocal` before `git init`.
 
 **Acceptance:** a fresh clone into a clean directory builds and reaches
 `ALL CHECKS PASS` by following `BUILDING.md` alone, with no undocumented steps.

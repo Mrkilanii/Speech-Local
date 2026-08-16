@@ -59,7 +59,7 @@ public actor TranscriptHistory {
     public init(storeURL: URL? = nil) {
         self.storeURL = storeURL ?? FileManager.default
             .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/FlowLocal/history.json")
+            .appendingPathComponent("Library/Application Support/SpeechLocal/history.json")
         self.entries = Self.load(from: self.storeURL)
     }
 

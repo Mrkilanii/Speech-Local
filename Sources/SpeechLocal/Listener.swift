@@ -1,6 +1,6 @@
 import Foundation
 import AppKit
-import FlowLocalCore
+import SpeechLocalCore
 
 /// M2 acceptance harness: real hotkeys, real microphone, no ASR yet.
 ///
@@ -110,7 +110,7 @@ final class Listener: @unchecked Sendable {
         self.panel = panel
         panel.show(.hidden)   // resting pill, always visible
 
-        log("\n=== FlowLocal listener — \(Date()) ===")
+        log("\n=== SpeechLocal listener — \(Date()) ===")
 
         let permissions = Permissions()
         let status = permissions.status()
@@ -153,7 +153,7 @@ final class Listener: @unchecked Sendable {
           • HOLD Right Option, speak, release        -> light-touch, hold
           • DOUBLE-TAP Right Option, speak, tap once -> light-touch, toggle
           • HOLD Right Command, speak, release       -> full rewrite, hold
-        Quit with Ctrl-C or `killall FlowLocal`.
+        Quit with Ctrl-C or `killall SpeechLocal`.
         """)
 
         app.run()
@@ -334,7 +334,7 @@ final class Listener: @unchecked Sendable {
                 store: settingsStore, corrections: learned, history: history)
             // Rebinding requires tearing the event tap down and back up; the old
             // one is still watching the previous keycodes.
-            window.onHotkeysChanged = { [weak self] (settings: FlowLocalCore.Settings) in
+            window.onHotkeysChanged = { [weak self] (settings: SpeechLocalCore.Settings) in
                 guard let self else { return }
                 self.hotkeys?.stop()
                 let rebuilt = HotkeyManager(

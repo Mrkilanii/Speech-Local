@@ -36,7 +36,7 @@ public actor TextInserter {
     /// instead of treating it as user input and aborting the dictation.
     public static let syntheticTag: Int64 = 0x464C4F57
 
-    private let pasteboardMarker = "dev.kilanii.flowlocal.paste"
+    private let pasteboardMarker = "dev.kilanii.speechlocal.paste"
 
     public init() {}
 

@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "FlowLocal",
+    name: "SpeechLocal",
     platforms: [.macOS("26.0")],
     products: [
-        .library(name: "FlowLocalCore", targets: ["FlowLocalCore"]),
+        .library(name: "SpeechLocalCore", targets: ["SpeechLocalCore"]),
     ],
     targets: [
         // Logic lives here so it is testable without a bundle or permissions.
-        .target(name: "FlowLocalCore"),
+        .target(name: "SpeechLocalCore"),
         // Thin executable; the .app bundle wraps this binary.
-        .executableTarget(name: "FlowLocal", dependencies: ["FlowLocalCore"]),
-        .testTarget(name: "FlowLocalCoreTests", dependencies: ["FlowLocalCore"]),
+        .executableTarget(name: "SpeechLocal", dependencies: ["SpeechLocalCore"]),
+        .testTarget(name: "SpeechLocalCoreTests", dependencies: ["SpeechLocalCore"]),
     ]
 )

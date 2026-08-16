@@ -1,5 +1,5 @@
 import Testing
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 private let rules = RulesCleanup()
 

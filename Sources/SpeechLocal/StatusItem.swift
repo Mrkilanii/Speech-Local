@@ -1,5 +1,5 @@
 import AppKit
-import FlowLocalCore
+import SpeechLocalCore
 
 /// Menu-bar indicator.
 ///
@@ -27,11 +27,11 @@ final class StatusItem {
 
         var tooltip: String {
             switch self {
-            case .idle:                    return "FlowLocal — ready"
+            case .idle:                    return "SpeechLocal — ready"
             case .recording(.lightTouch):  return "Recording (light-touch)"
             case .recording(.fullRewrite): return "Recording (full rewrite)"
             case .processing:              return "Processing…"
-            case .error(let why):          return "FlowLocal — \(why)"
+            case .error(let why):          return "SpeechLocal — \(why)"
             }
         }
     }
@@ -67,7 +67,7 @@ final class StatusItem {
         settings.target = self
         menu.addItem(settings)
         let quit = NSMenuItem(
-            title: "Quit FlowLocal", action: #selector(quitPressed), keyEquivalent: "q")
+            title: "Quit SpeechLocal", action: #selector(quitPressed), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         menu.autoenablesItems = false
@@ -105,7 +105,7 @@ final class StatusItem {
     func askForCorrection(original: String) -> String? {
         let alert = NSAlert()
         alert.messageText = "Fix this dictation"
-        alert.informativeText = "Correct any misheard words. FlowLocal learns "
+        alert.informativeText = "Correct any misheard words. SpeechLocal learns "
             + "them and will bias future recognition toward them."
         alert.addButton(withTitle: "Learn")
         alert.addButton(withTitle: "Cancel")

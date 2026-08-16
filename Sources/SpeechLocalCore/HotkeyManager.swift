@@ -33,7 +33,7 @@ public final class HotkeyManager: @unchecked Sendable {
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
-    private let queue = DispatchQueue(label: "dev.kilanii.flowlocal.hotkey")
+    private let queue = DispatchQueue(label: "dev.kilanii.speechlocal.hotkey")
 
     private var bindings: [CGKeyCode: CleanupMode] = [:]
     private var gestures: [CleanupMode: HotkeyGesture] = [:]

@@ -1,4 +1,4 @@
-# FlowLocal
+# SpeechLocal
 
 Hold a key, speak, and finished text appears where your cursor is — in any app.
 Entirely on-device. No account, no subscription, no network at runtime.
@@ -28,7 +28,7 @@ phrasing survive. **Full rewrite** restructures rambling speech into clean prose
 ### It learns how you speak
 
 When a word comes out wrong, open **Fix last dictation…** from the menu bar and
-correct it. FlowLocal then:
+correct it. SpeechLocal then:
 
 - feeds the word to the recognizer as a bias hint, so it is more likely to be
   heard correctly next time;
@@ -82,7 +82,7 @@ You should see `176 tests ... passed`.
 make cert
 ```
 
-This creates a self-signed code-signing identity called `FlowLocal Dev` in your
+This creates a self-signed code-signing identity called `SpeechLocal Dev` in your
 login keychain.
 
 **Why it matters.** macOS ties permission grants to an app's code signature.
@@ -100,11 +100,11 @@ fixes this permanently.
 
 ```bash
 make sign
-open dist/FlowLocal.app --args --request-permissions
+open dist/SpeechLocal.app --args --request-permissions
 ```
 
-Approve both prompts — **Accessibility** and **Microphone**. If FlowLocal is not
-listed under Accessibility, add `dist/FlowLocal.app` manually in System Settings
+Approve both prompts — **Accessibility** and **Microphone**. If SpeechLocal is not
+listed under Accessibility, add `dist/SpeechLocal.app` manually in System Settings
 → Privacy & Security → Accessibility.
 
 > **Launch from Finder, not the terminal.** A permission grant attaches to the
@@ -121,7 +121,7 @@ make doctor      # prints ALL CHECKS PASS
 ### 4. Run it
 
 ```bash
-open dist/FlowLocal.app --args --listen
+open dist/SpeechLocal.app --args --listen
 ```
 
 A small capsule appears at the bottom of the screen and a microphone icon in the
@@ -147,7 +147,7 @@ Menu bar icon → **Settings…**
 **54 are supported.** The picker lists only those downloaded; use **Download
 language** to add one, and it is selected automatically when it arrives.
 
-Apple ships two transcription engines with different coverage, and FlowLocal
+Apple ships two transcription engines with different coverage, and SpeechLocal
 picks per language:
 
 | Engine | Languages |
@@ -169,7 +169,7 @@ passwords read aloud and private messages.
 
 - Capped at **200 entries** — never an unbounded archive of your speech
 - **Turning it off deletes what was already stored**, not merely hides it
-- Written `0600` under `~/Library/Application Support/FlowLocal/`
+- Written `0600` under `~/Library/Application Support/SpeechLocal/`
 - Never transmitted; excluded from version control
 
 ---
@@ -242,7 +242,7 @@ Known and deliberate, not bugs to report:
 
 Nothing leaves your machine at runtime. Transcription and cleanup both run
 on-device through Apple frameworks with no server path. Learned corrections and
-history live under `~/Library/Application Support/FlowLocal/` and are never
+history live under `~/Library/Application Support/SpeechLocal/` and are never
 transmitted. No analytics, no account, no update check. The only network access
 is downloading a language you explicitly asked for.
 
@@ -253,7 +253,7 @@ subrole.
 
 ## Troubleshooting
 
-**Hotkeys stop working.** Check Accessibility is still granted. FlowLocal
+**Hotkeys stop working.** Check Accessibility is still granted. SpeechLocal
 notices revocation within two seconds and says so in the menu bar; re-granting
 rebuilds the event tap without a restart.
 
@@ -262,10 +262,10 @@ element reported itself non-editable. Click into the text field and retry.
 
 **`make doctor` fails on microphone.** The hardened runtime denies microphone
 access *silently* without `com.apple.security.device.audio-input` — no prompt
-appears and the status stays `notDetermined`. Confirm `build/FlowLocal.entitlements`
+appears and the status stays `notDetermined`. Confirm `build/SpeechLocal.entitlements`
 is present and re-run `make sign`.
 
-**Logs** are at `~/Library/Logs/FlowLocal/doctor.log`, and record the focused
+**Logs** are at `~/Library/Logs/SpeechLocal/doctor.log`, and record the focused
 app, its AX role, timings, and which insertion path was used.
 
 ---
@@ -299,7 +299,7 @@ and `FoundationModels`.
 
 [VoiceInk](https://github.com/Beingpax/VoiceInk) is the best open-source app in
 this space and was read for technique. It is GPL-3.0; **no code was taken from
-it** — FlowLocal is MIT and everything here is written against Apple's
+it** — SpeechLocal is MIT and everything here is written against Apple's
 documentation.
 
 ## License

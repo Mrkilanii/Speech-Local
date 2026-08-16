@@ -1,10 +1,10 @@
 import Testing
 import Foundation
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 private func freshStore() -> SettingsStore {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-settings-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-settings-\(UUID().uuidString).json")
     return SettingsStore(url: url)
 }
 
@@ -59,7 +59,7 @@ private func freshStore() -> SettingsStore {
 
 @Test func changesPersistToDisk() {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-persist-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-persist-\(UUID().uuidString).json")
     let first = SettingsStore(url: url)
     first.update {
         $0.commaPolicy = .tidy
@@ -76,7 +76,7 @@ private func freshStore() -> SettingsStore {
 
 @Test func corruptFileFallsBackToDefaults() {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-corrupt-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-corrupt-\(UUID().uuidString).json")
     try? "this is not json".write(to: url, atomically: true, encoding: .utf8)
     // Must not crash or refuse to launch.
     #expect(SettingsStore(url: url).current == .default)
@@ -86,7 +86,7 @@ private func freshStore() -> SettingsStore {
     // An older settings file lacking fields added later must not wipe the rest
     // of the user's configuration.
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("flowlocal-partial-\(UUID().uuidString).json")
+        .appendingPathComponent("speechlocal-partial-\(UUID().uuidString).json")
     try #"{"commaPolicy":"tidy"}"#.write(to: url, atomically: true, encoding: .utf8)
 
     let settings = SettingsStore(url: url).current

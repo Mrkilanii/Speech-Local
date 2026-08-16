@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import AVFoundation
 import ApplicationServices
-import FlowLocalCore
+import SpeechLocalCore
 
 // Thin entry point. The menu-bar UI arrives with M2; today this exists to make
 // M0 verifiable — a signed bundle that requests its own permissions and reports
@@ -13,7 +13,7 @@ import FlowLocalCore
 // grant attaches to *this app* rather than to Terminal.
 
 let logURL = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent("Library/Logs/FlowLocal/doctor.log")
+    .appendingPathComponent("Library/Logs/SpeechLocal/doctor.log")
 
 func log(_ line: String) {
     print(line)
@@ -67,11 +67,11 @@ enum PermissionSetup {
         app.setActivationPolicy(.accessory)
         app.activate(ignoringOtherApps: true)
 
-        log("\n=== FlowLocal permission setup — \(Date()) ===")
+        log("\n=== SpeechLocal permission setup — \(Date()) ===")
         log("bundle: \(Bundle.main.bundleIdentifier ?? "NONE (not bundled!)")")
 
         // Shows the system Accessibility dialog. The grant lands on whichever
-        // process is *responsible* — Finder-launched means FlowLocal, terminal
+        // process is *responsible* — Finder-launched means SpeechLocal, terminal
         // -launched means Terminal. Launch via `open`.
         // The literal, not `kAXTrustedCheckOptionPrompt`: Swift 6 rejects that
         // global as concurrency-unsafe shared mutable state. The key's value is
@@ -123,7 +123,7 @@ enum PermissionSetup {
 
         if !axTrusted {
             log("")
-            log("Accessibility is still off. Approve FlowLocal in:")
+            log("Accessibility is still off. Approve SpeechLocal in:")
             log("  System Settings > Privacy & Security > Accessibility")
             log("Then run 'make doctor' again.")
         }
@@ -141,7 +141,7 @@ enum Diagnostics {
             if !ok { failures += 1 }
         }
 
-        log("\n=== FlowLocal diagnostics — \(Date()) ===")
+        log("\n=== SpeechLocal diagnostics — \(Date()) ===")
 
         let permissions = Permissions()
         log("\nEnvironment:")

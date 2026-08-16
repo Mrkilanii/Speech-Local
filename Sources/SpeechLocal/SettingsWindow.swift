@@ -1,11 +1,11 @@
 import AppKit
 import SwiftUI
 import ServiceManagement
-import FlowLocalCore
+import SpeechLocalCore
 
 /// SwiftUI exports its own `Settings` scene type, so the model type is aliased
 /// here rather than qualified at every use site.
-typealias AppSettings = FlowLocalCore.Settings
+typealias AppSettings = SpeechLocalCore.Settings
 
 /// Settings window. Opened from the menu bar; closing it does not quit the app.
 @MainActor
@@ -36,7 +36,7 @@ final class SettingsWindow {
             backing: .buffered,
             defer: false
         )
-        window.title = "FlowLocal Settings"
+        window.title = "SpeechLocal Settings"
         window.contentView = NSHostingView(rootView: SettingsView(model: model))
         window.center()
         window.isReleasedWhenClosed = false
@@ -437,7 +437,7 @@ private struct SettingsView: View {
 
     private var learned: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Corrections FlowLocal picked up from \"Fix last dictation…\". "
+            Text("Corrections SpeechLocal picked up from \"Fix last dictation…\". "
                  + "These bias the recognizer, and repair text once seen twice.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

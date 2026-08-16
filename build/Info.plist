@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>FlowLocal</string>
+    <string>SpeechLocal</string>
     <key>CFBundleDisplayName</key>
-    <string>FlowLocal</string>
+    <string>SpeechLocal</string>
     <key>CFBundleExecutable</key>
-    <string>FlowLocal</string>
+    <string>SpeechLocal</string>
 
     <!-- Stable across rebuilds. TCC keys grants to signature + bundle ID; a
          changing identifier makes macOS treat every build as a new app and
          silently drop Accessibility. -->
     <key>CFBundleIdentifier</key>
-    <string>dev.kilanii.flowlocal</string>
+    <string>dev.kilanii.speechlocal</string>
 
     <key>CFBundlePackageType</key>
     <string>APPL</string>
@@ -29,7 +29,7 @@
     <true/>
 
     <key>NSMicrophoneUsageDescription</key>
-    <string>FlowLocal transcribes your speech on-device. Audio never leaves this Mac.</string>
+    <string>SpeechLocal transcribes your speech on-device. Audio never leaves this Mac.</string>
 
     <key>NSHighResolutionCapable</key>
     <true/>

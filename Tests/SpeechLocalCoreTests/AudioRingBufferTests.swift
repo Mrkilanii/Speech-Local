@@ -1,5 +1,5 @@
 import Testing
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 /// These exist because a real 32.77 s paragraph silently lost its opening: the
 /// ring is 30 s rounded up to a power of two (32.768 s), and the producer lapped

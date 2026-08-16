@@ -1,5 +1,5 @@
 import Testing
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 private let arabic = RulesCleanup(language: .arabic)
 private let unknown = RulesCleanup(language: .other)

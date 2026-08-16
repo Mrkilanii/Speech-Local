@@ -1,14 +1,14 @@
 .PHONY: all build test bundle sign doctor cert cert-help clean
 
-APP        := FlowLocal
-BUNDLE_ID  := dev.kilanii.flowlocal
+APP        := SpeechLocal
+BUNDLE_ID  := dev.kilanii.speechlocal
 CONFIG     := release
 BUILD_DIR  := .build/$(CONFIG)
 APP_DIR    := dist/$(APP).app
 # Stable self-signed identity. Ad-hoc signing (`-`) mints a NEW identity every
 # build, so macOS drops the Accessibility grant and stops re-prompting. See
 # `make cert-help`.
-IDENTITY   ?= FlowLocal Dev
+IDENTITY   ?= SpeechLocal Dev
 
 all: bundle sign
 
@@ -60,7 +60,7 @@ sign: bundle
 	@# status stays notDetermined, and an audio engine starts and yields silence.
 	@# NOTE: keep the entitlements file free of XML comments — AMFI's parser
 	@# rejects them ("AMFIUnserializeXML: syntax error").
-	@codesign --force --options runtime --entitlements build/FlowLocal.entitlements \
+	@codesign --force --options runtime --entitlements build/SpeechLocal.entitlements \
 		--sign "$(IDENTITY)" "$(APP_DIR)"
 	@codesign --verify --strict --verbose=2 "$(APP_DIR)"
 	@codesign -dvvv "$(APP_DIR)" 2>&1 | grep -E 'Identifier|Authority' || true
@@ -71,16 +71,16 @@ cert:
 
 # Launched via `open`, NOT as a terminal child. A process started from the shell
 # inherits Terminal's TCC grants, so AXIsProcessTrusted() returns true whether or
-# not FlowLocal itself was ever approved — a false pass. Only a Finder/launchd
+# not SpeechLocal itself was ever approved — a false pass. Only a Finder/launchd
 # launch runs under the app's own identity, so results are read back from the log.
 doctor: sign
-	@rm -f "$(HOME)/Library/Logs/FlowLocal/doctor.log"
+	@rm -f "$(HOME)/Library/Logs/SpeechLocal/doctor.log"
 	@# -n forces a NEW instance: without it `open` merely fronts the running
 	@# listener and the diagnostics argument is ignored.
 	@open -n "$(APP_DIR)" --args --diagnostics
 	@sleep 6
-	@cat "$(HOME)/Library/Logs/FlowLocal/doctor.log" 2>/dev/null || echo "no diagnostics output"
-	@grep -q "ALL CHECKS PASS" "$(HOME)/Library/Logs/FlowLocal/doctor.log" 2>/dev/null
+	@cat "$(HOME)/Library/Logs/SpeechLocal/doctor.log" 2>/dev/null || echo "no diagnostics output"
+	@grep -q "ALL CHECKS PASS" "$(HOME)/Library/Logs/SpeechLocal/doctor.log" 2>/dev/null
 
 cert-help:
 	@echo "One-time: create a stable self-signed code-signing certificate."

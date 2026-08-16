@@ -1,5 +1,5 @@
 import Testing
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 // Swift Testing, not XCTest: XCTest ships only with Xcode, and this project
 // builds against Command Line Tools. `import XCTest` fails with "no such module".

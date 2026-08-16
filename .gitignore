@@ -30,7 +30,7 @@ Models/
 clone-run/PLAN-REVIEW-LOG.md
 
 # Agent tooling — third-party skills with their own licenses. Not part of
-# FlowLocal and not ours to redistribute under MIT.
+# SpeechLocal and not ours to redistribute under MIT.
 .claude/
 .agents/
 

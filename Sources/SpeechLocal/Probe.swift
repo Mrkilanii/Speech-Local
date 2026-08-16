@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 import FoundationModels
-import FlowLocalCore
+import SpeechLocalCore
 
 /// M1 measurement pass. Runs inside the signed bundle, which is the only place
 /// these numbers mean anything.

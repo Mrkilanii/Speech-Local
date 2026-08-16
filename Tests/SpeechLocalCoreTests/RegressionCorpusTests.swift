@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 // MARK: - The corpus itself
 

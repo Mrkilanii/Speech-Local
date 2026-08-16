@@ -1,4 +1,4 @@
-# Building FlowLocal
+# Building SpeechLocal
 
 Four commands, but **step 2 is not optional** — skip it and macOS silently
 revokes your permissions on every rebuild, leaving an app that launches fine and
@@ -17,8 +17,8 @@ does nothing.
 ## 1. Clone and test
 
 ```bash
-git clone https://github.com/<you>/flowlocal.git
-cd flowlocal
+git clone https://github.com/Mrkilanii/voice-dictation.git
+cd voice-dictation
 make test
 ```
 
@@ -35,7 +35,7 @@ directory on every compile. `~/Developer` is a good home.
 make cert
 ```
 
-This creates a self-signed code-signing identity called `FlowLocal Dev` in your
+This creates a self-signed code-signing identity called `SpeechLocal Dev` in your
 login keychain.
 
 **Why this matters.** macOS ties permission grants to an app's code signature.
@@ -59,23 +59,23 @@ builds and signs locally. A Developer ID would only matter for shipping binaries
 make sign
 ```
 
-Produces `dist/FlowLocal.app`, verified with `codesign --verify --strict`.
+Produces `dist/SpeechLocal.app`, verified with `codesign --verify --strict`.
 
 ## 4. Grant permissions
 
 Launch **from Finder**, not the terminal:
 
 ```bash
-open dist/FlowLocal.app --args --request-permissions
+open dist/SpeechLocal.app --args --request-permissions
 ```
 
 Approve both prompts. If Accessibility does not appear in the list, add
-`dist/FlowLocal.app` manually under System Settings → Privacy & Security →
+`dist/SpeechLocal.app` manually under System Settings → Privacy & Security →
 Accessibility.
 
 > **Launch method matters.** A permission grant attaches to the *responsible*
 > process. Run the binary from a terminal and the grant lands on Terminal, not
-> FlowLocal — and `AXIsProcessTrusted()` will cheerfully return `true` because it
+> SpeechLocal — and `AXIsProcessTrusted()` will cheerfully return `true` because it
 > inherited the terminal's grant. Always test through the bundle.
 
 Verify:
@@ -89,7 +89,7 @@ Should print `ALL CHECKS PASS`.
 ## 5. Run
 
 ```bash
-open dist/FlowLocal.app --args --listen
+open dist/SpeechLocal.app --args --listen
 ```
 
 A small capsule appears at the bottom of the screen. Hold **Right Option** and
@@ -103,7 +103,7 @@ speak.
 |---|---|
 | `make test` | Swift Testing suite |
 | `make cert` | One-time self-signed identity |
-| `make bundle` | Assemble `dist/FlowLocal.app` |
+| `make bundle` | Assemble `dist/SpeechLocal.app` |
 | `make sign` | Bundle + sign + verify |
 | `make doctor` | Run diagnostics inside the signed bundle |
 | `make clean` | Remove `.build` and `dist` |

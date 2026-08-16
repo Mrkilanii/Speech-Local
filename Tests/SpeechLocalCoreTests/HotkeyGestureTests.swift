@@ -1,5 +1,5 @@
 import Testing
-@testable import FlowLocalCore
+@testable import SpeechLocalCore
 
 // The gesture machine is pure, so real timings are simulated exactly rather
 // than slept through.

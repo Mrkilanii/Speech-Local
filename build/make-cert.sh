@@ -11,11 +11,11 @@
 # binaries to other machines.
 set -euo pipefail
 
-IDENTITY="${1:-FlowLocal Dev}"
+IDENTITY="${1:-SpeechLocal Dev}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+if security find-identity -p codesigning | grep -q "$IDENTITY"; then
     echo "Identity '$IDENTITY' already exists. Nothing to do."
     exit 0
 fi
@@ -46,7 +46,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 # A throwaway transfer password. macOS `security import` mishandles an empty
 # password ("MAC verification failed"), so the bundle is never actually
 # password-free — this value only has to survive the next three lines.
-P12PASS="flowlocal-transfer"
+P12PASS="speechlocal-transfer"
 
 openssl pkcs12 -export \
     -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
@@ -59,14 +59,14 @@ security import "$WORK/identity.p12" \
     -P "$P12PASS" -T /usr/bin/codesign -T /usr/bin/security
 
 echo ""
-if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+if security find-identity -p codesigning | grep -q "$IDENTITY"; then
     echo "SUCCESS — '$IDENTITY' is ready."
-    security find-identity -v -p codesigning | grep "$IDENTITY"
+    security find-identity -p codesigning | grep "$IDENTITY"
     echo ""
     echo "If the first 'make sign' shows a keychain access dialog, choose"
     echo "'Always Allow' so later builds run without prompting."
 else
     echo "Certificate imported but not listed as a codesigning identity."
-    echo "Check: security find-identity -v -p codesigning"
+    echo "Check: security find-identity -p codesigning"
     exit 1
 fi
