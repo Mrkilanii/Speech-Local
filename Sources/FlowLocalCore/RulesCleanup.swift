@@ -52,6 +52,36 @@ public struct RulesCleanup: Sendable {
         self.commaPolicy = commaPolicy
     }
 
+    /// Contractions the recognizer writes without their apostrophe.
+    ///
+    /// A closed set, and every entry is unambiguous: none of these keys is a
+    /// word in its own right. Deliberately excluded:
+    ///
+    /// * `were` — a real verb, not only "we're"
+    /// * `well` — a real word, not only "we'll"
+    /// * `hell` — likewise, not only "he'll"
+    /// * `id`, `ill`, `shed`, `wed`, `cant`, `wont`, `its`
+    ///   — all real words; rewriting them would corrupt correct text
+    ///
+    /// `its` is the notable omission: "its" and "it's" are both common and only
+    /// grammar tells them apart, which rules cannot do.
+    static let contractions: [String: String] = [
+        "arent": "aren't", "couldnt": "couldn't", "didnt": "didn't",
+        "doesnt": "doesn't", "dont": "don't", "hadnt": "hadn't",
+        "hasnt": "hasn't", "havent": "haven't", "isnt": "isn't",
+        "mustnt": "mustn't", "neednt": "needn't", "shouldnt": "shouldn't",
+        "wasnt": "wasn't", "werent": "weren't", "wouldnt": "wouldn't",
+        "youre": "you're", "youve": "you've", "youll": "you'll",
+        "youd": "you'd", "theyre": "they're", "theyve": "they've",
+        "theyll": "they'll", "theyd": "they'd", "weve": "we've",
+        "wed": "we'd", "ive": "I've", "im": "I'm", "ill": "I'll",
+        "thats": "that's", "whats": "what's", "wheres": "where's",
+        "whos": "who's", "theres": "there's", "heres": "here's",
+        "hes": "he's", "shes": "she's", "lets": "let's",
+        "couldve": "could've", "shouldve": "should've", "wouldve": "would've",
+        "yall": "y'all", "aint": "ain't",
+    ]
+
     /// Words that are never proper nouns, so a capital on them mid-utterance is
     /// always an artifact rather than a name. Used to undo the sentence break
     /// Apple's transcriber inserts when the speaker simply pauses to think.
@@ -101,6 +131,7 @@ public struct RulesCleanup: Sendable {
         tokens = collapseStutters(tokens)
         guard !tokens.isEmpty else { return "" }
 
+        tokens = fixContractions(tokens)
         tokens = capitalizeKnownWords(tokens)
         var text = reassemble(tokens)
         text = tidyCommas(text)
@@ -371,6 +402,22 @@ public struct RulesCleanup: Sendable {
             words[index] = bare.prefix(1).lowercased() + bare.dropFirst() + trailing
         }
         return words.joined(separator: " ")
+    }
+
+    /// Restores apostrophes, preserving surrounding punctuation and case.
+    private func fixContractions(_ tokens: [String]) -> [String] {
+        tokens.map { token in
+            let bare = token.trimmingCharacters(in: .punctuationCharacters)
+            guard !bare.isEmpty,
+                  let fixed = Self.contractions[bare.lowercased()]
+            else { return token }
+
+            // "Dont" -> "Don't", not "don't".
+            let replacement = bare.first?.isUppercase == true
+                ? fixed.prefix(1).uppercased() + fixed.dropFirst()
+                : fixed
+            return token.replacingOccurrences(of: bare, with: replacement)
+        }
     }
 
     /// Capitalizes days and months, preserving any attached punctuation.

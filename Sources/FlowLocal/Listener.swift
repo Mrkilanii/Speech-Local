@@ -165,16 +165,21 @@ final class Listener: @unchecked Sendable {
                 Task { @MainActor in self.status?.report("Hands-free — tap to stop") }
 
             case .finishRecording(let kind):
+                // Drain FIRST. drain() iterates `cursors`, so removing the entry
+                // before draining silently discarded everything captured since
+                // the last tick — up to a second of speech, always from the end.
                 lock.lock()
-                let started = cursors.removeValue(forKey: mode)
+                let started = cursors[mode]
                 lock.unlock()
                 guard let start = started else { return }
-                drain()                       // capture whatever is still pending
-                Task { @MainActor in self.stopDrainingIfIdle() }
                 let overran = capture.buffer.hasOverrun(cursor: start)
+                drain()
+
                 lock.lock()
+                cursors.removeValue(forKey: mode)
                 let samples = sessionSamples.removeValue(forKey: mode) ?? []
                 lock.unlock()
+                Task { @MainActor in self.stopDrainingIfIdle() }
                 let seconds = Double(samples.count) / capture.buffer.sampleRate
                 let rms = rootMeanSquare(samples)
                 let peak = samples.map(abs).max() ?? 0

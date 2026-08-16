@@ -149,13 +149,19 @@ public enum LightTouchInvariants {
 
     /// First input word absent from the output that had no licence to vanish.
     static func droppedContentWord(input: String, output: String) -> String? {
-        let outWords = Set(output.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty })
+        // Apostrophes are stripped rather than treated as separators. Cleanup
+        // restores them ("dont" -> "don't"), and splitting on non-alphanumerics
+        // would turn that into "don" + "t" and report the word as lost.
+        func words(_ text: String) -> [String] {
+            text.lowercased()
+                .replacingOccurrences(of: "'", with: "")
+                .replacingOccurrences(of: "\u{2019}", with: "")
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+        }
 
-        let inWords = input.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
+        let outWords = Set(words(output))
+        let inWords = words(input)
 
         var previous: String? = nil
         for word in inWords {

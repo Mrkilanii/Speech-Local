@@ -322,3 +322,46 @@ func collapsesStutterOnNonWordFragment(input: String, expected: String) {
     #expect(RulesCleanup.similarity(a, a) == 1.0)
     #expect(RulesCleanup.similarity(a, "completely unrelated words here") < 0.3)
 }
+
+// MARK: - Contractions
+
+@Test(arguments: [
+    ("that wasnt right", "That wasn't right."),
+    ("i dont think so", "I don't think so."),
+    ("its ok but thats wrong", "Its ok but that's wrong."),
+    ("youre going to like it", "You're going to like it."),
+    ("we couldnt finish it", "We couldn't finish it."),
+    ("theres no time left", "There's no time left."),
+])
+func restoresApostrophes(input: String, expected: String) {
+    #expect(rules.apply(to: input) == expected)
+}
+
+@Test func preservesCaseWhenFixingContractions() {
+    #expect(rules.apply(to: "Dont do that") == "Don't do that.")
+}
+
+@Test func keepsPunctuationAroundContractions() {
+    // The terminal "!" must survive the apostrophe fix. (The comma is separately
+    // dropped by the .sparse policy, so this pins .tidy to test one thing.)
+    #expect(rules.apply(to: "wait, dont!") == "Wait don't!")
+    #expect(tidy.apply(to: "wait, dont!") == "Wait, don't!")
+}
+
+@Test(arguments: ["were", "well", "hell", "shed", "wont", "cant", "id"])
+func leavesAmbiguousWordsAlone(word: String) {
+    // Each of these is a real word as well as a contraction. Rewriting them
+    // would corrupt correct text, so they are deliberately excluded.
+    let out = rules.apply(to: "the \(word) is here").lowercased()
+    #expect(out.contains(word))
+    #expect(!out.contains("'"), "'\(word)' must not gain an apostrophe")
+}
+
+@Test func leavesItsAlone() {
+    // "its" and "it's" are distinguished only by grammar, which rules cannot do.
+    #expect(rules.apply(to: "its color is red") == "Its color is red.")
+}
+
+@Test func doesNotTouchAlreadyCorrectContractions() {
+    #expect(rules.apply(to: "that wasn't right") == "That wasn't right.")
+}
