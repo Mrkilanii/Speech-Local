@@ -35,6 +35,7 @@ final class Listener: @unchecked Sendable {
     private var settingsWindow: SettingsWindow?
     private let inserter = TextInserter()
     private let lifecycle = LifecycleMonitor()
+    private let history = TranscriptHistory()
     /// Last raw ASR output, kept so a correction can be diffed against it.
     private var lastRaw: String?
     /// Audio from a cancelled dictation, retained so Undo can still transcribe it.
@@ -250,6 +251,12 @@ final class Listener: @unchecked Sendable {
             log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
             log(String(format: "  TOTAL %5.0f ms", totalMs))
 
+            if settingsStore.current.keepHistory {
+                await history.record(TranscriptEntry(
+                    raw: heard, cleaned: cleaned, mode: mode,
+                    appName: NSWorkspace.shared.frontmostApplication?.localizedName))
+            }
+
             // M4: put the text where the user is actually typing.
             log("  FOCUS \(await inserter.describeFocus())")
             do {
@@ -296,7 +303,8 @@ final class Listener: @unchecked Sendable {
     @MainActor
     private func openSettings() {
         if settingsWindow == nil {
-            let window = SettingsWindow(store: settingsStore, corrections: learned)
+            let window = SettingsWindow(
+                store: settingsStore, corrections: learned, history: history)
             // Rebinding requires tearing the event tap down and back up; the old
             // one is still watching the previous keycodes.
             window.onHotkeysChanged = { [weak self] (settings: FlowLocalCore.Settings) in

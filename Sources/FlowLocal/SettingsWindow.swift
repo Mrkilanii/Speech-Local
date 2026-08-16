@@ -13,8 +13,8 @@ final class SettingsWindow {
     private var window: NSWindow?
     private let model: SettingsModel
 
-    init(store: SettingsStore, corrections: LearnedCorrections) {
-        model = SettingsModel(store: store, corrections: corrections)
+    init(store: SettingsStore, corrections: LearnedCorrections, history: TranscriptHistory) {
+        model = SettingsModel(store: store, corrections: corrections, history: history)
     }
 
     /// Called when a change requires the hotkey tap to be rebuilt.
@@ -42,7 +42,11 @@ final class SettingsWindow {
         window.isReleasedWhenClosed = false
         self.window = window
 
-        Task { await model.refreshCorrections() }
+        Task {
+            await model.refreshCorrections()
+            await model.refreshHistory()
+            await model.loadLocales()
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -60,12 +64,47 @@ final class SettingsModel: ObservableObject {
 
     private let store: SettingsStore
     private let correctionStore: LearnedCorrections
+    private let historyStore: TranscriptHistory
+    @Published var history: [TranscriptEntry] = []
+    @Published var historyQuery = ""
+    @Published var installedLocales: [String] = []
     var onHotkeysChanged: ((AppSettings) -> Void)?
 
-    init(store: SettingsStore, corrections: LearnedCorrections) {
+    init(store: SettingsStore, corrections: LearnedCorrections, history: TranscriptHistory) {
         self.store = store
         self.correctionStore = corrections
+        self.historyStore = history
         self.settings = store.current
+    }
+
+    func refreshHistory() async {
+        history = await historyStore.search(historyQuery)
+    }
+
+    func deleteHistory(_ entry: TranscriptEntry) async {
+        await historyStore.delete(id: entry.id)
+        await refreshHistory()
+    }
+
+    /// Disabling history destroys what was already captured. Leaving a hidden
+    /// archive of someone's speech behind a toggle would be worse than useless.
+    func setKeepHistory(_ enabled: Bool) {
+        apply { $0.keepHistory = enabled }
+        if !enabled {
+            Task {
+                await historyStore.clear()
+                await refreshHistory()
+            }
+        }
+    }
+
+    func clearHistory() async {
+        await historyStore.clear()
+        await refreshHistory()
+    }
+
+    func loadLocales() async {
+        installedLocales = await AppleASREngine.installedLocaleIdentifiers().sorted()
     }
 
     func apply(_ transform: (inout AppSettings) -> Void, hotkeysChanged: Bool = false) {
@@ -141,6 +180,7 @@ private struct SettingsView: View {
             general.tabItem { Label("General", systemImage: "gearshape") }
             vocabulary.tabItem { Label("Vocabulary", systemImage: "text.book.closed") }
             learned.tabItem { Label("Learned", systemImage: "brain") }
+            historyTab.tabItem { Label("History", systemImage: "clock") }
         }
         .frame(width: 460, height: 520)
     }
@@ -172,6 +212,24 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Language") {
+                Picker("Dictation language", selection: Binding(
+                    get: { model.settings.locale },
+                    set: { locale in model.apply { $0.locale = locale } }
+                )) {
+                    ForEach(model.installedLocales, id: \.self) { identifier in
+                        Text(Locale.current.localizedString(forIdentifier: identifier)
+                             ?? identifier).tag(identifier)
+                    }
+                }
+                Text("Only languages macOS has already downloaded are listed. "
+                     + "Cleanup rules — filler words, contractions, capitalisation "
+                     + "— are English-only; other languages are transcribed and "
+                     + "punctuated by the recognizer but not otherwise adjusted.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Cleanup") {
                 Picker("Punctuation", selection: Binding(
                     get: { model.settings.commaPolicy },
@@ -192,6 +250,10 @@ private struct SettingsView: View {
                 Toggle("Play start and stop sounds", isOn: Binding(
                     get: { model.settings.playSounds },
                     set: { on in model.apply { $0.playSounds = on } }
+                ))
+                Toggle("Keep transcript history", isOn: Binding(
+                    get: { model.settings.keepHistory },
+                    set: { model.setKeepHistory($0) }
                 ))
                 Toggle("Launch at login", isOn: Binding(
                     get: { model.settings.launchAtLogin },
@@ -240,6 +302,61 @@ private struct SettingsView: View {
             .overlay {
                 if model.settings.aliases.isEmpty {
                     Text("No vocabulary yet").foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding()
+    }
+
+    // MARK: History
+
+    private var historyTab: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your last \(TranscriptHistory.maximumEntries) dictations, stored "
+                 + "only on this Mac. Turning history off in General deletes them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                TextField("Search", text: $model.historyQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { Task { await model.refreshHistory() } }
+                Button("Search") { Task { await model.refreshHistory() } }
+                Button("Clear all") { Task { await model.clearHistory() } }
+            }
+
+            List {
+                ForEach(model.history) { entry in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(entry.date, style: .time)
+                                .font(.caption2).foregroundStyle(.tertiary)
+                            if let app = entry.appName {
+                                Text(app).font(.caption2).foregroundStyle(.tertiary)
+                            }
+                            if entry.mode == .fullRewrite {
+                                Text("rewrite").font(.caption2).foregroundStyle(.purple)
+                            }
+                            Spacer()
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(entry.cleaned, forType: .string)
+                            } label: { Image(systemName: "doc.on.doc") }
+                                .buttonStyle(.borderless)
+                            Button {
+                                Task { await model.deleteHistory(entry) }
+                            } label: { Image(systemName: "trash") }
+                                .buttonStyle(.borderless)
+                        }
+                        Text(entry.cleaned).font(.system(size: 12)).lineLimit(3)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .overlay {
+                if model.history.isEmpty {
+                    Text(model.settings.keepHistory ? "No dictations yet" : "History is off")
+                        .foregroundStyle(.tertiary)
                 }
             }
         }

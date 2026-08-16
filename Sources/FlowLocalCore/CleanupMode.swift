@@ -1,7 +1,7 @@
 import Foundation
 
 /// The two dictation modes, bound to two separate hotkeys.
-public enum CleanupMode: String, Sendable, CaseIterable {
+public enum CleanupMode: String, Codable, Sendable, CaseIterable {
     /// Punctuation, capitalization, disfluency removal. Content is preserved
     /// exactly. Streams to the target app sentence by sentence.
     case lightTouch

@@ -33,3 +33,7 @@ clone-run/PLAN-REVIEW-LOG.md
 # FlowLocal and not ours to redistribute under MIT.
 .claude/
 .agents/
+
+# Transcript history and learned corrections: the user's speech.
+history.json
+corrections.json

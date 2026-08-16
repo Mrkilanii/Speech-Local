@@ -50,6 +50,7 @@ public struct Settings: Codable, Sendable, Equatable {
     public var launchAtLogin: Bool
     public var locale: String
     public var playSounds: Bool
+    public var keepHistory: Bool
 
     public static let `default` = Settings(
         lightTouchKey: .rightOption,
@@ -58,7 +59,8 @@ public struct Settings: Codable, Sendable, Equatable {
         aliases: [:],
         launchAtLogin: false,
         locale: "en-US",
-        playSounds: true
+        playSounds: true,
+        keepHistory: true
     )
 
     public init(
@@ -68,7 +70,8 @@ public struct Settings: Codable, Sendable, Equatable {
         aliases: [String: String],
         launchAtLogin: Bool,
         locale: String,
-        playSounds: Bool
+        playSounds: Bool,
+        keepHistory: Bool
     ) {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
@@ -77,6 +80,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.launchAtLogin = launchAtLogin
         self.locale = locale
         self.playSounds = playSounds
+        self.keepHistory = keepHistory
     }
 
     /// Older files may lack fields added later; every key decodes with a
@@ -98,6 +102,8 @@ public struct Settings: Codable, Sendable, Equatable {
             String.self, forKey: .locale) ?? fallback.locale
         playSounds = try container.decodeIfPresent(
             Bool.self, forKey: .playSounds) ?? fallback.playSounds
+        keepHistory = try container.decodeIfPresent(
+            Bool.self, forKey: .keepHistory) ?? fallback.keepHistory
     }
 
     /// The two hotkeys must differ, or one gesture becomes unreachable.
