@@ -17,8 +17,8 @@ does nothing.
 ## 1. Clone and test
 
 ```bash
-git clone https://github.com/Mrkilanii/voice-dictation.git
-cd voice-dictation
+git clone https://github.com/Mrkilanii/Speech-Local.git
+cd Speech-Local
 make test
 ```
 

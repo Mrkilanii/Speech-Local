@@ -62,8 +62,8 @@ permissions on every rebuild, leaving an app that launches fine and does nothing
 
 ```bash
 xcode-select --install          # skip if already installed
-git clone https://github.com/Mrkilanii/voice-dictation.git
-cd voice-dictation
+git clone https://github.com/Mrkilanii/Speech-Local.git
+cd Speech-Local
 make test
 ```
 
