@@ -58,6 +58,15 @@ final class DictationPanel {
             self?.show(.hidden)
         }
         model.onDismiss = { [weak self] in self?.show(.hidden) }
+        model.onCopied = { [weak self] in
+            // Hold it a moment so the checkmark is seen, then clear.
+            self?.dismissTimer?.invalidate()
+            self?.model.resultProgress = 0
+            self?.dismissTimer = Timer.scheduledTimer(
+                withTimeInterval: 0.6, repeats: false) { _ in
+                Task { @MainActor in self?.show(.hidden) }
+            }
+        }
 
         let host = NSHostingView(rootView: PanelView(model: model))
         host.autoresizingMask = [.width, .height]
@@ -145,6 +154,11 @@ final class DictationPanel {
 
         case .result(let text):
             model.state = .result(text)
+            model.resultProgress = 1
+            // Long enough to read it and reach for Copy, short enough not to
+            // linger. The bar makes the deadline visible so the text never
+            // vanishes without warning.
+            startResultCountdown(seconds: 10)
 
         case .cancelled:
             model.state = .cancelled
@@ -208,6 +222,21 @@ final class DictationPanel {
         }
     }
 
+    /// Drains the bar under an offered transcript, then dismisses it.
+    private func startResultCountdown(seconds: Double) {
+        let start = Date()
+        dismissTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { _ in
+            Task { @MainActor in
+                let elapsed = Date().timeIntervalSince(start)
+                self.model.resultProgress = max(0, 1 - elapsed / seconds)
+                if elapsed >= seconds {
+                    self.dismissTimer?.invalidate()
+                    self.show(.hidden)
+                }
+            }
+        }
+    }
+
     /// Drives the shrinking bar under "Transcript cancelled".
     private func startUndoCountdown() {
         let total = 4.0
@@ -232,11 +261,14 @@ final class PanelModel: ObservableObject {
     @Published var state: DictationPanel.State = .hidden
     @Published var level: Double = 0
     @Published var undoProgress: Double = 1
+    @Published var resultProgress: Double = 1
 
     var onCancel: (() -> Void)?
     var onConfirm: (() -> Void)?
     var onUndo: (() -> Void)?
     var onDismiss: (() -> Void)?
+    /// Copying stops the countdown: the user has what they came for.
+    var onCopied: (() -> Void)?
 }
 
 // MARK: - View
@@ -341,9 +373,16 @@ private struct PanelView: View {
                         .truncationMode(.tail)
                     Spacer(minLength: 2)
                     DismissButton { model.onDismiss?() }
-                    CopyButton(text: text, copied: $copied, compact: true)
+                    CopyButton(text: text, copied: $copied, compact: true) {
+                        model.onCopied?()
+                    }
                 }
                 .padding(.horizontal, 9)
+                .overlay(alignment: .bottom) {
+                    CountdownBar(progress: model.resultProgress)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 3)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
@@ -352,7 +391,9 @@ private struct PanelView: View {
                             .foregroundStyle(.white.opacity(0.45))
                         Spacer()
                         DismissButton { model.onDismiss?() }
-                        CopyButton(text: text, copied: $copied, compact: false)
+                        CopyButton(text: text, copied: $copied, compact: false) {
+                            model.onCopied?()
+                        }
                     }
                     Text(text)
                         .font(.system(size: 12))
@@ -360,6 +401,7 @@ private struct PanelView: View {
                         .textSelection(.enabled)
                         .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
+                    CountdownBar(progress: model.resultProgress)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -382,6 +424,18 @@ private struct PanelView: View {
 
 // MARK: - Controls
 
+private struct CountdownBar: View {
+    let progress: Double
+    var body: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(.white.opacity(0.5))
+                .frame(width: geo.size.width * progress, height: 1.5)
+        }
+        .frame(height: 1.5)
+    }
+}
+
 private struct DismissButton: View {
     let action: () -> Void
     var body: some View {
@@ -401,12 +455,15 @@ private struct CopyButton: View {
     /// Icon only. In a one-line capsule the word "Copy" costs more width than
     /// it earns, and squeezing it is what produced the wrapped "C…" label.
     var compact: Bool
+    /// Declared last so trailing-closure syntax binds to it, not to `compact`.
+    var onCopy: (() -> Void)? = nil
 
     var body: some View {
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             copied = true
+            onCopy?()
         } label: {
             Group {
                 if compact {

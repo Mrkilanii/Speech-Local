@@ -46,7 +46,12 @@ public actor TextInserter {
     /// find a signal that separates "caret in an editable field" from "a
     /// container that merely advertises text attributes".
     public func describeFocus() -> String {
-        guard let element = try? focusedElement() else { return "none" }
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        guard let element = try? focusedElement() else {
+            return "none app=\(frontmost?.localizedName ?? "?") "
+                + "bundle=\(frontmost?.bundleIdentifier ?? "?") "
+                + "desktop=\(Self.isDesktop(frontmost))"
+        }
 
         func string(_ attribute: String) -> String? {
             var value: CFTypeRef?
@@ -109,7 +114,28 @@ public actor TextInserter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !payload.isEmpty else { return .accessibility }
 
-        let element = try focusedElement()
+        // Three distinguishable states, and only the middle one refuses:
+        //
+        //   1. No AX element at all      -> paste blind. The app publishes no
+        //                                   accessibility state (terminals, the
+        //                                   Codex app, many custom surfaces).
+        //                                   Refusing here was wrong: pressing the
+        //                                   hotkey and speaking IS the intent.
+        //   2. An element that cannot     -> offer Copy. This is the "clicked off
+        //      take text                     the text box" case, and it reports a
+        //                                   non-editable role such as AXGroup.
+        //   3. An editable element        -> insert normally.
+        //
+        // Only the desktop is excluded from (1): with Finder frontmost and
+        // nothing focused, there is genuinely nowhere for a paste to go.
+        guard let element = try? focusedElement() else {
+            guard !Self.isDesktop(NSWorkspace.shared.frontmostApplication) else {
+                throw InsertError.noTextInput
+            }
+            try insertViaPaste(payload)
+            return .paste
+        }
+
         try rejectSecureField(element)
 
         // Checked before either mechanism runs. Posting ⌘V at something that
@@ -121,6 +147,37 @@ public actor TextInserter {
         if insertViaAccessibility(element, text: payload) { return .accessibility }
         try insertViaPaste(payload)
         return .paste
+    }
+
+    /// Apps that accept ⌘V but expose no focused AX element.
+    ///
+    /// Terminals are the obvious members — they render their own text surface
+    /// and publish nothing through accessibility — but the category is broader
+    /// than that. The Codex desktop app (`com.openai.codex`) also reports no
+    /// focused element while pasting perfectly, which is why this list is keyed
+    /// on "no AX focus, paste works" rather than on being a terminal.
+    ///
+    /// For these, `focusedElement()` throws before any capability check runs, so
+    /// they must be recognised up front or they can never be dictated into.
+    static let pasteOnlyBundleIDs: Set<String> = [
+        // No-AX-focus apps that are not terminals.
+        "com.openai.codex",
+        // Terminals.
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.Warp-Stable",
+        "dev.warp.Warp-Preview",
+        "com.mitchellh.ghostty",
+        "net.kovidgoyal.kitty",
+        "io.alacritty",
+        "com.github.wez.wezterm",
+        "co.zeit.hyper",
+        "com.raycast.macos",
+    ]
+
+    /// Finder frontmost with nothing focused means the desktop: no paste target.
+    static func isDesktop(_ app: NSRunningApplication?) -> Bool {
+        app?.bundleIdentifier == "com.apple.finder" || app == nil
     }
 
     // MARK: - Focus
@@ -171,10 +228,28 @@ public actor TextInserter {
             return AXUIElementIsAttributeSettable(
                 element, attribute as CFString, &flag) == .success && flag.boolValue
         }
-        // Either is sufficient: some apps expose one and not the other. Both are
-        // false for a non-editable container, which is the case that matters.
-        return settable(kAXSelectedTextAttribute as String)
-            || settable(kAXValueAttribute as String)
+        if settable(kAXSelectedTextAttribute as String)
+            || settable(kAXValueAttribute as String) { return true }
+
+        // Terminals (Terminal.app, iTerm, and CLI tools running in them, such as
+        // Codex) expose their text as READ-ONLY: nothing is settable, yet ⌘V
+        // works perfectly. Settability alone therefore refuses them.
+        //
+        // Falling back to role is safe here because the case that motivated the
+        // strict check — clicking off a text box — reports `AXGroup`, which is
+        // deliberately absent from this list.
+        var roleValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXRoleAttribute as CFString, &roleValue) == .success,
+            let role = roleValue as? String
+        else { return false }
+
+        return [
+            kAXTextAreaRole as String,
+            kAXTextFieldRole as String,
+            kAXComboBoxRole as String,
+            "AXSearchField",
+        ].contains(role)
     }
 
     // MARK: - Accessibility path
