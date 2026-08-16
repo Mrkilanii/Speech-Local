@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Speech
+import CoreMedia
 
 /// Transcription via Apple's on-device `SpeechAnalyzer` / `SpeechTranscriber`.
 ///
@@ -114,16 +115,38 @@ public actor AppleASREngine: ASREngine {
 
         // Collect results concurrently: the analyzer will not finish until its
         // input ends, and results arrive while that happens.
+        // Results are per-SEGMENT, not cumulative. Each carries its own
+        // CMTimeRange, and the transcriber finalizes a segment whenever the
+        // speaker pauses. Assigning each result to a single variable therefore
+        // kept only the last sentence of a paragraph — segments must be
+        // accumulated in time order.
+        //
+        // A later result for a range already seen supersedes it: that is how a
+        // volatile (in-progress) segment becomes its finalized version.
         let collector = Task {
-            var best = ""
+            var segments: [(start: CMTime, text: String)] = []
+
+            func assembled() -> String {
+                segments.map(\.text)
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+            }
+
             for try await result in transcriber.results {
                 let text = String(result.text.characters)
-                if !text.isEmpty {
-                    best = text
-                    onPartial(text)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+
+                let start = result.range.start
+                if let index = segments.firstIndex(where: { $0.start == start }) {
+                    segments[index].text = text
+                } else {
+                    segments.append((start: start, text: text))
+                    segments.sort { $0.start < $1.start }
                 }
+                onPartial(assembled())
             }
-            return best
+            return assembled()
         }
 
         for await chunk in audio {

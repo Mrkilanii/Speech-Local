@@ -11,6 +11,12 @@ final class Listener: @unchecked Sendable {
     private var capture: AudioCapture?
     private var hotkeys: HotkeyManager?
     private var cursors: [CleanupMode: UInt64] = [:]
+    /// Audio drained out of the ring while recording. The ring is a 30 s preroll
+    /// window, not storage: a hands-free session can run for minutes, and
+    /// leaving the audio there means the producer laps the consumer and silently
+    /// eats the beginning. Observed at 32.77 s against a 32.768 s ring.
+    private var sessionSamples: [CleanupMode: [Float]] = [:]
+    private var drainTimer: Timer?
     private let lock = NSLock()
     private var status: StatusItem?
     private var panel: DictationPanel?
@@ -28,6 +34,7 @@ final class Listener: @unchecked Sendable {
     private let settingsStore = SettingsStore()
     private var settingsWindow: SettingsWindow?
     private let inserter = TextInserter()
+    private let lifecycle = LifecycleMonitor()
     /// Last raw ASR output, kept so a correction can be diffed against it.
     private var lastRaw: String?
     /// Audio from a cancelled dictation, retained so Undo can still transcribe it.
@@ -63,6 +70,15 @@ final class Listener: @unchecked Sendable {
         panel.onConfirm = { [weak self] in self?.confirmActive() }
         panel.onUndo = { [weak self] in self?.undoCancel() }
         panel.onDismiss = { }
+
+        // Sleep, lock, or user switch abandons the dictation. Audio capture
+        // stops but the gesture does not, so without this a key held across a
+        // lid close would transcribe pre-sleep audio on wake and insert it
+        // wherever the cursor had moved to.
+        lifecycle.onInterrupt = { [weak self] reason in
+            Task { @MainActor in self?.abandonActive(reason: reason) }
+        }
+        lifecycle.start()
         self.panel = panel
         panel.show(.hidden)   // resting pill, always visible
 
@@ -132,6 +148,8 @@ final class Listener: @unchecked Sendable {
                 let back = UInt64(preroll * capture.buffer.sampleRate)
                 let now = capture.buffer.writeCursor
                 cursors[mode] = now > back ? now - back : 0
+                sessionSamples[mode] = []
+                Task { @MainActor in self.startDraining() }
                 log("[\(label(mode))] begin (\(kind))")
                 Task { @MainActor in
                     self.status?.apply(.recording(mode))
@@ -142,6 +160,7 @@ final class Listener: @unchecked Sendable {
             case .discardAndRestart:
                 lock.lock(); defer { lock.unlock() }
                 cursors[mode] = capture.buffer.writeCursor
+                sessionSamples[mode] = []
                 log("[\(label(mode))] double-tap detected — discarded, now hands-free")
                 Task { @MainActor in self.status?.report("Hands-free — tap to stop") }
 
@@ -150,8 +169,12 @@ final class Listener: @unchecked Sendable {
                 let started = cursors.removeValue(forKey: mode)
                 lock.unlock()
                 guard let start = started else { return }
+                drain()                       // capture whatever is still pending
+                Task { @MainActor in self.stopDrainingIfIdle() }
                 let overran = capture.buffer.hasOverrun(cursor: start)
-                let (samples, _) = capture.buffer.read(from: start)
+                lock.lock()
+                let samples = sessionSamples.removeValue(forKey: mode) ?? []
+                lock.unlock()
                 let seconds = Double(samples.count) / capture.buffer.sampleRate
                 let rms = rootMeanSquare(samples)
                 let peak = samples.map(abs).max() ?? 0
@@ -288,19 +311,80 @@ final class Listener: @unchecked Sendable {
         settingsWindow?.show()
     }
 
-    /// X button: stop and discard. The audio is kept so Undo can recover it.
+    /// Moves audio out of the ring buffer and into the session accumulator.
+    /// Runs often enough that the producer can never lap the consumer.
     @MainActor
-    private func cancelActive() {
-        guard let hotkeys, let capture else { return }
+    private func startDraining() {
+        guard drainTimer == nil || !(drainTimer?.isValid ?? false) else { return }
+        drainTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in self.drain() }
+        }
+    }
+
+    @MainActor
+    private func stopDrainingIfIdle() {
+        lock.lock()
+        let active = !cursors.isEmpty
+        lock.unlock()
+        guard !active else { return }
+        drainTimer?.invalidate()
+        drainTimer = nil
+    }
+
+    private func drain() {
+        guard let capture else { return }
+        lock.lock()
+        let pending = cursors
+        lock.unlock()
+
+        for (mode, cursor) in pending {
+            if capture.buffer.hasOverrun(cursor: cursor) {
+                log("[\(label(mode))] WARNING: ring overran between drains — audio lost")
+            }
+            let (samples, next) = capture.buffer.read(from: cursor)
+            guard !samples.isEmpty else { continue }
+            lock.lock()
+            sessionSamples[mode, default: []].append(contentsOf: samples)
+            cursors[mode] = next
+            lock.unlock()
+        }
+    }
+
+    /// Abandons any dictation in flight and discards its audio.
+    @MainActor
+    private func abandonActive(reason: String) {
+        guard let hotkeys else { return }
         hotkeys.activeMode { [weak self] mode in
             guard let self, let mode else { return }
             hotkeys.endGesture(mode, process: false)
             self.lock.lock()
-            let started = self.cursors.removeValue(forKey: mode)
+            self.cursors.removeValue(forKey: mode)
+            self.sessionSamples.removeValue(forKey: mode)
             self.lock.unlock()
-            if let started {
-                let (samples, _) = capture.buffer.read(from: started)
-                self.cancelledSamples = samples
+            Task { @MainActor in self.stopDrainingIfIdle() }
+            log("[\(self.label(mode))] abandoned — \(reason)")
+            Task { @MainActor in
+                self.panel?.show(.failed("Dictation stopped — \(reason)"))
+            }
+        }
+    }
+
+    /// X button: stop and discard. The audio is kept so Undo can recover it.
+    @MainActor
+    private func cancelActive() {
+        // Audio is reached through drain() now, so `capture` is not bound here.
+        guard let hotkeys else { return }
+        hotkeys.activeMode { [weak self] mode in
+            guard let self, let mode else { return }
+            hotkeys.endGesture(mode, process: false)
+            self.drain()                    // must run BEFORE taking the lock
+            self.lock.lock()
+            let started = self.cursors.removeValue(forKey: mode)
+            let accumulated = self.sessionSamples.removeValue(forKey: mode)
+            self.lock.unlock()
+            Task { @MainActor in self.stopDrainingIfIdle() }
+            if started != nil, let accumulated, !accumulated.isEmpty {
+                self.cancelledSamples = accumulated
                 self.cancelledMode = mode
             }
             log("[\(self.label(mode))] cancelled by user")

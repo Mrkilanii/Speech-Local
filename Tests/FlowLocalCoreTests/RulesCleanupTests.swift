@@ -275,3 +275,50 @@ func collapsesStutterOnNonWordFragment(input: String, expected: String) {
     #expect(out.contains("stopping"))
     #expect(tidy.apply(to: "stop, stopping now").lowercased().contains("stop,"))
 }
+
+// MARK: - Restated sentences
+
+@Test func collapsesImmediatelyRestatedSentence() {
+    // The observed case: the speaker stumbled and said the sentence again.
+    let input = "But there's also thingsings that can hinder your experience. "
+              + "But there's also things that can hinder your experience."
+    let out = rules.apply(to: input)
+    #expect(!out.contains("thingsings"), "the stumbled version should be dropped")
+    #expect(out.contains("things that can hinder your experience"))
+}
+
+@Test func keepsDeliberateShortRepetition() {
+    // Under five words, so emphasis survives.
+    #expect(rules.apply(to: "Stop. Stop.").lowercased().contains("stop. stop"))
+}
+
+@Test func keepsGenuinelyDifferentSentences() {
+    let input = "We should ship the feature today. The tests are all passing now."
+    let out = rules.apply(to: input)
+    #expect(out.contains("ship the feature today"))
+    #expect(out.contains("tests are all passing"))
+}
+
+@Test func keepsSentencesThatMerelyShareCommonWords() {
+    // Same function words, different content — must not be treated as a restatement.
+    let input = "I think we should go to the office today. "
+              + "I think we should call the client tomorrow."
+    let out = rules.apply(to: input)
+    #expect(out.contains("office"))
+    #expect(out.contains("client"))
+}
+
+@Test func collapsesOnlyAdjacentPairs() {
+    let input = "The build is broken again. We need to fix the tests. The build is broken again."
+    let out = rules.apply(to: input)
+    // Non-adjacent duplicates are left alone — they may be deliberate.
+    #expect(out.contains("need to fix the tests"))
+}
+
+@Test func similarityIsSymmetricAndBounded() {
+    let a = "we should ship it on monday"
+    let b = "we should ship it on tuesday"
+    #expect(RulesCleanup.similarity(a, b) == RulesCleanup.similarity(b, a))
+    #expect(RulesCleanup.similarity(a, a) == 1.0)
+    #expect(RulesCleanup.similarity(a, "completely unrelated words here") < 0.3)
+}

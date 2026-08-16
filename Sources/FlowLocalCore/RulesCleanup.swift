@@ -107,6 +107,7 @@ public struct RulesCleanup: Sendable {
         text = capitalizeSentences(text)
         text = fixStandaloneI(text)
         text = fixStrayCapitals(text)
+        text = collapseRestatedSentences(text)
         text = ensureTerminalPunctuation(text)
         return text
     }
@@ -126,7 +127,13 @@ public struct RulesCleanup: Sendable {
         var out: [String] = []
         for token in tokens {
             let bare = token.lowercased().trimmingCharacters(in: .punctuationCharacters)
-            if let last = out.last?.lowercased().trimmingCharacters(in: .punctuationCharacters),
+            // Never collapse across a sentence boundary: "Stop. Stop." is
+            // deliberate emphasis, not a stutter on one word.
+            let previousEndsSentence = out.last.map {
+                $0.hasSuffix(".") || $0.hasSuffix("!") || $0.hasSuffix("?")
+            } ?? false
+            if !previousEndsSentence,
+               let last = out.last?.lowercased().trimmingCharacters(in: .punctuationCharacters),
                last == bare, !bare.isEmpty, !Self.legitimateRepeats.contains(bare) {
                 continue
             }
@@ -256,6 +263,81 @@ public struct RulesCleanup: Sendable {
             result.append(Self.clauseMarkers.contains(next) ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")
+    }
+
+    /// Drops a sentence that the speaker immediately restated.
+    ///
+    /// Starting a sentence, stumbling, and saying it again leaves both copies in
+    /// the transcript:
+    ///
+    ///     "But there's also thingsings that can hinder your experience..."
+    ///     "But there's also things that can hinder your experience..."
+    ///
+    /// When two adjacent sentences overlap heavily the later one is the
+    /// correction, so the earlier is dropped. This is narrower than general
+    /// self-correction (which neither rules nor the model can do): it only fires
+    /// on a near-duplicate *pair*, never on a mid-sentence "no wait".
+    ///
+    /// Guarded so it cannot eat deliberate repetition: both sentences must be at
+    /// least five words, so "Stop. Stop." and "Yes. Yes." survive.
+    private func collapseRestatedSentences(_ text: String) -> String {
+        let sentences = splitSentences(text)
+        guard sentences.count > 1 else { return text }
+
+        var kept: [String] = []
+        for sentence in sentences {
+            if let previous = kept.last,
+               Self.wordCount(previous) >= 5,
+               Self.wordCount(sentence) >= 5,
+               Self.similarity(previous, sentence) >= 0.7 {
+                kept[kept.count - 1] = sentence   // the restatement wins
+                continue
+            }
+            kept.append(sentence)
+        }
+        return kept.joined(separator: " ")
+    }
+
+    /// Splits on sentence terminators, keeping the punctuation attached.
+    private func splitSentences(_ text: String) -> [String] {
+        var sentences: [String] = []
+        var current = ""
+        for character in text {
+            current.append(character)
+            if character == "." || character == "!" || character == "?" {
+                // Keep runs like "..." together rather than splitting mid-ellipsis.
+                continue
+            }
+            if character == " ", let last = current.dropLast().last,
+               last == "." || last == "!" || last == "?" {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty { sentences.append(trimmed) }
+                current = ""
+            }
+        }
+        let trailing = current.trimmingCharacters(in: .whitespaces)
+        if !trailing.isEmpty { sentences.append(trailing) }
+        return sentences
+    }
+
+    static func wordCount(_ text: String) -> Int {
+        words(text).count
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Jaccard overlap of the two word sets.
+    static func similarity(_ a: String, _ b: String) -> Double {
+        let first = Set(words(a))
+        let second = Set(words(b))
+        guard !first.isEmpty, !second.isEmpty else { return 0 }
+        let shared = first.intersection(second).count
+        let total = first.union(second).count
+        return Double(shared) / Double(total)
     }
 
     /// Lowercases a capital that appears mid-clause with no punctuation before it.

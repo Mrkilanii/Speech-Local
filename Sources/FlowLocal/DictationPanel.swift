@@ -70,7 +70,7 @@ final class DictationPanel {
     /// status indicator, not a window.
     private enum Metrics {
         /// Always on screen, so small enough to ignore.
-        static let idle = CGSize(width: 58, height: 15)
+        static let idle = CGSize(width: 48, height: 12)
         static let listening = CGSize(width: 112, height: 32)
         static let processing = CGSize(width: 112, height: 32)
         static let cancelled = CGSize(width: 232, height: 40)
@@ -255,10 +255,14 @@ private struct PanelView: View {
     @ViewBuilder
     private var background: some View {
         if model.state == .hidden {
-            // Resting state: outline only, but bright enough to be findable.
+            // Resting state: opaque, so the desktop never shows through, with a
+            // bright outline so the pill stays findable over any wallpaper.
             Capsule(style: .continuous)
-                .strokeBorder(.white.opacity(0.55), lineWidth: 1.4)
-                .padding(1.5)
+                .fill(Color(red: 0.09, green: 0.09, blue: 0.10))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(.white.opacity(0.55), lineWidth: 1.4)
+                )
         } else {
             Capsule(style: .continuous)
                 .fill(Color(red: 0.09, green: 0.09, blue: 0.10))
