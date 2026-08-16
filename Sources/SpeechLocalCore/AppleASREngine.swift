@@ -3,6 +3,52 @@ import AVFoundation
 import Speech
 import CoreMedia
 
+/// Assembles transcriber results into one transcript.
+///
+/// Results are per-**segment**, not cumulative: each carries its own
+/// `CMTimeRange`, and a segment is finalized whenever the speaker pauses.
+/// Assigning each result to one variable kept only the last sentence of a
+/// paragraph, so they have to be accumulated.
+///
+/// The subtlety is that the same audio is reported more than once. A segment
+/// arrives *volatile* while the analyzer is still guessing, then again
+/// finalized, and the finalized range need not start where the volatile one
+/// did — the analyzer re-segments as it gains context. Keying on the start time
+/// alone therefore filed the two as different segments, and a dictated "2052"
+/// came back as "2052. 2052.".
+///
+/// So: only finalized results are kept, and a finalized result evicts anything
+/// it overlaps. Volatile text is held separately for the live preview, where
+/// being provisional is the point.
+struct TranscriptAssembler {
+    private var finals: [(range: CMTimeRange, text: String)] = []
+    private var pending = ""
+
+    mutating func add(range: CMTimeRange, text: String, isFinal: Bool) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isFinal else {
+            pending = trimmed
+            return
+        }
+        // Anything this segment covers has been superseded by it.
+        finals.removeAll { !$0.range.intersection(range).isEmpty }
+        pending = ""
+        guard !trimmed.isEmpty else { return }
+        finals.append((range: range, text: trimmed))
+        finals.sort { $0.range.start < $1.range.start }
+    }
+
+    /// Everything settled so far. The transcript the user gets.
+    var finalized: String {
+        finals.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// Settled text plus the current guess, for on-screen feedback only.
+    var live: String {
+        (finals.map(\.text) + [pending]).filter { !$0.isEmpty }.joined(separator: " ")
+    }
+}
+
 /// Transcription via Apple's on-device `SpeechAnalyzer` / `SpeechTranscriber`.
 ///
 /// Chosen over Parakeet/WhisperKit because it needs **no model download**
@@ -186,32 +232,17 @@ public actor AppleASREngine: ASREngine {
             analysisContext: context
         )
 
-        // Results are per-SEGMENT, not cumulative: each carries its own
-        // CMTimeRange, and a segment is finalized whenever the speaker pauses.
-        // Assigning each result to one variable kept only the last sentence of a
-        // paragraph. A later result for a range already seen supersedes it —
-        // that is how a volatile segment becomes its finalized version.
-        //
         // The two modules publish different Result types, so the accumulation is
-        // shared and only the iteration differs.
+        // shared (see `TranscriptAssembler`) and only the iteration differs.
         actor Segments {
-            private var items: [(start: CMTime, text: String)] = []
+            private var assembler = TranscriptAssembler()
 
-            func add(start: CMTime, text: String) -> String {
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return assembled() }
-                if let index = items.firstIndex(where: { $0.start == start }) {
-                    items[index].text = trimmed
-                } else {
-                    items.append((start: start, text: trimmed))
-                    items.sort { $0.start < $1.start }
-                }
-                return assembled()
+            func add(range: CMTimeRange, text: String, isFinal: Bool) -> String {
+                assembler.add(range: range, text: text, isFinal: isFinal)
+                return assembler.live
             }
 
-            func assembled() -> String {
-                items.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
-            }
+            func finalized() -> String { assembler.finalized }
         }
         let segments = Segments()
 
@@ -220,17 +251,19 @@ public actor AppleASREngine: ASREngine {
             case .speech(let transcriber):
                 for try await result in transcriber.results {
                     let text = await segments.add(
-                        start: result.range.start, text: String(result.text.characters))
+                        range: result.range, text: String(result.text.characters),
+                        isFinal: result.isFinal)
                     onPartial(text)
                 }
             case .dictation(let transcriber):
                 for try await result in transcriber.results {
                     let text = await segments.add(
-                        start: result.range.start, text: String(result.text.characters))
+                        range: result.range, text: String(result.text.characters),
+                        isFinal: result.isFinal)
                     onPartial(text)
                 }
             }
-            return await segments.assembled()
+            return await segments.finalized()
         }
 
         // Feed the analyzer in slices rather than one buffer.
