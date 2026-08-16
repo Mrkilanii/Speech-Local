@@ -131,6 +131,9 @@ public struct RulesCleanup: Sendable {
 
         var tokens = tokenize(trimmed)
         tokens = removeFillers(tokens)
+        // Before the collapse steps, which would otherwise read the "e e" in a
+        // spelled "t h r e e" as a stutter.
+        if language.hasNumberWords { tokens = SpokenNumbers.apply(to: tokens) }
         tokens = collapseRepeats(tokens)
         tokens = collapseStutters(tokens)
         guard !tokens.isEmpty else { return "" }
@@ -170,7 +173,9 @@ public struct RulesCleanup: Sendable {
             let previousEndsSentence = out.last.map { previous in
                 previous.last.map { language.terminators.contains($0) } ?? false
             } ?? false
-            if !previousEndsSentence,
+            // Digits repeat constantly and meaningfully — a dictated "5 5 5"
+            // must not become "5".
+            if !previousEndsSentence, !bare.allSatisfy(\.isNumber),
                let last = out.last?.lowercased().trimmingCharacters(in: .punctuationCharacters),
                last == bare, !bare.isEmpty, !Self.legitimateRepeats.contains(bare) {
                 continue
@@ -226,7 +231,14 @@ public struct RulesCleanup: Sendable {
                 capitalizeNext = false
             } else {
                 result.append(ch)
-                if ch == "." || ch == "!" || ch == "?" { capitalizeNext = true }
+                if ch == "." || ch == "!" || ch == "?" {
+                    capitalizeNext = true
+                } else if capitalizeNext, ch.isNumber {
+                    // A sentence opening on a digit is already capitalized as
+                    // far as it can be — without this, "3 things" becomes
+                    // "3 Things" as the search runs on to the next letter.
+                    capitalizeNext = false
+                }
             }
         }
         return result
@@ -305,7 +317,13 @@ public struct RulesCleanup: Sendable {
             }
             let next = words[index + 1]
                 .trimmingCharacters(in: .punctuationCharacters).lowercased()
-            result.append(language.clauseMarkers.contains(next) ? word : String(word.dropLast()))
+            // A comma between two figures is the only way to say "these are
+            // two numbers, not one" — the speaker asked for it explicitly, so
+            // it is never a hesitation.
+            let separatesFigures = word.dropLast().last?.isNumber == true
+                && next.first?.isNumber == true
+            let keep = language.clauseMarkers.contains(next) || separatesFigures
+            result.append(keep ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")
     }

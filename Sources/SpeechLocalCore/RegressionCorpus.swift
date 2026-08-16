@@ -61,8 +61,12 @@ public enum LightTouchInvariants {
               note: "NEGATION — contraction form"),
 
         .init("transfer twenty five thousand dollars to account four four seven two",
-              survives: ["twenty", "five", "thousand", "dollars", "four", "seven", "two"],
-              note: "NUMBERS — repeated digits must not collapse"),
+              survives: ["25000", "dollars", "account", "4472"],
+              note: "NUMBERS — spoken figures become digits, and a repeated digit must not collapse"),
+
+        .init("call it version o n e not version two",
+              survives: ["one", "2", "version"],
+              note: "NUMBERS — spelling a number is the escape hatch back to the word"),
 
         .init("the meeting is at 3 30 on the 15th of march",
               survives: ["3", "30", "15th", "March"],
@@ -163,12 +167,24 @@ public enum LightTouchInvariants {
         let outWords = Set(words(output))
         let inWords = words(input)
 
+        // The number rewrite changes a word's *form* rather than deleting it,
+        // so it needs two licences here. Both directions are pinned by their
+        // own tests in RulesCleanupTests; this only stops the universal
+        // invariant reporting a transformation as a loss.
+        let hasDigit = output.contains(where: \.isNumber)
+        let numberWords = outWords.filter { SpokenNumbers.allWords.contains($0) }
+
         var previous: String? = nil
         for word in inWords {
             defer { previous = word }
             if removable.contains(word) { continue }
             if word == previous { continue }             // collapsed duplicate
             if outWords.contains(word) { continue }
+            // "twenty five" became "25".
+            if hasDigit, SpokenNumbers.allWords.contains(word) { continue }
+            // "o n e" was joined back into the word it spells.
+            if word.count == 1, let letter = word.first,
+               numberWords.contains(where: { $0.contains(letter) }) { continue }
             // A stutter fragment is licensed to vanish into the word after it.
             if let next = inWords.first(where: { $0 != word && $0.hasPrefix(word) }),
                outWords.contains(next) { continue }

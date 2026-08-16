@@ -25,6 +25,14 @@ throwing it away.
 restated sentences and contractions. It changes nothing else — your hedges and
 phrasing survive. **Full rewrite** restructures rambling speech into clean prose.
 
+Spoken numbers are written as digits — "twenty three" becomes `23`, and
+adjacent digits run together the way a code is dictated: "four four seven two"
+is `4472`, "one oh five" is `105`. Say "comma" or "space" when two figures are
+two figures: "three comma four" is `3, 4`, "three space four" is `3 4`. To get
+the word instead, spell it:
+"O-N-E" becomes `one`. Phrases where the word is not a figure ("one of them",
+"one more", "send it to the team") are left alone.
+
 ### It learns how you speak
 
 When a word comes out wrong, open **Fix last dictation…** from the menu bar and

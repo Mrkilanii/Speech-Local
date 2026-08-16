@@ -49,7 +49,7 @@ func removesEachFiller(filler: String) {
 }
 
 @Test func capitalizesAfterSentenceEnd() {
-    #expect(rules.apply(to: "one thing. another thing") == "One thing. Another thing.")
+    #expect(rules.apply(to: "first thing. another thing") == "First thing. Another thing.")
 }
 
 @Test func fixesStandaloneI() {
@@ -220,8 +220,8 @@ private let tidy = RulesCleanup(commaPolicy: .tidy)
 @Test func keepsCapitalAfterRealFullStop() {
     // Punctuation is present, so the capital is justified — and a real sentence
     // break is indistinguishable from a pause-induced one, so it stands.
-    #expect(rules.apply(to: "one thing. Another thing")
-            == "One thing. Another thing.")
+    #expect(rules.apply(to: "first thing. Another thing")
+            == "First thing. Another thing.")
 }
 
 @Test func keepsProperNounCapitals() {
@@ -364,4 +364,103 @@ func leavesAmbiguousWordsAlone(word: String) {
 
 @Test func doesNotTouchAlreadyCorrectContractions() {
     #expect(rules.apply(to: "that wasn't right") == "That wasn't right.")
+}
+
+// MARK: - Numbers
+
+@Test func writesSpokenNumbersAsDigits() {
+    #expect(rules.apply(to: "send me one file") == "Send me 1 file.")
+    #expect(rules.apply(to: "i need seven copies") == "I need 7 copies.")
+}
+
+@Test func writesCompoundNumbersAsDigits() {
+    #expect(rules.apply(to: "it took twenty three minutes") == "It took 23 minutes.")
+    #expect(rules.apply(to: "twenty-three minutes") == "23 minutes.")
+    #expect(rules.apply(to: "about two thousand five hundred") == "About 2500.")
+    #expect(rules.apply(to: "one hundred and five") == "100 and 5.")
+}
+
+@Test func capitalizesCorrectlyAfterALeadingDigit() {
+    // The sentence opens on a digit, so the following word must stay lowercase.
+    #expect(rules.apply(to: "three things went wrong") == "3 things went wrong.")
+}
+
+@Test func readsAdjacentDigitsAsOneFigure() {
+    // How a code, extension or account number is actually dictated.
+    #expect(rules.apply(to: "the code is five five five") == "The code is 555.")
+    #expect(rules.apply(to: "account four four seven two") == "Account 4472.")
+    #expect(rules.apply(to: "it is three four") == "It is 34.")
+}
+
+@Test func readsOhAsZeroInsideAFigure() {
+    #expect(rules.apply(to: "room one oh five") == "Room 105.")
+    #expect(rules.apply(to: "room one zero five") == "Room 105.")
+    // Leading zeros survive, so a dialling code is not silently shortened.
+    #expect(rules.apply(to: "call me on oh two one") == "Call me on 021.")
+}
+
+@Test func leavesOhAloneWhenItIsNotADigit() {
+    #expect(rules.apply(to: "meet me at five o clock") == "Meet me at 5 o clock.")
+    #expect(rules.apply(to: "oh two years ago") == "Oh 2 years ago.")
+}
+
+@Test func spokenSeparatorsBreakAFigure() {
+    #expect(rules.apply(to: "three comma four") == "3, 4.")
+    #expect(rules.apply(to: "three space four") == "3 4.")
+    // Already punctuated by the recognizer, same result.
+    #expect(tidy.apply(to: "three, four and five") == "3, 4 and 5.")
+    // Only between two digits — elsewhere they are ordinary words.
+    #expect(rules.apply(to: "we are out of disk space") == "We are out of disk space.")
+    #expect(rules.apply(to: "the comma is missing") == "The comma is missing.")
+}
+
+@Test func scaleWordsStayArithmetic() {
+    // "five hundred" is 500, not a digit run.
+    #expect(rules.apply(to: "five hundred and six") == "500 and 6.")
+    #expect(rules.apply(to: "two thousand twenty five") == "2025.")
+}
+
+@Test func keepsPunctuationAroundNumbers() {
+    #expect(tidy.apply(to: "there were twelve, then more")
+            == "There were 12, then more.")
+}
+
+@Test func spellingANumberWritesTheWord() {
+    #expect(rules.apply(to: "just o n e more") == "Just one more.")
+    #expect(rules.apply(to: "just O-N-E more") == "Just one more.")
+    #expect(rules.apply(to: "s i x t y percent") == "Sixty percent.")
+}
+
+@Test func spelledLettersThatAreNotNumbersAreLeftAlone() {
+    // Joining every letter run would turn "F B I" into "fbi".
+    #expect(rules.apply(to: "he works at F B I now").contains("F B I"))
+}
+
+@Test func leavesPronounOneAlone() {
+    #expect(rules.apply(to: "that is one of them") == "That is one of them.")
+    #expect(rules.apply(to: "no one came") == "No one came.")
+    #expect(rules.apply(to: "the one i meant") == "The one I meant.")
+    #expect(rules.apply(to: "give me this one") == "Give me this one.")
+    #expect(rules.apply(to: "just one more") == "Just one more.")
+    #expect(rules.apply(to: "one thing at a time") == "One thing at a time.")
+}
+
+@Test func leavesTwoAloneWhereItIsAMisheardTo() {
+    // The recognizer writes "two" for "to"; committing to "2 the" makes it
+    // worse, so the word stands.
+    #expect(rules.apply(to: "send it two the team") == "Send it two the team.")
+    #expect(rules.apply(to: "i need two go") == "I need two go.")
+}
+
+@Test func stillConvertsAmbiguousWordsOutsideTheirFrames() {
+    #expect(rules.apply(to: "i have two apples") == "I have 2 apples.")
+    #expect(rules.apply(to: "chapter one is done") == "Chapter 1 is done.")
+    // Punctuation separates the frame, so the exception does not apply.
+    #expect(tidy.apply(to: "i have two, the rest are gone")
+            == "I have 2, the rest are gone.")
+}
+
+@Test func leavesNumbersAloneInUnsupportedLanguages() {
+    let other = RulesCleanup(language: .other)
+    #expect(other.apply(to: "send me one file") == "Send me one file.")
 }

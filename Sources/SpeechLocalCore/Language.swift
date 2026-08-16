@@ -105,6 +105,11 @@ public enum Language: String, Codable, Sendable, CaseIterable {
     /// problem this solves.
     public var hasContractions: Bool { self == .english }
 
+    /// Whether spoken numbers are rewritten as digits. The word lists in
+    /// `SpokenNumbers` are English; Arabic both spells numbers differently and
+    /// has its own digit forms, so it is left to the recognizer.
+    public var hasNumberWords: Bool { self == .english }
+
     /// Whether day and month names should be capitalised. English does; Arabic
     /// has no case, and other languages vary (German capitalises all nouns,
     /// French does not capitalise months at all), so it is not attempted.
