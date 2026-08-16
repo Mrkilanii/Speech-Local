@@ -13,6 +13,9 @@ final class Listener: @unchecked Sendable {
     private var cursors: [CleanupMode: UInt64] = [:]
     private let lock = NSLock()
     private var status: StatusItem?
+    private let asr = AppleASREngine()
+    private let cleanup = RoutingCleanupEngine(llm: AppleCleanupEngine())
+    private let vocabulary = Vocabulary(aliases: [:])
 
     /// Retained by the callbacks it installs, so it outlives `run()`.
     @MainActor
@@ -121,13 +124,64 @@ final class Listener: @unchecked Sendable {
                     format: "%@ %@ — %.1f s, %@", label(mode), "\(kind)", seconds,
                     rms > 0.001 ? "audio OK" : "SILENT")
                 Task { @MainActor in
-                    self.status?.apply(.idle)
+                    self.status?.apply(.processing)
                     self.status?.chime(start: false)
                     self.status?.report(summary)
                 }
+                Task { await self.transcribe(samples: samples, mode: mode) }
 
             case .none:
                 break
+            }
+        }
+    }
+
+    /// M3: audio -> transcript -> cleaned text. Insertion arrives in M4, so the
+    /// result is logged and shown in the menu rather than typed anywhere yet.
+    private func transcribe(samples: [Float], mode: CleanupMode) async {
+        guard let rate = capture?.buffer.sampleRate else { return }
+        let t0 = Date()
+        do {
+            let raw = try await asr.transcribe(
+                samples: samples, sampleRate: rate, locale: "en-US")
+            let asrMs = Date().timeIntervalSince(t0) * 1000
+
+            guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                log("  ASR returned nothing (silence, or speech too quiet)")
+                await MainActor.run {
+                    self.status?.apply(.idle)
+                    self.status?.report("No speech detected")
+                }
+                return
+            }
+            log(String(format: "  ASR   %5.0f ms  \"%@\"", asrMs, raw))
+
+            let t1 = Date()
+            var cleaned = raw
+            do {
+                for try await partial in cleanup.stream(
+                    transcript: raw, mode: mode, vocabulary: vocabulary
+                ) { cleaned = partial }
+            } catch {
+                // Degrade loudly, never lose text.
+                log("  CLEANUP FAILED (\(error)) — falling back to raw transcript")
+                cleaned = raw
+            }
+            let cleanMs = Date().timeIntervalSince(t1) * 1000
+            let totalMs = Date().timeIntervalSince(t0) * 1000
+
+            log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
+            log(String(format: "  TOTAL %5.0f ms", totalMs))
+
+            await MainActor.run {
+                self.status?.apply(.idle)
+                self.status?.report(String(cleaned.prefix(60)))
+            }
+        } catch {
+            log("  ASR FAILED: \(error)")
+            await MainActor.run {
+                self.status?.apply(.error("transcription failed"))
+                self.status?.report("ASR failed: \(error)")
             }
         }
     }
