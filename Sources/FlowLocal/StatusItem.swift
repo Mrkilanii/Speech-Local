@@ -41,6 +41,7 @@ final class StatusItem {
 
     var onQuit: (() -> Void)?
     var onCorrect: (() -> Void)?
+    var onSettings: (() -> Void)?
     private var correctItem: NSMenuItem!
 
     init() {
@@ -61,6 +62,10 @@ final class StatusItem {
         menu.addItem(NSMenuItem(
             title: "Double-tap either — hands-free", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
+        let settings = NSMenuItem(
+            title: "Settings…", action: #selector(settingsPressed), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
         let quit = NSMenuItem(
             title: "Quit FlowLocal", action: #selector(quitPressed), keyEquivalent: "q")
         quit.target = self
@@ -118,6 +123,10 @@ final class StatusItem {
 
     @objc private func correctPressed() {
         onCorrect?()
+    }
+
+    @objc private func settingsPressed() {
+        onSettings?()
     }
 
     @objc private func quitPressed() {

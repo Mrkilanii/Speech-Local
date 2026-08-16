@@ -15,9 +15,18 @@ final class Listener: @unchecked Sendable {
     private var status: StatusItem?
     private var panel: DictationPanel?
     private let asr = AppleASREngine()
-    private let cleanup = RoutingCleanupEngine(llm: AppleCleanupEngine())
-    private let vocabulary = Vocabulary(aliases: [:])
+    /// Rebuilt per dictation so a settings change takes effect immediately.
+    private var cleanup: RoutingCleanupEngine {
+        RoutingCleanupEngine(
+            llm: AppleCleanupEngine(),
+            rules: RulesCleanup(commaPolicy:
+                settingsStore.current.commaPolicy == .sparse ? .sparse : .tidy)
+        )
+    }
+    private var vocabulary: Vocabulary { settingsStore.current.vocabulary }
     private let learned = LearnedCorrections()
+    private let settingsStore = SettingsStore()
+    private var settingsWindow: SettingsWindow?
     private let inserter = TextInserter()
     /// Last raw ASR output, kept so a correction can be diffed against it.
     private var lastRaw: String?
@@ -38,6 +47,7 @@ final class Listener: @unchecked Sendable {
         app.setActivationPolicy(.accessory)
         status = StatusItem()
         status?.onCorrect = { [weak self] in self?.correctLast() }
+        status?.onSettings = { [weak self] in self?.openSettings() }
 
         let panel = DictationPanel()
         // Live level comes from the tail of the ring buffer, so the waveform
@@ -79,7 +89,10 @@ final class Listener: @unchecked Sendable {
             return
         }
 
-        let hotkeys = HotkeyManager(lightTouch: .rightOption, fullRewrite: .rightCommand)
+        let configured = settingsStore.current
+        let hotkeys = HotkeyManager(
+            lightTouch: Self.key(for: configured.lightTouchKey),
+            fullRewrite: Self.key(for: configured.fullRewriteKey))
         hotkeys.onSignal = { [self] signal in handle(signal) }
         do {
             try hotkeys.start()
@@ -121,7 +134,7 @@ final class Listener: @unchecked Sendable {
                 log("[\(label(mode))] begin (\(kind))")
                 Task { @MainActor in
                     self.status?.apply(.recording(mode))
-                    self.status?.chime(start: true)
+                    if self.settingsStore.current.playSounds { self.status?.chime(start: true) }
                     self.panel?.show(.listening(mode: mode))
                 }
 
@@ -151,7 +164,7 @@ final class Listener: @unchecked Sendable {
                     rms > 0.001 ? "audio OK" : "SILENT")
                 Task { @MainActor in
                     self.status?.apply(.processing)
-                    self.status?.chime(start: false)
+                    if self.settingsStore.current.playSounds { self.status?.chime(start: false) }
                     self.status?.report(summary)
                     self.panel?.show(.processing)
                 }
@@ -171,7 +184,7 @@ final class Listener: @unchecked Sendable {
         do {
             let bias = await learned.biasTerms()
             let heard = try await asr.transcribe(
-                samples: samples, sampleRate: rate, locale: "en-US", biasTerms: bias)
+                samples: samples, sampleRate: rate, locale: settingsStore.current.locale, biasTerms: bias)
             // Repair only fires where a learned correction's context recurs.
             let raw = await learned.repair(heard)
             if raw != heard { log("  LEARNED  \"\(heard)\" -> \"\(raw)\"") }
@@ -235,6 +248,38 @@ final class Listener: @unchecked Sendable {
                 self.panel?.show(.failed("Transcription failed"))
             }
         }
+    }
+
+    private static func key(for choice: HotkeyChoice) -> HotkeyManager.Key {
+        switch choice {
+        case .rightOption:  return .rightOption
+        case .rightCommand: return .rightCommand
+        case .rightControl: return .rightControl
+        case .fn:           return .fn
+        }
+    }
+
+    @MainActor
+    private func openSettings() {
+        if settingsWindow == nil {
+            let window = SettingsWindow(store: settingsStore, corrections: learned)
+            // Rebinding requires tearing the event tap down and back up; the old
+            // one is still watching the previous keycodes.
+            window.onHotkeysChanged = { [weak self] (settings: FlowLocalCore.Settings) in
+                guard let self else { return }
+                self.hotkeys?.stop()
+                let rebuilt = HotkeyManager(
+                    lightTouch: Self.key(for: settings.lightTouchKey),
+                    fullRewrite: Self.key(for: settings.fullRewriteKey))
+                rebuilt.onSignal = { [weak self] signal in self?.handle(signal) }
+                try? rebuilt.start()
+                self.hotkeys = rebuilt
+                log("hotkeys rebound: \(settings.lightTouchKey.displayName) / "
+                    + "\(settings.fullRewriteKey.displayName)")
+            }
+            settingsWindow = window
+        }
+        settingsWindow?.show()
     }
 
     /// X button: stop and discard. The audio is kept so Undo can recover it.

@@ -7,10 +7,13 @@ import Foundation
 /// * **Full rewrite → LLM.** Rewording is the whole point, and the user
 ///   explicitly asked for it, so a multi-second wait is acceptable.
 public struct RoutingCleanupEngine: CleanupEngine {
-    private let rules = RulesCleanup()
+    private let rules: RulesCleanup
     private let llm: any CleanupEngine
 
-    public init(llm: any CleanupEngine) { self.llm = llm }
+    public init(llm: any CleanupEngine, rules: RulesCleanup = RulesCleanup()) {
+        self.llm = llm
+        self.rules = rules
+    }
 
     /// Light-touch always works, so the app is never fully unavailable. Only
     /// full rewrite depends on the model.
