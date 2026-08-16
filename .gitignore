@@ -37,3 +37,7 @@ clone-run/PLAN-REVIEW-LOG.md
 # Transcript history and learned corrections: the user's speech.
 history.json
 corrections.json
+
+# Process artifacts: contain local paths and working notes.
+clone-run/GOAL-PROMPT.md
+clone-run/STATE.md

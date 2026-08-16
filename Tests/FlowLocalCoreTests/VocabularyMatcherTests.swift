@@ -59,8 +59,8 @@ func phraseNotMatchedAcrossPunctuation(input: String) {
 }
 
 @Test func protectsEmails() {
-    let vocab = Vocabulary(aliases: ["atallahr": "Omar"])
-    let input = "email atallahr@gmail.com now"
+    let vocab = Vocabulary(aliases: ["someone": "Someone"])
+    let input = "email someone@example.com now"
     #expect(matcher.apply(vocab, to: input) == input)
 }
 
