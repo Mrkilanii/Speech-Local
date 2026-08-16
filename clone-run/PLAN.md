@@ -1,4 +1,4 @@
-# Plan — FlowLocal: a fully local Wispr Flow clone for macOS
+# Plan — FlowLocal: a fully local dictation app for macOS
 
 ## Context
 

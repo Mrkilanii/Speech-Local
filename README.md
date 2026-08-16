@@ -62,8 +62,8 @@ permissions on every rebuild, leaving an app that launches fine and does nothing
 
 ```bash
 xcode-select --install          # skip if already installed
-git clone https://github.com/<you>/flowlocal.git
-cd flowlocal
+git clone https://github.com/Mrkilanii/voice-dictation.git
+cd voice-dictation
 make test
 ```
 
@@ -283,6 +283,14 @@ app, its AX role, timings, and which insertion path was used.
 See [BUILDING.md](BUILDING.md) for toolchain notes that cost real time to
 discover — XCTest being absent from Command Line Tools, AMFI rejecting comments
 in entitlements, and why benchmarks are fiction unless machine load is checked.
+
+## A note on names
+
+Wispr Flow is a product of Wispr AI, and is referenced here only to describe what
+this app does — it is not affiliated with, endorsed by, or derived from them.
+Their software is closed-source and cloud-based; **no code, assets, or branding
+of theirs is used here.** Everything in this repository is written against
+Apple's public frameworks.
 
 ## Credits
 

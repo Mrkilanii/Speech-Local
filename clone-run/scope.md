@@ -1,4 +1,4 @@
-# Scope — local Wispr Flow clone
+# Scope — a local dictation app
 
 ## Target
 
@@ -7,7 +7,7 @@ global hotkey anywhere, speak, release; the app transcribes the audio, runs an
 AI cleanup pass over the raw transcript, and inserts the polished text at the
 cursor in whatever app has focus.
 
-The reason to clone rather than subscribe: Wispr Flow sends audio to the cloud
+The reason to build rather than subscribe: Wispr Flow sends audio to the cloud
 and costs a monthly fee. This build does the same job entirely on-device.
 
 ## Platform

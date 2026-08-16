@@ -1,4 +1,4 @@
-# Research — local Wispr Flow clone (macOS)
+# Research — a local dictation app for macOS
 
 Phase 1 output. Sources listed at the bottom. Machine-specific findings were
 verified locally on this Mac, not taken from the web.
