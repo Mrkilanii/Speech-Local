@@ -25,8 +25,9 @@ final class Listener: @unchecked Sendable {
     private var cleanup: RoutingCleanupEngine {
         RoutingCleanupEngine(
             llm: AppleCleanupEngine(),
-            rules: RulesCleanup(commaPolicy:
-                settingsStore.current.commaPolicy == .sparse ? .sparse : .tidy)
+            rules: RulesCleanup(
+                commaPolicy: settingsStore.current.commaPolicy == .sparse ? .sparse : .tidy,
+                language: Language(localeIdentifier: settingsStore.current.locale))
         )
     }
     private var vocabulary: Vocabulary { settingsStore.current.vocabulary }

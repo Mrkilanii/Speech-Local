@@ -47,9 +47,13 @@ public struct RulesCleanup: Sendable {
     }
 
     public var commaPolicy: CommaPolicy
+    /// Every rule below encodes an assumption about English. Running them over
+    /// another language mangles it silently, so behaviour is gated on this.
+    public var language: Language
 
-    public init(commaPolicy: CommaPolicy = .sparse) {
+    public init(commaPolicy: CommaPolicy = .sparse, language: Language = .english) {
         self.commaPolicy = commaPolicy
+        self.language = language
     }
 
     /// Contractions the recognizer writes without their apostrophe.
@@ -131,13 +135,16 @@ public struct RulesCleanup: Sendable {
         tokens = collapseStutters(tokens)
         guard !tokens.isEmpty else { return "" }
 
-        tokens = fixContractions(tokens)
-        tokens = capitalizeKnownWords(tokens)
+        if language.hasContractions { tokens = fixContractions(tokens) }
+        if language.capitalisesDayNames { tokens = capitalizeKnownWords(tokens) }
+
         var text = reassemble(tokens)
         text = tidyCommas(text)
-        text = capitalizeSentences(text)
-        text = fixStandaloneI(text)
-        text = fixStrayCapitals(text)
+        if language.hasLetterCase {
+            text = capitalizeSentences(text)
+            text = fixStandaloneI(text)
+            text = fixStrayCapitals(text)
+        }
         text = collapseRestatedSentences(text)
         text = ensureTerminalPunctuation(text)
         return text
@@ -148,7 +155,7 @@ public struct RulesCleanup: Sendable {
     private func removeFillers(_ tokens: [String]) -> [String] {
         tokens.filter { token in
             let bare = token.lowercased().trimmingCharacters(in: .punctuationCharacters)
-            return !Self.fillers.contains(bare)
+            return !language.fillers.contains(bare)
         }
     }
 
@@ -160,8 +167,8 @@ public struct RulesCleanup: Sendable {
             let bare = token.lowercased().trimmingCharacters(in: .punctuationCharacters)
             // Never collapse across a sentence boundary: "Stop. Stop." is
             // deliberate emphasis, not a stutter on one word.
-            let previousEndsSentence = out.last.map {
-                $0.hasSuffix(".") || $0.hasSuffix("!") || $0.hasSuffix("?")
+            let previousEndsSentence = out.last.map { previous in
+                previous.last.map { language.terminators.contains($0) } ?? false
             } ?? false
             if !previousEndsSentence,
                let last = out.last?.lowercased().trimmingCharacters(in: .punctuationCharacters),
@@ -233,11 +240,12 @@ public struct RulesCleanup: Sendable {
 
     private func ensureTerminalPunctuation(_ text: String) -> String {
         guard let last = text.last else { return text }
-        if last == "." || last == "!" || last == "?" { return text }
-        if last == "," || last == ";" || last == ":" {
-            return String(text.dropLast()) + "."
+        if language.terminators.contains(last) { return text }
+        let terminator = String(language.defaultTerminator)
+        if last == language.comma || last == "," || last == ";" || last == ":" {
+            return String(text.dropLast()) + terminator
         }
-        return text + "."
+        return text + terminator
     }
 
     /// Repairs comma damage that is wrong under any policy, then applies the
@@ -248,16 +256,18 @@ public struct RulesCleanup: Sendable {
     private func tidyCommas(_ text: String) -> String {
         var out = text
 
-        // Mechanical repairs, always correct.
-        out = out.replacingOccurrences(of: "\\s*,\\s*,+", with: ",",
+        // Mechanical repairs, always correct. Written against this language's
+        // comma: Arabic uses U+060C, not U+002C.
+        let c = String(language.comma)
+        out = out.replacingOccurrences(of: "\\s*\(c)\\s*\(c)+", with: c,
                                        options: [.regularExpression])   // ",  ," -> ","
-        out = out.replacingOccurrences(of: "^\\s*,\\s*", with: "",
+        out = out.replacingOccurrences(of: "^\\s*\(c)\\s*", with: "",
                                        options: [.regularExpression])   // leading comma
-        out = out.replacingOccurrences(of: "\\s+,", with: ",",
+        out = out.replacingOccurrences(of: "\\s+\(c)", with: c,
                                        options: [.regularExpression])   // " ," -> ","
-        out = out.replacingOccurrences(of: ",\\s*([.!?])", with: "$1",
+        out = out.replacingOccurrences(of: "\(c)\\s*([.!?؟])", with: "$1",
                                        options: [.regularExpression])   // ", ." -> "."
-        out = out.replacingOccurrences(of: ",\\s*$", with: "",
+        out = out.replacingOccurrences(of: "\(c)\\s*$", with: "",
                                        options: [.regularExpression])   // trailing comma
 
         guard commaPolicy == .sparse else { return out }
@@ -285,13 +295,13 @@ public struct RulesCleanup: Sendable {
         // Otherwise keep a comma only when the next word actually starts a clause.
         var result: [String] = []
         for (index, word) in words.enumerated() {
-            guard word.hasSuffix(","), index + 1 < words.count else {
+            guard word.hasSuffix(String(language.comma)), index + 1 < words.count else {
                 result.append(word)
                 continue
             }
             let next = words[index + 1]
                 .trimmingCharacters(in: .punctuationCharacters).lowercased()
-            result.append(Self.clauseMarkers.contains(next) ? word : String(word.dropLast()))
+            result.append(language.clauseMarkers.contains(next) ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")
     }
@@ -335,12 +345,12 @@ public struct RulesCleanup: Sendable {
         var current = ""
         for character in text {
             current.append(character)
-            if character == "." || character == "!" || character == "?" {
+            if language.terminators.contains(character) {
                 // Keep runs like "..." together rather than splitting mid-ellipsis.
                 continue
             }
             if character == " ", let last = current.dropLast().last,
-               last == "." || last == "!" || last == "?" {
+               language.terminators.contains(last) {
                 let trimmed = current.trimmingCharacters(in: .whitespaces)
                 if !trimmed.isEmpty { sentences.append(trimmed) }
                 current = ""
