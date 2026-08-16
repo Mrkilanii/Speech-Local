@@ -32,6 +32,11 @@ func log(_ line: String) {
 
 let arguments = Set(CommandLine.arguments.dropFirst())
 
+if arguments.contains("--listen") {
+    Listener.run()
+    exit(0)
+}
+
 if arguments.contains("--ab") {
     await PromptAB.run()
     exit(0)

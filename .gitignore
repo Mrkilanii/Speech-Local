@@ -28,3 +28,8 @@ Models/
 # Process artifacts kept private (the review log is not published; scope.md,
 # research.md and PLAN.md deliberately ARE)
 clone-run/PLAN-REVIEW-LOG.md
+
+# Agent tooling — third-party skills with their own licenses. Not part of
+# FlowLocal and not ours to redistribute under MIT.
+.claude/
+.agents/
