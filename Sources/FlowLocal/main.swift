@@ -164,6 +164,38 @@ enum Diagnostics {
             check("FoundationModels available", false, "\(reason)")
         }
 
+        log("\nSpeech:")
+        let asr = AppleASREngine()
+        let locale = SettingsStore().current.locale
+        switch await asr.availability(locale: locale) {
+        case .available:
+            check("ASR locale \(locale) installed", true)
+        case .unavailable(let reason):
+            check("ASR locale \(locale) installed", false, "\(reason)")
+        }
+
+        log("\nLight-touch regression corpus:")
+        let regressions = LightTouchInvariants.check(
+            using: RulesCleanup(commaPolicy:
+                SettingsStore().current.commaPolicy == .sparse ? .sparse : .tidy))
+        check("\(LightTouchInvariants.corpus.count) cases hold their invariants",
+              regressions.isEmpty,
+              regressions.isEmpty ? "" : "\(regressions.count) regression(s)")
+        for failure in regressions.prefix(5) {
+            log("      ✗ \(failure.note): \(failure.problem)")
+            log("        in:  \(failure.input)")
+            log("        out: \(failure.output)")
+        }
+
+        log("\nMachine:")
+        let load = SystemLoad.oneMinute()
+        log(String(format: "  load average: %.2f", load))
+        if !SystemLoad.isQuietEnoughToBenchmark {
+            log("  NOTE: load is above \(SystemLoad.benchmarkCeiling) — timing")
+            log("        measurements taken now are not trustworthy. The same")
+            log("        cleanup config measured 947 ms idle and 7 s at load 52.")
+        }
+
         log("\nVocabulary matcher:")
         let matcher = VocabularyMatcher()
         let vocab = Vocabulary(aliases: ["kill annie": "Kilanii"])
