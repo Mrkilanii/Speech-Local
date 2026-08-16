@@ -69,10 +69,18 @@ sign: bundle
 cert:
 	@./build/make-cert.sh "$(IDENTITY)"
 
-# Runs the checks under the app's OWN TCC identity. A CLI cannot substitute:
-# AXIsProcessTrusted() inherits the terminal's grant and reports a false pass.
+# Launched via `open`, NOT as a terminal child. A process started from the shell
+# inherits Terminal's TCC grants, so AXIsProcessTrusted() returns true whether or
+# not FlowLocal itself was ever approved — a false pass. Only a Finder/launchd
+# launch runs under the app's own identity, so results are read back from the log.
 doctor: sign
-	@"$(APP_DIR)/Contents/MacOS/$(APP)" --diagnostics
+	@rm -f "$(HOME)/Library/Logs/FlowLocal/doctor.log"
+	@# -n forces a NEW instance: without it `open` merely fronts the running
+	@# listener and the diagnostics argument is ignored.
+	@open -n "$(APP_DIR)" --args --diagnostics
+	@sleep 6
+	@cat "$(HOME)/Library/Logs/FlowLocal/doctor.log" 2>/dev/null || echo "no diagnostics output"
+	@grep -q "ALL CHECKS PASS" "$(HOME)/Library/Logs/FlowLocal/doctor.log" 2>/dev/null
 
 cert-help:
 	@echo "One-time: create a stable self-signed code-signing certificate."
