@@ -12,8 +12,90 @@ import CoreMedia
 public actor AppleASREngine: ASREngine {
     public enum TranscribeError: Error, Sendable {
         case localeNotInstalled(String)
+        case localeUnsupported(String)
         case formatUnavailable
         case conversionFailed
+        case assetInstallFailed(String)
+    }
+
+    /// Apple ships two transcription modules with **different language
+    /// coverage**, and neither is a superset of the other in practice:
+    ///
+    /// * `SpeechTranscriber` — 30 locales (en, de, es, fr, it, ja, ko, pt, zh,
+    ///   yue). Long-form, and the better engine where it is available.
+    /// * `DictationTranscriber` — 54 locales, including Arabic, Hebrew, Hindi,
+    ///   Polish, Turkish and others `SpeechTranscriber` simply does not do.
+    ///
+    /// Arabic is the case that forced this: `SpeechTranscriber.supportedLocales`
+    /// does not contain `ar-SA` at all, so no amount of downloading would have
+    /// made it work. The engine therefore picks per locale, preferring
+    /// `SpeechTranscriber` and falling back to `DictationTranscriber`.
+    enum Module {
+        case speech(SpeechTranscriber)
+        case dictation(DictationTranscriber)
+
+        var speechModule: any SpeechModule {
+            switch self {
+            case .speech(let module):    return module
+            case .dictation(let module): return module
+            }
+        }
+    }
+
+    static func module(for locale: Locale) async -> Module? {
+        let bcp = locale.identifier(.bcp47)
+        func matches(_ list: [Locale]) -> Bool {
+            list.contains { $0.identifier(.bcp47) == bcp }
+        }
+
+        if matches(await SpeechTranscriber.supportedLocales) {
+            return .speech(SpeechTranscriber(locale: locale, preset: .progressiveTranscription))
+        }
+        if matches(await DictationTranscriber.supportedLocales) {
+            return .dictation(DictationTranscriber(
+                locale: locale,
+                contentHints: [],
+                transcriptionOptions: [.punctuation],
+                reportingOptions: [],
+                attributeOptions: []))
+        }
+        return nil
+    }
+
+    /// Every locale either module can handle, for the settings picker.
+    public static func allSupportedLocaleIdentifiers() async -> [String] {
+        let speech = await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }
+        let dictation = await DictationTranscriber.supportedLocales.map { $0.identifier(.bcp47) }
+        return Array(Set(speech).union(dictation)).sorted()
+    }
+
+    /// Locales ready to use without a download.
+    public static func installedLocaleIdentifiers() async -> [String] {
+        let speech = await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) }
+        let dictation = await DictationTranscriber.installedLocales.map { $0.identifier(.bcp47) }
+        return Array(Set(speech).union(dictation)).sorted()
+    }
+
+    /// Downloads the assets a locale needs, if any.
+    ///
+    /// Supported does not imply installed: `ar-SA` is listed by
+    /// `DictationTranscriber` while its assets are absent, and transcription
+    /// fails until they are fetched.
+    public static func installAssets(for identifier: String) async throws {
+        let locale = Locale(identifier: identifier)
+        guard let module = await module(for: locale) else {
+            throw TranscribeError.localeUnsupported(identifier)
+        }
+        _ = try? await AssetInventory.reserve(locale: locale)
+        do {
+            if let request = try await AssetInventory.assetInstallationRequest(
+                supporting: [module.speechModule]
+            ) {
+                try await request.downloadAndInstall()
+            }
+        } catch {
+            throw TranscribeError.assetInstallFailed("\(error)")
+        }
     }
 
     public init() {}
@@ -21,22 +103,15 @@ public actor AppleASREngine: ASREngine {
     // MARK: - Availability
 
     public func availability(locale identifier: String) async -> ASRAvailability {
-        let target = Locale(identifier: identifier)
-        let supported = await SpeechTranscriber.supportedLocales
-        let installed = await SpeechTranscriber.installedLocales
-
-        func matches(_ list: [Locale]) -> Bool {
-            list.contains { $0.identifier(.bcp47) == target.identifier(.bcp47) }
+        let installed = await Self.installedLocaleIdentifiers()
+        if installed.contains(identifier) { return .available }
+        let supported = await Self.allSupportedLocaleIdentifiers()
+        if supported.contains(identifier) {
+            return .unavailable(.localeNotInstalled(identifier))
         }
-
-        if matches(installed) { return .available }
-        if matches(supported) { return .unavailable(.localeNotInstalled(identifier)) }
         return .unavailable(.localeUnsupported(identifier))
     }
 
-    public static func installedLocaleIdentifiers() async -> [String] {
-        await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) }
-    }
 
     // MARK: - Transcription
 
@@ -82,71 +157,80 @@ public actor AppleASREngine: ASREngine {
         onPartial: @escaping @Sendable (String) -> Void
     ) async throws -> String {
         let locale = Locale(identifier: identifier)
-        let installed = await SpeechTranscriber.installedLocales
-        guard installed.contains(where: { $0.identifier(.bcp47) == locale.identifier(.bcp47) }) else {
+        guard let module = await Self.module(for: locale) else {
+            throw TranscribeError.localeUnsupported(identifier)
+        }
+
+        let installed = await Self.installedLocaleIdentifiers()
+        guard installed.contains(locale.identifier(.bcp47)) else {
             throw TranscribeError.localeNotInstalled(identifier)
         }
 
-        let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
-
-        // The analyzer dictates its own preferred format; our ring buffer is
-        // 16 kHz mono, so a second conversion is generally required.
         guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
-            compatibleWith: [transcriber]
+            compatibleWith: [module.speechModule]
         ) else { throw TranscribeError.formatUnavailable }
 
         let (inputStream, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
 
         // Learned corrections bias the recognizer toward words the user has
-        // fixed before. This is strictly safer than rewriting output: it nudges
+        // fixed before. Strictly safer than rewriting output: it nudges
         // recognition and cannot corrupt an otherwise-correct transcript.
         let context = AnalysisContext()
         if !biasTerms.isEmpty {
             context.contextualStrings[.general] = biasTerms
         }
-        // The analysisContext parameter exists only on the inits that take
-        // input up front, so the stream is supplied here rather than via a
-        // separate start() call.
+
         let analyzer = SpeechAnalyzer(
             inputSequence: inputStream,
-            modules: [transcriber],
+            modules: [module.speechModule],
             analysisContext: context
         )
 
-        // Collect results concurrently: the analyzer will not finish until its
-        // input ends, and results arrive while that happens.
-        // Results are per-SEGMENT, not cumulative. Each carries its own
-        // CMTimeRange, and the transcriber finalizes a segment whenever the
-        // speaker pauses. Assigning each result to a single variable therefore
-        // kept only the last sentence of a paragraph — segments must be
-        // accumulated in time order.
+        // Results are per-SEGMENT, not cumulative: each carries its own
+        // CMTimeRange, and a segment is finalized whenever the speaker pauses.
+        // Assigning each result to one variable kept only the last sentence of a
+        // paragraph. A later result for a range already seen supersedes it —
+        // that is how a volatile segment becomes its finalized version.
         //
-        // A later result for a range already seen supersedes it: that is how a
-        // volatile (in-progress) segment becomes its finalized version.
-        let collector = Task {
-            var segments: [(start: CMTime, text: String)] = []
+        // The two modules publish different Result types, so the accumulation is
+        // shared and only the iteration differs.
+        actor Segments {
+            private var items: [(start: CMTime, text: String)] = []
+
+            func add(start: CMTime, text: String) -> String {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return assembled() }
+                if let index = items.firstIndex(where: { $0.start == start }) {
+                    items[index].text = trimmed
+                } else {
+                    items.append((start: start, text: trimmed))
+                    items.sort { $0.start < $1.start }
+                }
+                return assembled()
+            }
 
             func assembled() -> String {
-                segments.map(\.text)
-                    .filter { !$0.isEmpty }
-                    .joined(separator: " ")
+                items.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
             }
+        }
+        let segments = Segments()
 
-            for try await result in transcriber.results {
-                let text = String(result.text.characters)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-
-                let start = result.range.start
-                if let index = segments.firstIndex(where: { $0.start == start }) {
-                    segments[index].text = text
-                } else {
-                    segments.append((start: start, text: text))
-                    segments.sort { $0.start < $1.start }
+        let collector = Task { () -> String in
+            switch module {
+            case .speech(let transcriber):
+                for try await result in transcriber.results {
+                    let text = await segments.add(
+                        start: result.range.start, text: String(result.text.characters))
+                    onPartial(text)
                 }
-                onPartial(assembled())
+            case .dictation(let transcriber):
+                for try await result in transcriber.results {
+                    let text = await segments.add(
+                        start: result.range.start, text: String(result.text.characters))
+                    onPartial(text)
+                }
             }
-            return assembled()
+            return await segments.assembled()
         }
 
         for await chunk in audio {

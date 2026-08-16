@@ -68,6 +68,9 @@ final class SettingsModel: ObservableObject {
     @Published var history: [TranscriptEntry] = []
     @Published var historyQuery = ""
     @Published var installedLocales: [String] = []
+    @Published var supportedLocales: [String] = []
+    @Published var localeStatus: String?
+    @Published var isInstallingLocale = false
     var onHotkeysChanged: ((AppSettings) -> Void)?
 
     init(store: SettingsStore, corrections: LearnedCorrections, history: TranscriptHistory) {
@@ -104,7 +107,30 @@ final class SettingsModel: ObservableObject {
     }
 
     func loadLocales() async {
-        installedLocales = await AppleASREngine.installedLocaleIdentifiers().sorted()
+        installedLocales = await AppleASREngine.installedLocaleIdentifiers()
+        supportedLocales = await AppleASREngine.allSupportedLocaleIdentifiers()
+    }
+
+    func isInstalled(_ identifier: String) -> Bool {
+        installedLocales.contains(identifier)
+    }
+
+    /// Supported does not imply installed. Downloading is explicit rather than
+    /// automatic: it is a network fetch, and this app's whole claim is that it
+    /// does nothing over the network without being asked.
+    func installLocale(_ identifier: String) async {
+        isInstallingLocale = true
+        localeStatus = "Downloading \(identifier)…"
+        do {
+            try await AppleASREngine.installAssets(for: identifier)
+            await loadLocales()
+            localeStatus = isInstalled(identifier)
+                ? "\(identifier) ready"
+                : "\(identifier) reported installed but is not listed"
+        } catch {
+            localeStatus = "Could not install \(identifier): \(error)"
+        }
+        isInstallingLocale = false
     }
 
     func apply(_ transform: (inout AppSettings) -> Void, hotkeysChanged: Bool = false) {
@@ -217,15 +243,29 @@ private struct SettingsView: View {
                     get: { model.settings.locale },
                     set: { locale in model.apply { $0.locale = locale } }
                 )) {
-                    ForEach(model.installedLocales, id: \.self) { identifier in
-                        Text(Locale.current.localizedString(forIdentifier: identifier)
-                             ?? identifier).tag(identifier)
+                    ForEach(model.supportedLocales, id: \.self) { identifier in
+                        Text(label(for: identifier)).tag(identifier)
                     }
                 }
-                Text("Only languages macOS has already downloaded are listed. "
-                     + "Cleanup rules — filler words, contractions, capitalisation "
-                     + "— are English-only; other languages are transcribed and "
-                     + "punctuated by the recognizer but not otherwise adjusted.")
+
+                if !model.isInstalled(model.settings.locale) {
+                    HStack {
+                        Text("Not downloaded yet").font(.caption).foregroundStyle(.orange)
+                        Spacer()
+                        Button("Download") {
+                            Task { await model.installLocale(model.settings.locale) }
+                        }
+                        .disabled(model.isInstallingLocale)
+                    }
+                }
+                if let status = model.localeStatus {
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+
+                Text("Cleanup rules — filler words, contractions, capitalisation "
+                     + "— exist for English and Arabic only. Other languages are "
+                     + "transcribed and punctuated by the recognizer, then left "
+                     + "alone rather than run through rules that would mangle them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -306,6 +346,11 @@ private struct SettingsView: View {
             }
         }
         .padding()
+    }
+
+    private func label(for identifier: String) -> String {
+        let name = Locale.current.localizedString(forIdentifier: identifier) ?? identifier
+        return model.isInstalled(identifier) ? name : "\(name) — not downloaded"
     }
 
     // MARK: History
