@@ -12,16 +12,20 @@ final class Listener: @unchecked Sendable {
     private var hotkeys: HotkeyManager?
     private var cursors: [CleanupMode: UInt64] = [:]
     private let lock = NSLock()
+    private var status: StatusItem?
 
     /// Retained by the callbacks it installs, so it outlives `run()`.
+    @MainActor
     static func run() {
         let listener = Listener()
         listener.start()
     }
 
+    @MainActor
     private func start() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
+        status = StatusItem()
 
         log("\n=== FlowLocal listener — \(Date()) ===")
 
@@ -73,6 +77,7 @@ final class Listener: @unchecked Sendable {
         switch signal {
         case .tapDisabled(let reason):
             log("!! \(reason) — recording aborted")
+            Task { @MainActor in self.status?.apply(.error(reason)) }
 
         case .gesture(let mode, let action):
             guard let capture else { return }
@@ -86,11 +91,16 @@ final class Listener: @unchecked Sendable {
                 let now = capture.buffer.writeCursor
                 cursors[mode] = now > back ? now - back : 0
                 log("[\(label(mode))] begin (\(kind))")
+                Task { @MainActor in
+                    self.status?.apply(.recording(mode))
+                    self.status?.chime(start: true)
+                }
 
             case .discardAndRestart:
                 lock.lock(); defer { lock.unlock() }
                 cursors[mode] = capture.buffer.writeCursor
                 log("[\(label(mode))] double-tap detected — discarded, now hands-free")
+                Task { @MainActor in self.status?.report("Hands-free — tap to stop") }
 
             case .finishRecording(let kind):
                 lock.lock()
@@ -107,6 +117,14 @@ final class Listener: @unchecked Sendable {
                     label(mode), "\(kind)", seconds, samples.count, rms, peak,
                     rms > 0.001 ? "SIGNAL" : "SILENCE — check input device",
                     overran ? "  !! ring buffer overran" : ""))
+                let summary = String(
+                    format: "%@ %@ — %.1f s, %@", label(mode), "\(kind)", seconds,
+                    rms > 0.001 ? "audio OK" : "SILENT")
+                Task { @MainActor in
+                    self.status?.apply(.idle)
+                    self.status?.chime(start: false)
+                    self.status?.report(summary)
+                }
 
             case .none:
                 break
