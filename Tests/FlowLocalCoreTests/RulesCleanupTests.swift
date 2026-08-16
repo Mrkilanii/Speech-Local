@@ -244,3 +244,34 @@ private let tidy = RulesCleanup(commaPolicy: .tidy)
         #expect(out.contains(word), "dropped '\(word)'")
     }
 }
+
+// MARK: - Stutters
+
+@Test(arguments: [
+    ("st stop the build", "Stop the build."),
+    ("comp computer is slow", "Computer is slow."),
+    ("fri friday works for me", "Friday works for me."),
+])
+func collapsesStutterOnNonWordFragment(input: String, expected: String) {
+    #expect(rules.apply(to: input) == expected)
+}
+
+@Test func doesNotCollapseRealWordPrefix() {
+    // "to today" is genuinely ambiguous — "go to today's meeting" is ordinary
+    // English. Automatic collapse would wreck it, so this is left to the
+    // learned-corrections path where the user confirms it in context.
+    #expect(rules.apply(to: "go to today's meeting").contains("to today"))
+}
+
+@Test func doesNotCollapseUnrelatedAdjacentWords() {
+    #expect(rules.apply(to: "the theatre was open") == "The theatre was open.")
+}
+
+@Test func doesNotCollapseAcrossPunctuation() {
+    // Both words must survive. (The comma itself is separately dropped by the
+    // .sparse policy, which is why this asserts words rather than punctuation.)
+    let out = rules.apply(to: "stop, stopping now").lowercased()
+    #expect(out.contains("stop"))
+    #expect(out.contains("stopping"))
+    #expect(tidy.apply(to: "stop, stopping now").lowercased().contains("stop,"))
+}

@@ -72,6 +72,17 @@ public struct RulesCleanup: Sendable {
         "today", "tomorrow", "yesterday", "tonight", "now", "soon", "later",
     ]
 
+    /// Short words that stand on their own. A fragment matching one of these is
+    /// assumed to be a real word rather than a stutter.
+    static let realWords: Set<String> = neverProperNouns.union([
+        "i", "me", "my", "he", "us", "am", "an", "as", "at", "be", "by", "do",
+        "go", "if", "in", "is", "it", "no", "of", "on", "or", "so", "to", "up",
+        "we", "who", "why", "how", "one", "two", "six", "ten", "new", "old",
+        "own", "put", "run", "set", "let", "may", "far", "few", "big", "top",
+        "end", "add", "ask", "buy", "try", "use", "way", "yes", "yet", "car",
+        "day", "eye", "job", "key", "law", "man", "map", "pay", "war", "win",
+    ])
+
     /// Words that genuinely follow a comma. Used by `.sparse` to keep the commas
     /// that carry grammar and drop the ones that mark a breath.
     static let clauseMarkers: Set<String> = [
@@ -87,6 +98,7 @@ public struct RulesCleanup: Sendable {
         var tokens = tokenize(trimmed)
         tokens = removeFillers(tokens)
         tokens = collapseRepeats(tokens)
+        tokens = collapseStutters(tokens)
         guard !tokens.isEmpty else { return "" }
 
         tokens = capitalizeKnownWords(tokens)
@@ -119,6 +131,40 @@ public struct RulesCleanup: Sendable {
                 continue
             }
             out.append(token)
+        }
+        return out
+    }
+
+    /// Collapses a stutter where the speaker restarts a word: "st stop",
+    /// "comp computer", "fri friday".
+    ///
+    /// The fragment must be a strict prefix of the next word **and not itself a
+    /// real word**. That exclusion is the whole safety margin: "to today" has
+    /// exactly the same shape as a stutter, but "go to today's meeting" is
+    /// ordinary English and dropping "to" would wreck it. Stutters on real words
+    /// are left to `LearnedCorrections`, where the user confirms them in context.
+    private func collapseStutters(_ tokens: [String]) -> [String] {
+        guard tokens.count > 1 else { return tokens }
+        var out: [String] = []
+        var index = 0
+        while index < tokens.count {
+            let current = tokens[index]
+            let bare = current.lowercased().trimmingCharacters(in: .punctuationCharacters)
+
+            if index + 1 < tokens.count, !bare.isEmpty, bare.count <= 4 {
+                let next = tokens[index + 1].lowercased()
+                    .trimmingCharacters(in: .punctuationCharacters)
+                let isFragment = next.count > bare.count
+                    && next.hasPrefix(bare)
+                    && !Self.realWords.contains(bare)
+                    && !current.contains(where: \.isPunctuation)
+                if isFragment {
+                    index += 1   // drop the fragment, keep the full word
+                    continue
+                }
+            }
+            out.append(current)
+            index += 1
         }
         return out
     }

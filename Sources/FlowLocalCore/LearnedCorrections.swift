@@ -73,13 +73,22 @@ public actor LearnedCorrections {
 
     /// Derives corrections from a raw transcript and the user's edited version.
     ///
-    /// Only single-word substitutions at matching positions are learned.
-    /// Insertions, deletions, and reorderings are ignored: they are usually the
-    /// user rewriting their own words, not fixing a misrecognition, and learning
-    /// from them would poison the store.
+    /// Two shapes are learned:
+    /// * **Substitution** — same word count, one word differs ("tip" → "ship").
+    /// * **Stutter deletion** — exactly one word removed, and it was a prefix of
+    ///   the word that followed ("to today" → "today"). This is the one deletion
+    ///   worth learning; `RulesCleanup` deliberately refuses to guess it
+    ///   automatically because "go to today's meeting" looks identical.
+    ///
+    /// Every other edit is ignored: rewrites are the user changing their own
+    /// words, not fixing a misrecognition, and learning from them poisons the store.
     public func learnFromEdit(raw: String, corrected: String) -> [Correction] {
         let rawWords = raw.split(whereSeparator: \.isWhitespace).map(String.init)
         let fixedWords = corrected.split(whereSeparator: \.isWhitespace).map(String.init)
+
+        if rawWords.count == fixedWords.count + 1 {
+            return learnStutterDeletion(rawWords: rawWords, fixedWords: fixedWords)
+        }
         guard rawWords.count == fixedWords.count else { return [] }
 
         var learned: [Correction] = []
@@ -103,6 +112,39 @@ public actor LearnedCorrections {
         return learned
     }
 
+    /// Learns a removed word when it was a prefix of the word after it.
+    private func learnStutterDeletion(rawWords: [String], fixedWords: [String]) -> [Correction] {
+        // Find the single position where the two diverge.
+        var cut: Int? = nil
+        for index in 0..<rawWords.count {
+            let mirrored = index < fixedWords.count ? fixedWords[index] : nil
+            if mirrored?.lowercased() != rawWords[index].lowercased() { cut = index; break }
+        }
+        guard let cut else { return [] }
+
+        // Everything after the removed word must line up exactly, or this is a
+        // rewrite rather than a deletion.
+        guard Array(rawWords[(cut + 1)...]).map({ $0.lowercased() })
+            == Array(fixedWords[cut...]).map({ $0.lowercased() }) else { return [] }
+
+        let removed = rawWords[cut].trimmingCharacters(in: .punctuationCharacters)
+        guard cut + 1 < rawWords.count else { return [] }
+        let following = rawWords[cut + 1].trimmingCharacters(in: .punctuationCharacters)
+        guard !removed.isEmpty,
+              following.lowercased().hasPrefix(removed.lowercased()),
+              following.count > removed.count
+        else { return [] }
+
+        // Empty `intended` encodes "delete this word".
+        return [learn(Correction(
+            heard: removed,
+            intended: "",
+            before: cut > 0 ? rawWords[cut - 1]
+                .trimmingCharacters(in: .punctuationCharacters) : nil,
+            after: following
+        ))]
+    }
+
     // MARK: - Applying
 
     /// Terms to bias the recognizer toward, via `AnalysisContext.contextualStrings`.
@@ -113,6 +155,7 @@ public actor LearnedCorrections {
         var seen = Set<String>()
         var terms: [String] = []
         for correction in corrections.sorted(by: { $0.timesSeen > $1.timesSeen }) {
+            guard !correction.intended.isEmpty else { continue }   // deletions carry no bias term
             if seen.insert(correction.intended.lowercased()).inserted {
                 terms.append(correction.intended)
             }
@@ -129,6 +172,7 @@ public actor LearnedCorrections {
         guard !eligible.isEmpty else { return transcript }
 
         var words = transcript.split(whereSeparator: \.isWhitespace).map(String.init)
+        var dropped = Set<Int>()
         for index in words.indices {
             let bare = words[index].trimmingCharacters(in: .punctuationCharacters)
             guard !bare.isEmpty else { continue }
@@ -143,10 +187,17 @@ public actor LearnedCorrections {
                     && (correction.after == nil || correction.after == after)
             }
             if let match {
-                words[index] = words[index].replacingOccurrences(of: bare, with: match.intended)
+                if match.intended.isEmpty {
+                    dropped.insert(index)          // learned stutter fragment
+                } else {
+                    words[index] = words[index].replacingOccurrences(of: bare, with: match.intended)
+                }
             }
         }
-        return words.joined(separator: " ")
+        return words.enumerated()
+            .filter { !dropped.contains($0.offset) }
+            .map(\.element)
+            .joined(separator: " ")
     }
 
     // MARK: - Inspection

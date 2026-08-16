@@ -139,3 +139,61 @@ private func freshStore() -> LearnedCorrections {
     #expect(await second.count() == 1)
     #expect(await second.repair("we should tip it") == "we should ship it")
 }
+
+// MARK: - Stutter deletions
+
+@Test func learnsStutterDeletion() async {
+    // The reported case: "to today" where "to" was a restart, not a preposition.
+    let store = freshStore()
+    let learned = await store.learnFromEdit(
+        raw: "we should ship it to today",
+        corrected: "we should ship it today")
+    #expect(learned.count == 1)
+    #expect(learned.first?.heard == "to")
+    #expect(learned.first?.intended == "")
+    #expect(learned.first?.after == "today")
+}
+
+@Test func appliesLearnedStutterAfterThreshold() async {
+    let store = freshStore()
+    for _ in 0..<2 {
+        _ = await store.learnFromEdit(
+            raw: "we should ship it to today", corrected: "we should ship it today")
+    }
+    #expect(await store.repair("lets do it to today") == "lets do it today")
+}
+
+@Test func learnedStutterDoesNotFireInOtherContexts() async {
+    // The safety property: teaching "to today" must not break "to tomorrow" or
+    // any other legitimate use of "to".
+    let store = freshStore()
+    for _ in 0..<2 {
+        _ = await store.learnFromEdit(
+            raw: "we should ship it to today", corrected: "we should ship it today")
+    }
+    #expect(await store.repair("send it to tomorrow's meeting")
+            == "send it to tomorrow's meeting")
+    #expect(await store.repair("i want to go home") == "i want to go home")
+}
+
+@Test func ignoresDeletionThatIsNotAStutter() async {
+    // Removing an unrelated word is a rewrite, not a misrecognition.
+    let store = freshStore()
+    let learned = await store.learnFromEdit(
+        raw: "we should probably ship it", corrected: "we should ship it")
+    #expect(learned.isEmpty)
+}
+
+@Test func ignoresMultiWordDeletion() async {
+    let store = freshStore()
+    let learned = await store.learnFromEdit(
+        raw: "we should really probably ship it", corrected: "we should ship it")
+    #expect(learned.isEmpty)
+}
+
+@Test func deletionsProduceNoBiasTerm() async {
+    let store = freshStore()
+    _ = await store.learnFromEdit(
+        raw: "we should ship it to today", corrected: "we should ship it today")
+    #expect(await store.biasTerms().isEmpty)
+}
