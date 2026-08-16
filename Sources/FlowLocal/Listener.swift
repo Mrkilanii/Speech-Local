@@ -80,6 +80,32 @@ final class Listener: @unchecked Sendable {
         lifecycle.onInterrupt = { [weak self] reason in
             Task { @MainActor in self?.abandonActive(reason: reason) }
         }
+        lifecycle.onAccessibilityLost = { [weak self] in
+            log("!! Accessibility revoked — hotkeys are dead until it is restored")
+            Task { @MainActor in
+                self?.status?.apply(.error("Accessibility off — hotkeys disabled"))
+                self?.status?.report("Grant Accessibility in System Settings")
+                self?.panel?.show(.failed("Accessibility turned off — hotkeys disabled"))
+            }
+        }
+        lifecycle.onAccessibilityRestored = { [weak self] in
+            log("Accessibility restored — rebuilding the event tap")
+            Task { @MainActor in
+                guard let self else { return }
+                // The old tap died with the permission; re-enabling it does
+                // nothing, so it must be rebuilt from scratch.
+                self.hotkeys?.stop()
+                let settings = self.settingsStore.current
+                let rebuilt = HotkeyManager(
+                    lightTouch: Self.key(for: settings.lightTouchKey),
+                    fullRewrite: Self.key(for: settings.fullRewriteKey))
+                rebuilt.onSignal = { [weak self] signal in self?.handle(signal) }
+                try? rebuilt.start()
+                self.hotkeys = rebuilt
+                self.status?.apply(.idle)
+                self.status?.report("Accessibility restored")
+            }
+        }
         lifecycle.start()
         self.panel = panel
         panel.show(.hidden)   // resting pill, always visible

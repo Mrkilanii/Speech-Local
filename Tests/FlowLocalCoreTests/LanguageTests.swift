@@ -115,3 +115,22 @@ func identifiesLanguageFromLocale(identifier: String, expected: Language) {
         #expect(out.contains(word), "dropped '\(word)'")
     }
 }
+
+@Test func sparsePolicyIsInertWithoutClauseMarkers() {
+    // French has no marker list here, so sparse must fall back to keeping the
+    // recognizer's commas rather than stripping all of them.
+    let french = RulesCleanup(commaPolicy: .sparse, language: .other)
+    let out = french.apply(to: "je pense, donc je suis")
+    #expect(out.contains(","), "every comma was stripped: \(out)")
+}
+
+@Test func sparsePolicyStillWorksForArabic() {
+    // Arabic has markers, so the policy remains active there.
+    #expect(!Language.arabic.clauseMarkers.isEmpty)
+}
+
+@Test func unknownLanguageKeepsRecognizerPunctuation() {
+    let german = RulesCleanup(commaPolicy: .sparse, language: .other)
+    let input = "ich denke, dass es gut ist"
+    #expect(german.apply(to: input).contains(","))
+}

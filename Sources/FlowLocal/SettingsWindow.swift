@@ -71,6 +71,7 @@ final class SettingsModel: ObservableObject {
     @Published var supportedLocales: [String] = []
     @Published var localeStatus: String?
     @Published var isInstallingLocale = false
+    @Published var localeToDownload = ""
     var onHotkeysChanged: ((AppSettings) -> Void)?
 
     init(store: SettingsStore, corrections: LearnedCorrections, history: TranscriptHistory) {
@@ -109,10 +110,22 @@ final class SettingsModel: ObservableObject {
     func loadLocales() async {
         installedLocales = await AppleASREngine.installedLocaleIdentifiers()
         supportedLocales = await AppleASREngine.allSupportedLocaleIdentifiers()
+        if localeToDownload.isEmpty || installedLocales.contains(localeToDownload) {
+            localeToDownload = downloadableLocales.first ?? ""
+        }
+    }
+
+    /// Supported but not yet on the machine.
+    var downloadableLocales: [String] {
+        supportedLocales.filter { !installedLocales.contains($0) }
     }
 
     func isInstalled(_ identifier: String) -> Bool {
         installedLocales.contains(identifier)
+    }
+
+    func displayName(_ identifier: String) -> String {
+        Locale.current.localizedString(forIdentifier: identifier) ?? identifier
     }
 
     /// Supported does not imply installed. Downloading is explicit rather than
@@ -124,9 +137,14 @@ final class SettingsModel: ObservableObject {
         do {
             try await AppleASREngine.installAssets(for: identifier)
             await loadLocales()
-            localeStatus = isInstalled(identifier)
-                ? "\(identifier) ready"
-                : "\(identifier) reported installed but is not listed"
+            if isInstalled(identifier) {
+                // Select it immediately: downloading a language is only ever
+                // done in order to use it.
+                apply { $0.locale = identifier }
+                localeStatus = "\(displayName(identifier)) added and selected"
+            } else {
+                localeStatus = "\(identifier) reported installed but is not listed"
+            }
         } catch {
             localeStatus = "Could not install \(identifier): \(error)"
         }
@@ -243,21 +261,33 @@ private struct SettingsView: View {
                     get: { model.settings.locale },
                     set: { locale in model.apply { $0.locale = locale } }
                 )) {
-                    ForEach(model.supportedLocales, id: \.self) { identifier in
-                        Text(label(for: identifier)).tag(identifier)
+                    ForEach(model.installedLocales, id: \.self) { identifier in
+                        Text(model.displayName(identifier)).tag(identifier)
                     }
                 }
 
-                if !model.isInstalled(model.settings.locale) {
+                // Only downloaded languages are offered above: choosing one that
+                // is merely "supported" would fail at transcription time with
+                // nothing to explain why.
+                if !model.downloadableLocales.isEmpty {
                     HStack {
-                        Text("Not downloaded yet").font(.caption).foregroundStyle(.orange)
-                        Spacer()
-                        Button("Download") {
-                            Task { await model.installLocale(model.settings.locale) }
+                        Picker("Download language", selection: $model.localeToDownload) {
+                            ForEach(model.downloadableLocales, id: \.self) { identifier in
+                                Text(model.displayName(identifier)).tag(identifier)
+                            }
                         }
-                        .disabled(model.isInstallingLocale)
+                        Button(model.isInstallingLocale ? "Downloading…" : "Download") {
+                            Task { await model.installLocale(model.localeToDownload) }
+                        }
+                        .disabled(model.isInstallingLocale || model.localeToDownload.isEmpty)
                     }
+                    Text("Downloaded languages are added above and selected "
+                         + "automatically. \(model.downloadableLocales.count) more "
+                         + "available.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+
                 if let status = model.localeStatus {
                     Text(status).font(.caption).foregroundStyle(.secondary)
                 }
@@ -346,11 +376,6 @@ private struct SettingsView: View {
             }
         }
         .padding()
-    }
-
-    private func label(for identifier: String) -> String {
-        let name = Locale.current.localizedString(forIdentifier: identifier) ?? identifier
-        return model.isInstalled(identifier) ? name : "\(name) — not downloaded"
     }
 
     // MARK: History

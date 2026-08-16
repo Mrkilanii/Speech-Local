@@ -270,7 +270,11 @@ public struct RulesCleanup: Sendable {
         out = out.replacingOccurrences(of: "\(c)\\s*$", with: "",
                                        options: [.regularExpression])   // trailing comma
 
-        guard commaPolicy == .sparse else { return out }
+        // Sparse keeps a comma only when the next word is a clause marker. A
+        // language with no marker list would therefore lose EVERY comma — the
+        // exact silent mangling this file claims to avoid. Without the
+        // vocabulary to judge, keep the recognizer's punctuation.
+        guard commaPolicy == .sparse, !language.clauseMarkers.isEmpty else { return out }
 
         let words = out.split(whereSeparator: \.isWhitespace).map(String.init)
 

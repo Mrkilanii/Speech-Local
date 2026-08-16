@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 
 /// Watches for machine states that make an in-flight dictation invalid.
 ///
@@ -16,8 +17,20 @@ public final class LifecycleMonitor: @unchecked Sendable {
     /// Called with a human-readable reason when the current dictation must end.
     public var onInterrupt: (@Sendable (String) -> Void)?
 
+    /// Called when Accessibility is revoked while the app is running.
+    ///
+    /// macOS kills the event tap and `CGEvent.tapEnable` then fails silently, so
+    /// the app keeps running with hotkeys that do nothing and no way for the
+    /// user to tell whether it is broken or they are mis-pressing. Polling is
+    /// the only option: there is no notification for a revoked TCC grant.
+    public var onAccessibilityLost: (@Sendable () -> Void)?
+    /// Called when it is granted again, so the app can recover without a restart.
+    public var onAccessibilityRestored: (@Sendable () -> Void)?
+
     private var tokens: [NSObjectProtocol] = []
     private var distributedTokens: [NSObjectProtocol] = []
+    private var permissionTimer: Timer?
+    private var lastTrusted = true
 
     public init() {}
 
@@ -48,9 +61,27 @@ public final class LifecycleMonitor: @unchecked Sendable {
             self?.onInterrupt?("the screen locked")
         }
         distributedTokens.append(lockToken)
+
+        lastTrusted = AXIsProcessTrusted()
+        permissionTimer = Timer.scheduledTimer(
+            withTimeInterval: 2.0, repeats: true
+        ) { [weak self] _ in
+            guard let self else { return }
+            let trusted = AXIsProcessTrusted()
+            guard trusted != self.lastTrusted else { return }
+            self.lastTrusted = trusted
+            if trusted {
+                self.onAccessibilityRestored?()
+            } else {
+                self.onInterrupt?("Accessibility was turned off")
+                self.onAccessibilityLost?()
+            }
+        }
     }
 
     public func stop() {
+        permissionTimer?.invalidate()
+        permissionTimer = nil
         let workspace = NSWorkspace.shared.notificationCenter
         tokens.forEach { workspace.removeObserver($0) }
         tokens.removeAll()
