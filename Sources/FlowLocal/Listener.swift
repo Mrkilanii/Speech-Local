@@ -62,6 +62,7 @@ final class Listener: @unchecked Sendable {
         panel.onCancel = { [weak self] in self?.cancelActive() }
         panel.onConfirm = { [weak self] in self?.confirmActive() }
         panel.onUndo = { [weak self] in self?.undoCancel() }
+        panel.onDismiss = { }
         self.panel = panel
         panel.show(.hidden)   // resting pill, always visible
 
@@ -222,6 +223,7 @@ final class Listener: @unchecked Sendable {
             log(String(format: "  TOTAL %5.0f ms", totalMs))
 
             // M4: put the text where the user is actually typing.
+            log("  FOCUS \(await inserter.describeFocus())")
             do {
                 let method = try await inserter.insert(cleaned)
                 log("  INSERT via \(method.rawValue)")
@@ -233,7 +235,11 @@ final class Listener: @unchecked Sendable {
             } catch {
                 // Nowhere to type it: show the text in the pill with a copy
                 // button rather than discarding it.
-                log("  INSERT FAILED (\(error)) — showing in panel")
+                if case TextInserter.InsertError.noTextInput = error {
+                    log("  no text field focused — offering the text to copy")
+                } else {
+                    log("  INSERT FAILED (\(error)) — offering the text to copy")
+                }
                 await MainActor.run {
                     self.status?.apply(.idle)
                     self.status?.report(String(cleaned.prefix(60)))

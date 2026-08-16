@@ -17,6 +17,9 @@ import ApplicationServices
 public actor TextInserter {
     public enum InsertError: Error, Sendable, Equatable {
         case noFocusedElement
+        /// Something is focused, but it cannot accept text — the desktop, a
+        /// button, a web page with no input selected.
+        case noTextInput
         /// A password field. Refused deliberately — never type into one.
         case secureField
         case focusChanged
@@ -39,6 +42,63 @@ public actor TextInserter {
 
     // MARK: - Entry point
 
+    /// Detailed description of the focused element. Diagnostics only — used to
+    /// find a signal that separates "caret in an editable field" from "a
+    /// container that merely advertises text attributes".
+    public func describeFocus() -> String {
+        guard let element = try? focusedElement() else { return "none" }
+
+        func string(_ attribute: String) -> String? {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(
+                element, attribute as CFString, &value) == .success else { return nil }
+            return value as? String
+        }
+        func settable(_ attribute: String) -> Bool {
+            var flag: DarwinBoolean = false
+            return AXUIElementIsAttributeSettable(
+                element, attribute as CFString, &flag) == .success && flag.boolValue
+        }
+        func present(_ attribute: String) -> Bool {
+            var value: CFTypeRef?
+            return AXUIElementCopyAttributeValue(
+                element, attribute as CFString, &value) == .success && value != nil
+        }
+
+        // A real caret reports a concrete location; a container often does not.
+        var rangeText = "nil"
+        var rangeValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            element, kAXSelectedTextRangeAttribute as CFString, &rangeValue) == .success,
+           let rangeRef = rangeValue {
+            var range = CFRange()
+            if AXValueGetValue(unsafeBitCast(rangeRef, to: AXValue.self), .cfRange, &range) {
+                rangeText = "loc=\(range.location) len=\(range.length)"
+            } else {
+                rangeText = "unreadable"
+            }
+        }
+
+        var focusedFlag = "?"
+        var focusedValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            element, kAXFocusedAttribute as CFString, &focusedValue) == .success {
+            focusedFlag = "\((focusedValue as? Bool) ?? false)"
+        }
+
+        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        return """
+        app=\(app) role=\(string(kAXRoleAttribute as String) ?? "?") \
+        subrole=\(string(kAXSubroleAttribute as String) ?? "-") \
+        focused=\(focusedFlag) range=\(rangeText) \
+        valueRead=\(present(kAXValueAttribute as String)) \
+        valueSet=\(settable(kAXValueAttribute as String)) \
+        selTextSet=\(settable(kAXSelectedTextAttribute as String)) \
+        numChars=\(present(kAXNumberOfCharactersAttribute as String)) \
+        accepts=\(acceptsText(element))
+        """.replacingOccurrences(of: "\n", with: "")
+    }
+
     @discardableResult
     public func insert(_ text: String) throws -> Method {
         guard !text.isEmpty else { return .accessibility }
@@ -51,6 +111,12 @@ public actor TextInserter {
 
         let element = try focusedElement()
         try rejectSecureField(element)
+
+        // Checked before either mechanism runs. Posting ⌘V at something that
+        // cannot take text still "succeeds": the keystroke is delivered, nothing
+        // happens, and the clipboard is then restored — silently destroying the
+        // transcript. The caller needs to know so it can offer the text instead.
+        guard acceptsText(element) else { throw InsertError.noTextInput }
 
         if insertViaAccessibility(element, text: payload) { return .accessibility }
         try insertViaPaste(payload)
@@ -82,6 +148,33 @@ public actor TextInserter {
         if subrole == (kAXSecureTextFieldSubrole as String) {
             throw InsertError.secureField
         }
+    }
+
+    /// Whether the focused element can receive typed text **right now**.
+    ///
+    /// The signal is **settability**, established by comparing the two states in
+    /// the same app:
+    ///
+    /// | | role | valueSet | selTextSet |
+    /// |---|---|---|---|
+    /// | caret in the field | `AXTextArea` | true | true |
+    /// | clicked off the field | `AXGroup` | false | false |
+    ///
+    /// Note what is *not* usable: `kAXSelectedTextRangeAttribute` reads back
+    /// `loc=0 len=0` in both states, and both report `focused=true`. Earlier
+    /// versions keyed on the range and therefore accepted a container that had
+    /// nowhere to put text — ⌘V was delivered, discarded, and the clipboard
+    /// restored over the transcript.
+    private func acceptsText(_ element: AXUIElement) -> Bool {
+        func settable(_ attribute: String) -> Bool {
+            var flag: DarwinBoolean = false
+            return AXUIElementIsAttributeSettable(
+                element, attribute as CFString, &flag) == .success && flag.boolValue
+        }
+        // Either is sufficient: some apps expose one and not the other. Both are
+        // false for a non-editable container, which is the case that matters.
+        return settable(kAXSelectedTextAttribute as String)
+            || settable(kAXValueAttribute as String)
     }
 
     // MARK: - Accessibility path
