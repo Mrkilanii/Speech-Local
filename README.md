@@ -84,7 +84,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `216 tests ... passed`.
+You should see `218 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

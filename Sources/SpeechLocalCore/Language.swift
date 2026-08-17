@@ -101,6 +101,27 @@ public enum Language: String, Codable, Sendable, CaseIterable {
         }
     }
 
+    /// Words that open a sentence and take a comma after them in writing.
+    /// A comma here is grammar rather than hesitation, so the sparse policy
+    /// keeps it — "So, 5/2" reads wrong without one.
+    public var sentenceOpeners: Set<String> {
+        switch self {
+        case .english:
+            return ["so", "well", "actually", "however", "therefore", "then",
+                    "first", "firstly", "second", "secondly", "third", "next",
+                    "finally", "meanwhile", "otherwise", "instead", "besides",
+                    "moreover", "furthermore", "similarly", "nevertheless",
+                    "nonetheless", "anyway", "basically", "honestly", "frankly",
+                    "obviously", "unfortunately", "hopefully", "overall",
+                    "again", "still", "also", "yes", "no", "ok", "okay", "sure",
+                    "right", "now", "today", "yesterday", "tomorrow"]
+        case .arabic:
+            return ["لكن", "إذا", "اذا", "ثم", "أيضا", "ايضا", "أخيرا", "اخيرا"]
+        case .other:
+            return []
+        }
+    }
+
     /// Whether contraction repair applies. Only English has the apostrophe
     /// problem this solves.
     public var hasContractions: Bool { self == .english }

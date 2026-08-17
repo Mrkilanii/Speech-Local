@@ -317,7 +317,11 @@ public struct RulesCleanup: Sendable {
             for (index, word) in words.enumerated() where word.hasSuffix(",") {
                 commaCount += 1
                 if index + 1 < words.count {
-                    let next = words[index + 1].lowercased()
+                    // Trim: the serial word carries its own comma often enough
+                    // ("200 sentences, or, 5"), and comparing it with the comma
+                    // attached missed the list entirely.
+                    let next = words[index + 1]
+                        .trimmingCharacters(in: .punctuationCharacters).lowercased()
                     if next == "and" || next == "or" || next == "nor" { hasSerial = true }
                 }
             }
@@ -339,13 +343,22 @@ public struct RulesCleanup: Sendable {
             // it is never a hesitation.
             let separatesFigures = word.dropLast().last?.isNumber == true
                 && next.first?.isNumber == true
+            // A comma after the word that opens a sentence is grammar, not a
+            // pause: "So, 5/2" and "Well, it depends" are punctuated that way
+            // in writing. Judged on the word carrying the comma, since the
+            // clause-marker rule only ever looks at what follows it.
+            let opensSentence = index == 0 || words[index - 1].last.map {
+                language.terminators.contains($0)
+            } ?? false
+            let isOpener = opensSentence && language.sentenceOpeners.contains(
+                word.dropLast().trimmingCharacters(in: .punctuationCharacters).lowercased())
             // A comma on a word that could be a spoken command is evidence
             // `SpokenPunctuation` needs, and it runs after this. Dropping it
             // here would turn "leave one space, two of them" into a command.
             let carriesCommand = language.hasPunctuationWords
                 && SpokenPunctuation.isCommandWord(String(word.dropLast()))
             let keep = language.clauseMarkers.contains(next)
-                || separatesFigures || carriesCommand
+                || separatesFigures || carriesCommand || isOpener
             result.append(keep ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")

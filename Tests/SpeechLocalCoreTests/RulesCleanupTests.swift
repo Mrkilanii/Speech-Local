@@ -199,6 +199,27 @@ private let tidy = RulesCleanup(commaPolicy: .tidy)
             == "We need apples, oranges, and pears.")
 }
 
+@Test func sparseKeepsTheCommaOpeningASentence() {
+    // Reported: "So, 5/2." came out as "So 5/2." A comma after the word that
+    // opens a sentence is grammar, not hesitation, and the clause-marker rule
+    // never saw it because it only looks at the word that follows.
+    #expect(sparse.apply(to: "So, 5/2.") == "So, 5/2.")
+    #expect(sparse.apply(to: "Well, it depends.") == "Well, it depends.")
+    #expect(sparse.apply(to: "ship it. So, tell the team")
+            == "Ship it. So, tell the team.")
+    // Mid-sentence it is still a pause.
+    #expect(sparse.apply(to: "i wanted to do it, so") == "I wanted to do it, so.")
+}
+
+@Test func sparseFindsAListWhoseSerialWordIsPunctuated() {
+    // Reported: "500 words, 200 sentences, or, 5." lost two commas. The serial
+    // word carried its own comma, so comparing it untrimmed missed the list.
+    #expect(sparse.apply(to: "500 words, 200 sentences, or, 5.")
+            == "500 words, 200 sentences, or, 5.")
+    #expect(sparse.apply(to: "we need apples, oranges, or, pears")
+            == "We need apples, oranges, or, pears.")
+}
+
 @Test func sparseIsTheDefault() {
     #expect(RulesCleanup().apply(to: "i was thinking, that maybe, we should do it")
             == "I was thinking that maybe we should do it.")
