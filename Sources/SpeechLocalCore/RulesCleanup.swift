@@ -273,6 +273,9 @@ public struct RulesCleanup: Sendable {
 
     private func ensureTerminalPunctuation(_ text: String) -> String {
         guard let last = text.last else { return text }
+        // A list marker dictated on its own opens an item; it is not a sentence
+        // missing its full stop.
+        if text.range(of: #"^\d+[)\]]$"#, options: [.regularExpression]) != nil { return text }
         if language.terminators.contains(last) { return text }
         let terminator = String(language.defaultTerminator)
         if last == language.comma || last == "," || last == ";" || last == ":" {

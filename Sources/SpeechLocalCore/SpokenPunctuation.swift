@@ -77,10 +77,13 @@ enum SpokenPunctuation {
         "tilde": .joining("~"),
         "vertical bar": .joining("|"),
 
-        // Marks that open what follows.
+        // Marks that open what follows. "Bracket" is a paren here: that is
+        // what it means everywhere outside a compiler, and it is what someone
+        // numbering a list out loud has in mind.
         "open paren": .leading("("),
         "open parenthesis": .leading("("),
-        "open bracket": .leading("["),
+        "open bracket": .leading("("),
+        "open square bracket": .leading("["),
         "dollar sign": .leading("$"),
         "hashtag": .leading("#"),
         "hash sign": .leading("#"),
@@ -91,9 +94,10 @@ enum SpokenPunctuation {
         "bracket": .trailing(")"),
         "close paren": .trailing(")"),
         "closed paren": .trailing(")"),
-        "closed bracket": .trailing("]"),
         "close parenthesis": .trailing(")"),
-        "close bracket": .trailing("]"),
+        "close bracket": .trailing(")"),
+        "closed bracket": .trailing(")"),
+        "close square bracket": .trailing("]"),
 
         // The word is the instruction; the space is already there.
         "space": .trailing(""),
@@ -186,13 +190,23 @@ enum SpokenPunctuation {
             // Punctuation inside a phrase means the words are not one command.
             let broken = tokens[index..<(index + length - 1)]
                 .contains { !Token.parts(of: $0).trailing.isEmpty }
-            guard !broken, let glue = commands[phrase] else { continue }
+            guard !broken, let glue = commands[phrase] ?? plural(of: phrase)
+            else { continue }
             // Punctuation after it is allowed only when it says the same thing
             // the word does — the recognizer marks a spoken comma twice. A
             // different mark means the word is doing its own work: "leave one
             // space, two of them" is a sentence.
+            //
+            // The exception is the full stop that ends the whole utterance,
+            // which the recognizer adds to whatever came last and which says
+            // nothing about the word. Not extended to a command that writes
+            // nothing: "give me space." would lose its last word.
+            let mark = mark(of: glue)
             let trailing = Token.parts(of: tokens[index + length - 1]).trailing
-            if trailing.isEmpty || trailing == mark(of: glue) {
+            let endsUtterance = index + length == tokens.count
+                && !mark.isEmpty && trailing.count == 1
+                && ".!?".contains(trailing)
+            if trailing.isEmpty || trailing == mark || endsUtterance {
                 return Command(glue: glue, consumed: length)
             }
         }
@@ -204,6 +218,26 @@ enum SpokenPunctuation {
         guard case .trailing(let mark) = command.glue,
               let match = opener[mark] else { return false }
         return open.contains(match)
+    }
+
+    /// The command a plural spells, if any.
+    ///
+    /// The recognizer applies grammar to what it hears: say "two close
+    /// bracket" and it writes "Two close brackets." Nothing can be dictated
+    /// after a number without this.
+    ///
+    /// A plural never matches a command that writes nothing — "two spaces"
+    /// would lose the word altogether, and a word vanishing is the one outcome
+    /// the speaker cannot see to undo.
+    private static func plural(of phrase: String) -> Glue? {
+        var words = phrase.split(separator: " ").map(String.init)
+        guard let last = words.popLast() else { return nil }
+
+        for singular in [last.dropLast(2), last.dropLast(1)] where last.count > 3 {
+            let candidate = (words + [String(singular)]).joined(separator: " ")
+            if let glue = commands[candidate], !mark(of: glue).isEmpty { return glue }
+        }
+        return nil
     }
 
     private static func mark(of glue: Glue) -> String {

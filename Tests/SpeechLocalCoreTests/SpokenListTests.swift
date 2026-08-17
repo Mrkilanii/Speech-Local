@@ -57,6 +57,31 @@ private let rules = RulesCleanup()
     #expect(rules.apply(to: "add a bracket here") == "Add a bracket here.")
 }
 
+@Test func aPluralisedCommandStillCounts() {
+    // The recognizer applies grammar to what it hears: "two close bracket"
+    // comes back as "Two close brackets." Nothing can be dictated after a
+    // number without reading the plural.
+    #expect(rules.apply(to: "Two close brackets.") == "2)")
+    #expect(rules.apply(to: "Two brackets.") == "2)")
+    #expect(rules.apply(to: "is it working question marks") == "Is it working?")
+}
+
+@Test func aPluralNeverMakesAWordVanish() {
+    // "space" writes nothing, so a plural of it is always the noun — losing a
+    // word is the one outcome the speaker cannot see to undo.
+    #expect(rules.apply(to: "there are two spaces here") == "There are 2 spaces here.")
+    #expect(rules.apply(to: "the slashes are wrong") == "The slashes are wrong.")
+}
+
+@Test func bracketsAreParensNotSquareOnes() {
+    #expect(rules.apply(to: "open bracket like this close bracket") == "(like this).")
+    #expect(rules.apply(to: "open square bracket a close square bracket") == "[a].")
+}
+
+@Test func aMarkerDictatedAloneNeedsNoFullStop() {
+    #expect(rules.apply(to: "two bracket") == "2)")
+}
+
 // MARK: - "one" as a pronoun after an adjective
 
 @Test(arguments: ["important", "good", "last", "next", "big", "same", "right"])

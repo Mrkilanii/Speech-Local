@@ -49,7 +49,9 @@ pause after each number — and it comes out as `1) do this 2) do that`. Three
 things must hold together, so ordinary numbers are left alone: the numbers run
 1, 2, 3 from the start, each opens a clause, and each is followed by a pause.
 "I need 1 apple and 2 oranges" satisfies none of them. Say "bracket" to number
-an item explicitly instead of relying on the inference.
+an item explicitly instead of relying on the inference — "bracket" means a
+paren, and the plural the recognizer puts on it after a number ("two close
+brackets") is read as the same command.
 
 **To get the word instead of the symbol, spell it.** "O-N-E" is `one` and
 "C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
@@ -111,7 +113,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `264 tests ... passed`.
+You should see `268 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds
