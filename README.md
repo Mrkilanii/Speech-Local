@@ -44,6 +44,13 @@ two figures: "three comma four" is `3, 4`, "three space four" is `3 4`. Phrases
 where the word is not a figure ("one of them", "one more", "send it to the
 team") are left alone.
 
+**Dictating a list numbers itself.** Say "one, do this, two, do that" — with a
+pause after each number — and it comes out as `1) do this 2) do that`. Three
+things must hold together, so ordinary numbers are left alone: the numbers run
+1, 2, 3 from the start, each opens a clause, and each is followed by a pause.
+"I need 1 apple and 2 oranges" satisfies none of them. Say "bracket" to number
+an item explicitly instead of relying on the inference.
+
 **To get the word instead of the symbol, spell it.** "O-N-E" is `one` and
 "C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
 the reason each one can afford to be decisive.
@@ -104,7 +111,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `253 tests ... passed`.
+You should see `264 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

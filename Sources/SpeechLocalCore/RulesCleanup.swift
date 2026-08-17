@@ -131,7 +131,11 @@ public struct RulesCleanup: Sendable {
 
         var tokens = tokenize(trimmed)
         tokens = removeFillers(tokens)
-        if language.hasNumberWords { tokens = SpokenNumbers.apply(to: tokens) }
+        if language.hasNumberWords {
+            tokens = SpokenNumbers.apply(to: tokens)
+            // Before the comma policy, which removes the pause this reads.
+            tokens = SpokenList.apply(to: tokens)
+        }
         tokens = collapseRepeats(tokens)
         tokens = collapseStutters(tokens)
         guard !tokens.isEmpty else { return "" }

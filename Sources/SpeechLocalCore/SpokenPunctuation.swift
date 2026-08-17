@@ -86,8 +86,12 @@ enum SpokenPunctuation {
         "hash sign": .leading("#"),
         "pound sign": .leading("#"),
 
-        // Marks that close what came before.
+        // Marks that close what came before. A bare "bracket" is the one used
+        // when numbering by voice — "one bracket, do this" — so it closes.
+        "bracket": .trailing(")"),
         "close paren": .trailing(")"),
+        "closed paren": .trailing(")"),
+        "closed bracket": .trailing("]"),
         "close parenthesis": .trailing(")"),
         "close bracket": .trailing("]"),
 

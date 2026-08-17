@@ -102,8 +102,14 @@ enum SpokenNumbers {
     ///   committing to "2 the".
     static let exceptions: [String: (before: Set<String>, after: Set<String>)] = [
         "one": (
+            // Determiners, and the adjectives that turn "one" into a pronoun:
+            // "the important one", "a good one", "the last one".
             before: ["no", "the", "this", "that", "which", "each", "every",
-                     "any", "another", "only", "such", "some", "loved", "little"],
+                     "any", "another", "only", "such", "some", "loved", "little",
+                     "important", "main", "key", "last", "first", "next",
+                     "best", "worst", "good", "bad", "big", "small", "right",
+                     "wrong", "real", "new", "old", "same", "other", "favourite",
+                     "favorite", "wrong", "hard", "easy", "obvious"],
             after: ["of", "another", "who", "whom", "by", "more", "thing",
                     "things", "day", "way", "time", "point", "side"]
         ),
