@@ -288,3 +288,129 @@ private func editStore() -> LearnedCorrections {
         current: "memo: ship it later")
     #expect(learned.isEmpty)
 }
+
+// MARK: - Terms: a name the recognizer never spells the same way twice
+
+/// Every form one session actually produced for the same dictated name.
+private let katurianForms = ["caterion", "keturian", "caturian",
+                             "cateria", "criteria", "criterion"]
+
+@Test func twoCorrectionsIntoTheSameWordMakeItATerm() async {
+    let store = editStore()
+    for form in katurianForms.prefix(2) {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    let terms = await store.terms()
+    #expect(terms.count == 1)
+    #expect(terms.first?.intended == "Katurian")
+    #expect(terms.first?.timesSeen == 2)
+}
+
+@Test func aTermRepairsFormsItWasNeverTaught() async {
+    // The reported failure: seven corrections, each with a different `heard`,
+    // so no pair was ever seen twice and nothing was ever repaired. Two are
+    // now enough, and they cover the forms that follow.
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    for form in ["caturian", "cateria", "catering", "katurian"] {
+        #expect(await store.repair("\(form).") == "Katurian.",
+                "\"\(form)\" should be repaired once the term is known")
+    }
+}
+
+@Test func aFormTooFarFromTheTermNeedsItsOwnCorrection() async {
+    // "criteria" is a real English word the recognizer snapped to, and it is
+    // nowhere near "Katurian" in spelling. Sound alone will not reach it —
+    // correcting it once records it as a form and then it is exact.
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    #expect(await store.repair("criteria.") == "criteria.")
+
+    await store.learnFromInsertionEdit(
+        inserted: "criteria.", snapshot: "criteria.", current: "Katurian.")
+    #expect(await store.repair("criteria.") == "Katurian.")
+}
+
+@Test func aRepeatedSwapOfAnOrdinaryWordStaysContextBound() async {
+    // Reaching the same target from one form over and over is a word swap,
+    // not a vocabulary gap: "tip" -> "ship" must not touch "leave a tip".
+    let store = editStore()
+    for _ in 0..<3 {
+        await store.learnFromInsertionEdit(
+            inserted: "we should tip it", snapshot: "we should tip it",
+            current: "we should ship it")
+    }
+    #expect(await store.terms().isEmpty)
+    #expect(await store.repair("please leave a tip for the driver")
+            == "please leave a tip for the driver")
+}
+
+@Test func aTermRepairsAFormItHasNeverSeen() async {
+    // "catering" was never corrected, but it is a near miss of "caterion",
+    // which was — the recorded forms are the record of what it sounds like.
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    #expect(await store.repair("catering.") == "Katurian.")
+    #expect(await store.repair("Katurian.") == "Katurian.")
+}
+
+@Test func aTermAppliesInAnyContext() async {
+    // A name is a vocabulary fact, so it is not held to the surrounding words.
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "ask \(form) about it", snapshot: "ask \(form) about it",
+            current: "ask Katurian about it")
+    }
+    #expect(await store.repair("tell keturian later") == "tell Katurian later")
+}
+
+@Test func oneCorrectionIsNotYetATerm() async {
+    let store = editStore()
+    await store.learnFromInsertionEdit(
+        inserted: "caterion.", snapshot: "caterion.", current: "Katurian.")
+    #expect(await store.terms().isEmpty)
+    #expect(await store.repair("keturian.") == "keturian.")
+}
+
+@Test func twoSightingsOfOneFormDoNotMakeATerm() async {
+    let store = editStore()
+    for _ in 0..<2 {
+        await store.learnFromInsertionEdit(
+            inserted: "caterion.", snapshot: "caterion.", current: "Katurian.")
+    }
+    #expect(await store.terms().isEmpty)
+    #expect(await store.repair("caterion.") == "Katurian.")   // exact pair, context-free here
+}
+
+@Test func aTermDoesNotSwallowUnrelatedWords() async {
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    for word in ["the", "meeting", "tomorrow", "carpenter", "question", "cat"] {
+        #expect(await store.repair(word) == word, "\"\(word)\" must be left alone")
+    }
+}
+
+@Test func shortWordsAreNeverMatchedBySound() async {
+    // At four letters almost anything is within the distance.
+    let store = editStore()
+    for _ in 0..<2 {
+        await store.learnFromInsertionEdit(
+            inserted: "tip it now", snapshot: "tip it now", current: "ship it now")
+    }
+    #expect(await store.repair("chip it now") == "chip it now")
+    #expect(await store.repair("tip it now") == "ship it now")   // exact, in context
+}

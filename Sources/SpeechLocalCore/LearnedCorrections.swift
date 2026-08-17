@@ -192,6 +192,95 @@ public actor LearnedCorrections {
         ))]
     }
 
+    // MARK: - Terms
+
+    /// A word the user keeps correcting *into*, with every form the recognizer
+    /// has produced for it.
+    ///
+    /// This is the unit that matters for a name. The recognizer does not repeat
+    /// its mistake on a word it has never heard — it invents a new one each
+    /// time. One session produced "caterion", "keturian", "caturian",
+    /// "cateria", "criteria" and "criterion" for the same name, so every
+    /// correction was filed separately, none was ever seen twice, and the
+    /// substitution threshold was never reached however many times the user
+    /// fixed it.
+    ///
+    /// Counting by the *target* instead makes the evidence add up.
+    public struct Term: Sendable {
+        public let intended: String
+        public let heardForms: Set<String>
+        public let timesSeen: Int
+    }
+
+    /// Targets the user has corrected into from at least
+    /// `substitutionThreshold` **different** heard forms.
+    ///
+    /// The count of distinct forms is what separates the two cases, and it has
+    /// to: a target reached repeatedly from one single form is an ordinary word
+    /// swap — "tip" heard for "ship" — which must stay tied to its context, or
+    /// "leave a tip for the driver" gets rewritten. A target reached from many
+    /// different forms is a word the recognizer simply cannot hear, and there
+    /// is no context to tie it to.
+    public func terms() -> [Term] {
+        var byTarget: [String: (forms: Set<String>, count: Int)] = [:]
+        for correction in corrections where !correction.intended.isEmpty {
+            var entry = byTarget[correction.intended] ?? (forms: [], count: 0)
+            entry.forms.insert(correction.heard)
+            entry.count += correction.timesSeen
+            byTarget[correction.intended] = entry
+        }
+        return byTarget
+            .filter { $0.value.forms.count >= Self.substitutionThreshold }
+            .map { Term(intended: $0.key, heardForms: $0.value.forms,
+                        timesSeen: $0.value.count) }
+    }
+
+    /// Shortest word a term will match by sound. Below this, too many unrelated
+    /// words sit within the distance.
+    static let fuzzyFloor = 5
+    /// How alike two spellings must be, as a share of the longer one.
+    static let fuzzyThreshold = 0.7
+
+    /// Whether a transcript word is this term misheard again.
+    ///
+    /// Matched against every form the recognizer has already produced, not only
+    /// against the target: the forms are the user's own record of what this word
+    /// sounds like to the recognizer, and "catering" is far closer to the
+    /// recorded "caterion" than to "Katurian".
+    static func matches(_ word: String, term: Term) -> Bool {
+        let candidate = word.lowercased()
+        if term.heardForms.contains(candidate) { return true }
+        guard candidate.count >= fuzzyFloor else { return false }
+        return ([term.intended.lowercased()] + term.heardForms)
+            .filter { $0.count >= fuzzyFloor }
+            .contains { similarity(candidate, $0) >= fuzzyThreshold }
+    }
+
+    /// 1 for identical, 0 for nothing in common. Levenshtein over the longer word.
+    static func similarity(_ a: String, _ b: String) -> Double {
+        let longest = max(a.count, b.count)
+        guard longest > 0 else { return 1 }
+        return 1 - Double(distance(a, b)) / Double(longest)
+    }
+
+    static func distance(_ a: String, _ b: String) -> Int {
+        let first = Array(a), second = Array(b)
+        guard !first.isEmpty else { return second.count }
+        guard !second.isEmpty else { return first.count }
+
+        var previous = Array(0...second.count)
+        var current = previous
+        for i in 1...first.count {
+            current[0] = i
+            for j in 1...second.count {
+                let substitution = previous[j - 1] + (first[i - 1] == second[j - 1] ? 0 : 1)
+                current[j] = min(previous[j] + 1, current[j - 1] + 1, substitution)
+            }
+            previous = current
+        }
+        return previous[second.count]
+    }
+
     // MARK: - Applying
 
     /// Terms to bias the recognizer toward, via `AnalysisContext.contextualStrings`.
@@ -216,7 +305,8 @@ public actor LearnedCorrections {
     /// phrase does not fire everywhere the word appears.
     public func repair(_ transcript: String) -> String {
         let eligible = corrections.filter { $0.timesSeen >= Self.substitutionThreshold }
-        guard !eligible.isEmpty else { return transcript }
+        let known = terms()
+        guard !eligible.isEmpty || !known.isEmpty else { return transcript }
 
         var words = transcript.split(whereSeparator: \.isWhitespace).map(String.init)
         var dropped = Set<Int>()
@@ -239,6 +329,15 @@ public actor LearnedCorrections {
                 } else {
                     words[index] = words[index].replacingOccurrences(of: bare, with: match.intended)
                 }
+                continue
+            }
+
+            // A term is a vocabulary fact rather than a contextual one, so it
+            // applies wherever the word turns up and however the recognizer
+            // spelled it this time.
+            if let term = known.first(where: { Self.matches(bare, term: $0) }),
+               bare != term.intended {
+                words[index] = words[index].replacingOccurrences(of: bare, with: term.intended)
             }
         }
         return words.enumerated()

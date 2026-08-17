@@ -59,6 +59,12 @@ correct it. SpeechLocal then:
   context you corrected it in**. Teaching it that "tip" meant "ship" in *"we
   should tip it"* will never break *"leave a tip for the driver"*.
 
+Correct the same word from **two different mishearings** and it becomes a
+*term*: a word the recognizer cannot hear rather than one it swaps. A term is
+applied wherever it appears, and matched by sound, so the next mangling of it is
+caught even if it is one you have never corrected. Ordinary swaps stay tied to
+their context — "tip" heard for "ship" must never touch "leave a tip".
+
 **It also learns from edits you make in the app itself.** Dictate "rag", select
 it and type "RAG", and the next dictation picks that up — no menu, no dialog.
 The field you dictated into is read back once, at the start of your next
@@ -98,7 +104,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `243 tests ... passed`.
+You should see `253 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds
