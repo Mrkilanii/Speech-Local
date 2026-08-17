@@ -424,6 +424,19 @@ func leavesAmbiguousWordsAlone(word: String) {
     #expect(rules.apply(to: "Three comma, four.") == "3, 4.")
 }
 
+@Test func separatorSurvivesTheRecognizersOwnPunctuation() {
+    // Verbatim from the app log. Said alone the utterance came back as
+    // "Three comma four."; after any other word the pause grows and the
+    // recognizer marks it on both sides.
+    #expect(rules.apply(to: "Or three, comma, four.") == "Or 3, 4.")
+    #expect(rules.apply(to: "about it. Three, comma, four.") == "About it. 3, 4.")
+    #expect(rules.apply(to: "Or one, space two.") == "Or 1 2.")
+    // A word in front must not change the reading.
+    #expect(rules.apply(to: "the number is three comma four")
+            == "The number is 3, 4.")
+    #expect(rules.apply(to: "call it three space four") == "Call it 3 4.")
+}
+
 @Test func separatorPunctuationThatMeansSomethingElseIsLeftAlone() {
     // "space," is the word doing its own work, not a spoken separator.
     #expect(rules.apply(to: "leave one space, two of them")

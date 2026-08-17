@@ -131,8 +131,8 @@ enum SpokenNumbers {
         var out: [String] = []
         var index = 0
         while index < tokens.count {
-            if let mark = spokenSeparator(tokens, at: index, previous: out.last) {
-                out[out.count - 1] += mark   // "3" + "," ; "3" + "" drops the word
+            if let figure = spokenSeparator(tokens, at: index, previous: out.last) {
+                out[out.count - 1] = figure   // the separator word itself is dropped
                 index += 1
                 continue
             }
@@ -159,28 +159,41 @@ enum SpokenNumbers {
 
     // MARK: - Separators
 
-    /// What a spoken "comma" or "space" leaves behind, if this token is one
-    /// sitting between two figures. Nil means it is an ordinary word.
+    /// Rewrites the figure before a spoken "comma" or "space" to carry the
+    /// separator, if this token is one sitting between two figures. Nil means
+    /// it is an ordinary word.
     ///
     /// Kept out of `digitSequence` because a separator has to work whichever
     /// form each side arrived in — "one space 2", "1 space two", "3 comma 4"
     /// are all the same utterance to the speaker, and the recognizer picks
     /// between them unpredictably.
+    ///
+    /// It also punctuates around the spoken word from prosody, and the pause
+    /// grows once there is a sentence in front: alone the utterance came back
+    /// as "Three comma four.", but after any other word as "Or three, comma,
+    /// four." — a comma on *both* sides. All three marks are the one separator
+    /// the speaker asked for, so the previous figure is rewritten rather than
+    /// appended to, and "space" clears a prosodic comma instead of keeping it.
+    ///
+    /// The limit is punctuation that means something else: a full stop before
+    /// the word is a sentence boundary, and a comma *after* "space" is the
+    /// ordinary noun doing its own work ("leave one space, two of them").
     private static func spokenSeparator(
         _ tokens: [String], at index: Int, previous: String?
     ) -> String? {
         let token = parts(of: tokens[index])
-        // Punctuation on the separator itself is allowed only when it says the
-        // same thing the word does. The recognizer marks a spoken comma twice
-        // ("Three comma, four."), but "leave one space, two of them" is a
-        // sentence — there the comma means the word is doing its own work.
         guard let mark = separators[token.core.lowercased()],
-              token.leading.isEmpty, token.trailing.isEmpty || token.trailing == mark,
-              let previous, parts(of: previous).trailing.isEmpty,
-              parts(of: previous).core.last?.isNumber == true,
-              let next = tokens[safe: index + 1], isFigure(next)
+              token.leading.isEmpty,
+              token.trailing.isEmpty || token.trailing == mark,
+              let previous, let next = tokens[safe: index + 1], isFigure(next)
         else { return nil }
-        return mark
+
+        let figure = parts(of: previous)
+        guard figure.core.last?.isNumber == true,
+              figure.trailing.isEmpty || figure.trailing == ","
+        else { return nil }
+
+        return figure.leading + figure.core + mark
     }
 
     // MARK: - Digit sequences
