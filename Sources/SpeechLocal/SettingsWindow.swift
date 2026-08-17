@@ -321,6 +321,15 @@ private struct SettingsView: View {
                     get: { model.settings.playSounds },
                     set: { on in model.apply { $0.playSounds = on } }
                 ))
+                Toggle("Learn when you edit inserted text", isOn: Binding(
+                    get: { model.settings.learnFromEdits },
+                    set: { on in model.apply { $0.learnFromEdits = on } }
+                ))
+                Text("Fix a word after dictating it and the correction is "
+                     + "picked up on your next dictation, without opening "
+                     + "Fix last dictation. Reads the field you dictated into.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Keep transcript history", isOn: Binding(
                     get: { model.settings.keepHistory },
                     set: { model.setKeepHistory($0) }

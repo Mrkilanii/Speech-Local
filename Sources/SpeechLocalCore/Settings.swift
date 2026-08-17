@@ -51,6 +51,12 @@ public struct Settings: Codable, Sendable, Equatable {
     public var locale: String
     public var playSounds: Bool
     public var keepHistory: Bool
+    /// Whether editing inserted text teaches the recognizer.
+    ///
+    /// Reads the focused field back at the start of the next dictation to see
+    /// what changed, so it only works where the app publishes its text — and it
+    /// means the field's contents are read, which is why it can be turned off.
+    public var learnFromEdits: Bool
 
     public static let `default` = Settings(
         lightTouchKey: .rightOption,
@@ -60,7 +66,8 @@ public struct Settings: Codable, Sendable, Equatable {
         launchAtLogin: false,
         locale: "en-US",
         playSounds: true,
-        keepHistory: true
+        keepHistory: true,
+        learnFromEdits: true
     )
 
     public init(
@@ -71,7 +78,8 @@ public struct Settings: Codable, Sendable, Equatable {
         launchAtLogin: Bool,
         locale: String,
         playSounds: Bool,
-        keepHistory: Bool
+        keepHistory: Bool,
+        learnFromEdits: Bool
     ) {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
@@ -81,6 +89,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.locale = locale
         self.playSounds = playSounds
         self.keepHistory = keepHistory
+        self.learnFromEdits = learnFromEdits
     }
 
     /// Older files may lack fields added later; every key decodes with a
@@ -104,6 +113,8 @@ public struct Settings: Codable, Sendable, Equatable {
             Bool.self, forKey: .playSounds) ?? fallback.playSounds
         keepHistory = try container.decodeIfPresent(
             Bool.self, forKey: .keepHistory) ?? fallback.keepHistory
+        learnFromEdits = try container.decodeIfPresent(
+            Bool.self, forKey: .learnFromEdits) ?? fallback.learnFromEdits
     }
 
     /// The two hotkeys must differ, or one gesture becomes unreachable.

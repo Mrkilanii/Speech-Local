@@ -38,6 +38,11 @@ public actor TextInserter {
 
     private let pasteboardMarker = "dev.kilanii.speechlocal.paste"
 
+    /// The last text written into a field, kept so the user's edits to it can
+    /// be read back later. Held here rather than handed out because
+    /// `AXUIElement` must not cross an actor boundary.
+    private var lastInsertion: (element: AXUIElement, snapshot: String, inserted: String)?
+
     public init() {}
 
     // MARK: - Entry point
@@ -104,6 +109,48 @@ public actor TextInserter {
         """.replacingOccurrences(of: "\n", with: "")
     }
 
+    /// Text immediately before the caret, or nil when the app exposes none.
+    ///
+    /// Only the tail is returned: all that is being asked is whether a sentence
+    /// is under way, and reading a whole document to answer that would be
+    /// gratuitous.
+    public func textBeforeCaret() -> String? {
+        guard let element = try? focusedElement(),
+              let value = readValue(element),
+              let caret = caretOffset(element) else { return nil }
+
+        // AX offsets are UTF-16, not Characters.
+        let units = Array(value.utf16)
+        guard caret >= 0, caret <= units.count else { return nil }
+        return String(decoding: units[max(0, caret - Self.contextWindow)..<caret], as: UTF16.self)
+    }
+
+    /// Enough to see the end of the preceding sentence, and no more.
+    static let contextWindow = 64
+
+    /// What the last insertion looks like now, if the field can still be read.
+    ///
+    /// Nil when nothing was inserted, when the element is gone, or when the app
+    /// does not publish its text — which is also every case where the edit
+    /// could not have been observed anyway.
+    public func editedSinceInsertion() -> (inserted: String, snapshot: String, current: String)? {
+        guard let last = lastInsertion, let current = readValue(last.element) else { return nil }
+        return (last.inserted, last.snapshot, current)
+    }
+
+    public func forgetInsertion() { lastInsertion = nil }
+
+    private func caretOffset(_ element: AXUIElement) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
+            let rangeRef = value else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(unsafeBitCast(rangeRef, to: AXValue.self), .cfRange, &range)
+        else { return nil }
+        return range.location
+    }
+
     @discardableResult
     public func insert(_ text: String) throws -> Method {
         guard !text.isEmpty else { return .accessibility }
@@ -144,9 +191,21 @@ public actor TextInserter {
         // transcript. The caller needs to know so it can offer the text instead.
         guard acceptsText(element) else { throw InsertError.noTextInput }
 
-        if insertViaAccessibility(element, text: payload) { return .accessibility }
-        try insertViaPaste(payload)
-        return .paste
+        let method: Method
+        if insertViaAccessibility(element, text: payload) {
+            method = .accessibility
+        } else {
+            try insertViaPaste(payload)
+            method = .paste
+        }
+        // Snapshot the field as it stands with our text in it, so a later read
+        // shows what the user changed. Only when the text is actually visible
+        // in the value: a paste may not have landed yet, and a snapshot taken
+        // without it would read as the user having typed the whole insertion.
+        lastInsertion = readValue(element).flatMap { value in
+            value.contains(payload) ? (element: element, snapshot: value, inserted: payload) : nil
+        }
+        return method
     }
 
     /// Apps that accept ⌘V but expose no focused AX element.

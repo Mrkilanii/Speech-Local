@@ -197,3 +197,68 @@ private func freshStore() -> LearnedCorrections {
         raw: "we should ship it to today", corrected: "we should ship it today")
     #expect(await store.biasTerms().isEmpty)
 }
+
+// MARK: - Learning from an edit made in the target app
+
+private func editStore() -> LearnedCorrections {
+    LearnedCorrections(storeURL: FileManager.default.temporaryDirectory
+        .appendingPathComponent("speechlocal-edit-\(UUID().uuidString).json"))
+}
+
+@Test func learnsACaseOnlyFixMadeInTheApp() async {
+    // The reported case: dictate "rag", double-click it, type "RAG".
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "we use rag for this",
+        snapshot: "we use rag for this",
+        current: "we use RAG for this")
+    #expect(learned.count == 1)
+    #expect(learned.first?.heard == "rag")
+    #expect(learned.first?.intended == "RAG")
+}
+
+@Test func doesNotLearnACapitalThatIsOnlySentencePosition() {
+    // "so" -> "So" says nothing about the word, only about where it sat.
+    #expect(LearnedCorrections.derive(raw: "so we ship", corrected: "So we ship").isEmpty)
+    #expect(LearnedCorrections.derive(raw: "So we ship", corrected: "so we ship").isEmpty)
+}
+
+@Test func ignoresAnEditToWordsThatWereNotDictated() async {
+    // The field holds the user's own writing too.
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "ship it",
+        snapshot: "my own note ship it",
+        current: "my own draft ship it")
+    #expect(learned.isEmpty)
+}
+
+@Test func ignoresAnUneditedField() async {
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "ship it", snapshot: "ship it", current: "ship it")
+    #expect(learned.isEmpty)
+}
+
+@Test func learnsAWordSwapMadeInTheApp() async {
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "we should tip it on monday",
+        snapshot: "we should tip it on monday",
+        current: "we should ship it on monday")
+    #expect(learned.first?.heard == "tip")
+    #expect(learned.first?.intended == "ship")
+    #expect(learned.first?.before == "should")
+    #expect(learned.first?.after == "it")
+}
+
+@Test func repairsWithALearnedCaseFix() async {
+    let store = editStore()
+    for _ in 0..<LearnedCorrections.substitutionThreshold {
+        await store.learnFromInsertionEdit(
+            inserted: "we use rag for this",
+            snapshot: "we use rag for this",
+            current: "we use RAG for this")
+    }
+    #expect(await store.repair("we use rag for this") == "we use RAG for this")
+}

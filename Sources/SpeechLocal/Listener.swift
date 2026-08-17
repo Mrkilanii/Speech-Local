@@ -239,6 +239,9 @@ final class Listener: @unchecked Sendable {
         guard let rate = capture?.buffer.sampleRate else { return }
         let t0 = Date()
         do {
+            // Before biasing, so a fix made since the last dictation counts
+            // towards this one.
+            if settingsStore.current.learnFromEdits { await harvestEdit() }
             let bias = await learned.biasTerms()
             let heard = try await asr.transcribe(
                 samples: samples, sampleRate: rate, locale: settingsStore.current.locale, biasTerms: bias)
@@ -286,6 +289,12 @@ final class Listener: @unchecked Sendable {
 
             // M4: put the text where the user is actually typing.
             log("  FOCUS \(await inserter.describeFocus())")
+            // The caret is often mid-sentence, where cleanup's opening capital
+            // is wrong. The target's own text is the only thing that knows.
+            let preceding = await inserter.textBeforeCaret()
+            let opened = SentenceOpening.adjust(cleaned, following: preceding, raw: raw)
+            if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
+            cleaned = opened
             do {
                 let method = try await inserter.insert(cleaned)
                 log("  INSERT via \(method.rawValue)")
@@ -451,6 +460,23 @@ final class Listener: @unchecked Sendable {
         log("  undo — transcribing the cancelled audio after all")
         panel?.show(.processing)
         Task { await self.transcribe(samples: samples, mode: mode) }
+    }
+
+    /// Learns from what the user changed in the text last inserted.
+    ///
+    /// Reading the field back is the whole mechanism, so this works only where
+    /// the app publishes its text — the same apps where insertion goes through
+    /// accessibility rather than a blind paste.
+    private func harvestEdit() async {
+        guard let edit = await inserter.editedSinceInsertion() else { return }
+        await inserter.forgetInsertion()
+
+        let learnedNow = await learned.learnFromInsertionEdit(
+            inserted: edit.inserted, snapshot: edit.snapshot, current: edit.current)
+        for correction in learnedNow {
+            log("  LEARN  \"\(correction.heard)\" -> \"\(correction.intended)\" "
+                + "(from your edit, seen \(correction.timesSeen)x)")
+        }
     }
 
     /// Opens the correction prompt and learns from whatever the user changes.

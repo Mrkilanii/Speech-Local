@@ -25,6 +25,10 @@ throwing it away.
 restated sentences and contractions. It changes nothing else — your hedges and
 phrasing survive. **Full rewrite** restructures rambling speech into clean prose.
 
+Dictating into the middle of a sentence keeps it lowercase: the text already in
+front of your caret decides, so a capital appears at the start of the field,
+after a full stop, or on a new line, and nowhere else.
+
 Spoken punctuation is written as the mark: "hello **comma** world" is
 `hello, world`, "and **slash** or" is `and/or`, "done **full stop**" ends the
 sentence. A punctuation word with a determiner in front of it stays a word —
@@ -52,6 +56,14 @@ correct it. SpeechLocal then:
 - after the same correction twice, repairs it directly — but **only in the
   context you corrected it in**. Teaching it that "tip" meant "ship" in *"we
   should tip it"* will never break *"leave a tip for the driver"*.
+
+**It also learns from edits you make in the app itself.** Dictate "rag", select
+it and type "RAG", and the next dictation picks that up — no menu, no dialog.
+The field you dictated into is read back once, at the start of your next
+dictation, and only words that came from the dictation count. It needs an app
+that publishes its text through accessibility, so it cannot see edits in a
+terminal. Turn it off with **Settings → General → Learn when you edit inserted
+text**.
 
 This is a correction layer, not model training: Apple's speech model cannot be
 fine-tuned on-device. The effect is the same — the same mistake stops surviving —
@@ -84,7 +96,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `218 tests ... passed`.
+You should see `236 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

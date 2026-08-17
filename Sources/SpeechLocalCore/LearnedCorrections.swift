@@ -83,11 +83,34 @@ public actor LearnedCorrections {
     /// Every other edit is ignored: rewrites are the user changing their own
     /// words, not fixing a misrecognition, and learning from them poisons the store.
     public func learnFromEdit(raw: String, corrected: String) -> [Correction] {
+        Self.derive(raw: raw, corrected: corrected).map { learn($0) }
+    }
+
+    /// Records what the user changed in text already inserted into their app.
+    ///
+    /// Same derivation as `learnFromEdit`, narrowed to words that came from the
+    /// dictation: the field holds their own writing too, and a word they edited
+    /// elsewhere in the document is not a misrecognition.
+    @discardableResult
+    public func learnFromInsertionEdit(
+        inserted: String, snapshot: String, current: String
+    ) -> [Correction] {
+        guard current != snapshot else { return [] }
+        let ours = Set(inserted.split(whereSeparator: \.isWhitespace).map {
+            $0.trimmingCharacters(in: .punctuationCharacters).lowercased()
+        })
+        return Self.derive(raw: snapshot, corrected: current)
+            .filter { ours.contains($0.heard) }
+            .map { learn($0) }
+    }
+
+    /// The corrections an edit implies, before any of them are stored.
+    static func derive(raw: String, corrected: String) -> [Correction] {
         let rawWords = raw.split(whereSeparator: \.isWhitespace).map(String.init)
         let fixedWords = corrected.split(whereSeparator: \.isWhitespace).map(String.init)
 
         if rawWords.count == fixedWords.count + 1 {
-            return learnStutterDeletion(rawWords: rawWords, fixedWords: fixedWords)
+            return deriveStutterDeletion(rawWords: rawWords, fixedWords: fixedWords)
         }
         guard rawWords.count == fixedWords.count else { return [] }
 
@@ -96,8 +119,15 @@ public actor LearnedCorrections {
             let (heard, intended) = pair
             let bareHeard = heard.trimmingCharacters(in: .punctuationCharacters)
             let bareIntended = intended.trimmingCharacters(in: .punctuationCharacters)
-            guard bareHeard.lowercased() != bareIntended.lowercased(),
+            guard bareHeard != bareIntended,
                   !bareHeard.isEmpty, !bareIntended.isEmpty else { continue }
+
+            // A change of case only counts when it is not about the first
+            // letter. "rag" -> "RAG" and "iphone" -> "iPhone" are facts about
+            // the word; "so" -> "So" is only about where the sentence began,
+            // and learning it would rewrite the word everywhere.
+            if bareHeard.lowercased() == bareIntended.lowercased(),
+               bareHeard.dropFirst() == bareIntended.dropFirst() { continue }
 
             let correction = Correction(
                 heard: bareHeard,
@@ -107,13 +137,13 @@ public actor LearnedCorrections {
                 after: index + 1 < rawWords.count ? rawWords[index + 1]
                     .trimmingCharacters(in: .punctuationCharacters) : nil
             )
-            learned.append(learn(correction))
+            learned.append(correction)
         }
         return learned
     }
 
-    /// Learns a removed word when it was a prefix of the word after it.
-    private func learnStutterDeletion(rawWords: [String], fixedWords: [String]) -> [Correction] {
+    /// A removed word that was a prefix of the word after it.
+    private static func deriveStutterDeletion(rawWords: [String], fixedWords: [String]) -> [Correction] {
         // Find the single position where the two diverge.
         var cut: Int? = nil
         for index in 0..<rawWords.count {
@@ -136,7 +166,7 @@ public actor LearnedCorrections {
         else { return [] }
 
         // Empty `intended` encodes "delete this word".
-        return [learn(Correction(
+        return [(Correction(
             heard: removed,
             intended: "",
             before: cut > 0 ? rawWords[cut - 1]
