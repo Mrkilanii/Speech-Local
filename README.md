@@ -26,8 +26,10 @@ restated sentences and contractions. It changes nothing else — your hedges and
 phrasing survive. **Full rewrite** restructures rambling speech into clean prose.
 
 Dictating into the middle of a sentence keeps it lowercase: the text already in
-front of your caret decides, so a capital appears at the start of the field,
-after a full stop, or on a new line, and nowhere else.
+front of your caret decides. A capital appears where something new begins — the
+start of the field, after a full stop, on a new line, after an opening bracket
+or quote, and on a list item whose text has not started yet (`- `, `1. `,
+`- [ ] `, `> `, `## `).
 
 Spoken punctuation is written as the mark: "hello **comma** world" is
 `hello, world`, "and **slash** or" is `and/or`, "done **full stop**" ends the
@@ -96,7 +98,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `236 tests ... passed`.
+You should see `243 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

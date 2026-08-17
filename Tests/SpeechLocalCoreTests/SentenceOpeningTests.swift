@@ -73,3 +73,35 @@ private func adjust(_ text: String, after preceding: String?, raw: String = "") 
     // proves nothing.
     #expect(adjust("So we ship.", after: "i think ", raw: "So we ship") == "so we ship.")
 }
+
+// MARK: - Openings inside a line
+
+@Test func keepsCapitalAfterAnOpeningBracket() {
+    #expect(adjust("Ship it.", after: "the plan (") == "Ship it.")
+    #expect(adjust("Ship it.", after: "- [") == "Ship it.")
+    #expect(adjust("Ship it.", after: "he said \"") == "Ship it.")
+}
+
+@Test func keepsCapitalAfterAListMarker() {
+    for marker in ["- ", "* ", "+ ", "• ", "1. ", "2) ", "a. ", "b) ",
+                   "(1) ", "> ", "## ", "- [ ] ", "* [x] ", "  - "] {
+        #expect(adjust("Ship it.", after: marker) == "Ship it.",
+                "marker \"\(marker)\" should open an item")
+    }
+}
+
+@Test func keepsCapitalAfterAMarkerOnAContinuingLine() {
+    #expect(adjust("Ship it.", after: "the plan\n- ") == "Ship it.")
+    #expect(adjust("Ship it.", after: "first thing\n2. ") == "Ship it.")
+}
+
+@Test func stillLowercasesAfterRealWordsOnAListLine() {
+    // The marker rule fires only while the item is still empty.
+    #expect(adjust("Ship it.", after: "- we should ") == "ship it.")
+    #expect(adjust("Ship it.", after: "1. tell them and ") == "ship it.")
+}
+
+@Test func aTypedWordIsNotAListMarker() {
+    #expect(adjust("Think so.", after: "I ") == "think so.")
+    #expect(adjust("Ship it.", after: "hello ") == "ship it.")
+}

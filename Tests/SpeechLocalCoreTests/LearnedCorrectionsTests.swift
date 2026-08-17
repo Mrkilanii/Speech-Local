@@ -262,3 +262,29 @@ private func editStore() -> LearnedCorrections {
     }
     #expect(await store.repair("we use rag for this") == "we use RAG for this")
 }
+
+@Test func contextComesFromTheDictationNotTheField() async {
+    // The reported failure: learned, threshold met, and it still never fired.
+    // "about" is the user's own word, so a correction recorded against it
+    // could not recur — the next dictation was "rag" on its own.
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "Rag.", snapshot: "my note about Rag.", current: "my note about RAG.")
+    #expect(learned.first?.heard == "rag")
+    #expect(learned.first?.before == nil)
+    #expect(learned.first?.after == nil)
+
+    await store.learnFromInsertionEdit(
+        inserted: "Rag.", snapshot: "a different sentence Rag.",
+        current: "a different sentence RAG.")
+    #expect(await store.repair("Rag.") == "RAG.")
+}
+
+@Test func ignoresAnEditThatMovedTheTextAroundIt() async {
+    // Both sides changed, so the two versions cannot be lined up.
+    let store = editStore()
+    let learned = await store.learnFromInsertionEdit(
+        inserted: "ship it", snapshot: "note: ship it now",
+        current: "memo: ship it later")
+    #expect(learned.isEmpty)
+}

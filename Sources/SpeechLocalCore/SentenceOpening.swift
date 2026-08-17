@@ -33,6 +33,16 @@ public enum SentenceOpening {
         return text.prefix(1).lowercased() + text.dropFirst()
     }
 
+    /// Marks that open something rather than continue it. A capital belongs
+    /// after any of them, wherever they sit in the line.
+    static let openers: Set<Character> = ["(", "[", "{", "\"", "'", "\u{201C}", "\u{2018}", "«"]
+
+    /// A line holding nothing but a list marker: a bullet, a number or letter
+    /// with its dot or bracket, a task box, a quote arrow, a heading's hashes.
+    /// The item's text has not started yet, so it starts capitalized.
+    static let listMarker =
+        #"^\s*(?:[-*+•·‣◦>]|#{1,6}|\(?\d+[.)]|\(?[a-zA-Z][.)])?\s*(?:\[[ xX]?\]\s*)?$"#
+
     /// Whether the caret sits inside a sentence already under way.
     private static func startsMidSentence(_ preceding: String) -> Bool {
         // A line break makes a fresh start even though text precedes it.
@@ -41,7 +51,11 @@ public enum SentenceOpening {
 
         let trimmed = preceding.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let last = trimmed.last else { return false }   // nothing before the caret
-        return !".!?".contains(last)
+        if ".!?".contains(last) || openers.contains(last) { return false }
+
+        // Only the current line matters for a list marker.
+        let line = preceding.split(whereSeparator: \.isNewline).last.map(String.init) ?? preceding
+        return line.range(of: listMarker, options: [.regularExpression]) == nil
     }
 
     /// Whether the recognizer capitalized this word somewhere it was not

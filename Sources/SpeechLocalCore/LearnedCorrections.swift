@@ -88,20 +88,37 @@ public actor LearnedCorrections {
 
     /// Records what the user changed in text already inserted into their app.
     ///
-    /// Same derivation as `learnFromEdit`, narrowed to words that came from the
-    /// dictation: the field holds their own writing too, and a word they edited
-    /// elsewhere in the document is not a misrecognition.
+    /// The diff is taken across **the insertion alone**, never the whole field.
+    /// The field holds the user's own writing on both sides of it, and taking
+    /// context from there learns a correction that can never fire again: "rag"
+    /// fixed to "RAG" inside "my note about rag" recorded "about" as the word
+    /// before it, so the next dictation of "rag" on its own did not match.
     @discardableResult
     public func learnFromInsertionEdit(
         inserted: String, snapshot: String, current: String
     ) -> [Correction] {
-        guard current != snapshot else { return [] }
-        let ours = Set(inserted.split(whereSeparator: \.isWhitespace).map {
-            $0.trimmingCharacters(in: .punctuationCharacters).lowercased()
-        })
-        return Self.derive(raw: snapshot, corrected: current)
-            .filter { ours.contains($0.heard) }
-            .map { learn($0) }
+        guard current != snapshot,
+              let edited = Self.editedInsertion(
+                inserted: inserted, snapshot: snapshot, current: current)
+        else { return [] }
+        return Self.derive(raw: inserted, corrected: edited).map { learn($0) }
+    }
+
+    /// The insertion as it stands now, located by the user's own text on either
+    /// side of it. Nil when those anchors moved, which means the user edited
+    /// around our text as well and the two versions can no longer be lined up.
+    static func editedInsertion(
+        inserted: String, snapshot: String, current: String
+    ) -> String? {
+        guard let span = snapshot.range(of: inserted) else { return nil }
+        let prefix = String(snapshot[..<span.lowerBound])
+        let suffix = String(snapshot[span.upperBound...])
+        guard current.hasPrefix(prefix), current.hasSuffix(suffix),
+              current.count >= prefix.count + suffix.count else { return nil }
+
+        let start = current.index(current.startIndex, offsetBy: prefix.count)
+        let end = current.index(current.endIndex, offsetBy: -suffix.count)
+        return String(current[start..<end])
     }
 
     /// The corrections an edit implies, before any of them are stored.
