@@ -73,6 +73,14 @@ public enum LightTouchInvariants {
               survives: ["3 30", "15th", "March"],
               note: "NUMBERS — numerals and ordinals"),
 
+        .init("the comma is missing from that line",
+              survives: ["comma", "missing", "line"],
+              note: "PUNCTUATION — a determiner makes it a noun, not a command"),
+
+        .init("we are out of disk space on the build machine",
+              survives: ["disk space", "build", "machine"],
+              note: "PUNCTUATION — collocations must not become dictation commands"),
+
         .init("ask omar and priya about the kubernetes migration",
               survives: ["omar", "priya", "kubernetes", "migration"],
               note: "NAMES — proper nouns must survive untouched"),
@@ -186,6 +194,9 @@ public enum LightTouchInvariants {
             // "o n e" was joined back into the word it spells.
             if word.count == 1, let letter = word.first,
                numberWords.contains(where: { $0.contains(letter) }) { continue }
+            // "comma" became ",". The mark is not a word, so it cannot be
+            // found in the output — the per-case lists pin these instead.
+            if SpokenPunctuation.isCommandWord(word) { continue }
             // A stutter fragment is licensed to vanish into the word after it.
             if let next = inWords.first(where: { $0 != word && $0.hasPrefix(word) }),
                outWords.contains(next) { continue }

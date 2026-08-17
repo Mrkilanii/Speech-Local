@@ -25,13 +25,22 @@ throwing it away.
 restated sentences and contractions. It changes nothing else — your hedges and
 phrasing survive. **Full rewrite** restructures rambling speech into clean prose.
 
+Spoken punctuation is written as the mark: "hello **comma** world" is
+`hello, world`, "and **slash** or" is `and/or`, "done **full stop**" ends the
+sentence. A punctuation word with a determiner in front of it stays a word —
+"add **a comma** here", "out of **disk space**" — since that is the difference
+between naming the mark and asking for it.
+
 Spoken numbers are written as digits — "twenty three" becomes `23`, and
 adjacent digits run together the way a code is dictated: "four four seven two"
 is `4472`, "one oh five" is `105`. Say "comma" or "space" when two figures are
-two figures: "three comma four" is `3, 4`, "three space four" is `3 4`. To get
-the word instead, spell it:
-"O-N-E" becomes `one`. Phrases where the word is not a figure ("one of them",
-"one more", "send it to the team") are left alone.
+two figures: "three comma four" is `3, 4`, "three space four" is `3 4`. Phrases
+where the word is not a figure ("one of them", "one more", "send it to the
+team") are left alone.
+
+**To get the word instead of the symbol, spell it.** "O-N-E" is `one` and
+"C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
+the reason each one can afford to be decisive.
 
 ### It learns how you speak
 
@@ -75,7 +84,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `176 tests ... passed`.
+You should see `216 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

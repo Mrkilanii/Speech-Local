@@ -105,6 +105,10 @@ public enum Language: String, Codable, Sendable, CaseIterable {
     /// problem this solves.
     public var hasContractions: Bool { self == .english }
 
+    /// Whether spoken punctuation ("comma", "slash") is rewritten as the mark.
+    /// The command table in `SpokenPunctuation` is English.
+    public var hasPunctuationWords: Bool { self == .english }
+
     /// Whether spoken numbers are rewritten as digits. The word lists in
     /// `SpokenNumbers` are English; Arabic both spells numbers differently and
     /// has its own digit forms, so it is left to the recognizer.

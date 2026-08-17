@@ -440,7 +440,7 @@ func leavesAmbiguousWordsAlone(word: String) {
 @Test func separatorPunctuationThatMeansSomethingElseIsLeftAlone() {
     // "space," is the word doing its own work, not a spoken separator.
     #expect(rules.apply(to: "leave one space, two of them")
-            == "Leave 1 space 2 of them.")
+            == "Leave 1 space, 2 of them.")
 }
 
 @Test func aFigureIsNeverAStutterFragment() {

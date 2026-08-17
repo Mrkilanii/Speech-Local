@@ -7,10 +7,8 @@ import Foundation
 /// voice. Since dictation is mostly used for prose *with figures in it*
 /// (versions, counts, times, amounts), the digit is the form the user meant.
 ///
-/// That leaves no way to type the word, so spelling it is the escape hatch.
-/// A run of single letters is joined back into the word it spells, and only
-/// when the result is a number word — joining arbitrary letter runs would
-/// silently turn "U S A" into "usa".
+/// That leaves no way to type the word, so spelling it is the escape hatch —
+/// see `SpelledWords`, which runs after this and turns "o n e" back into "one".
 ///
 ///     "one"            ->  "1"
 ///     "twenty three"   ->  "23"
@@ -19,8 +17,7 @@ import Foundation
 ///     "one oh five"    ->  "105"
 ///     "three comma four" ->  "3, 4"  (say "comma" or "space" to break a run)
 ///     "three space four" ->  "3 4"
-///     "o n e"          ->  "one"
-///     "O-N-E"          ->  "one"
+///     "o n e"          ->  "one"     (see `SpelledWords`)
 ///
 /// Reading adjacent digits as one figure is what makes codes, extensions and
 /// account numbers dictatable — "four four seven two" is `4472`, the way it
@@ -84,7 +81,7 @@ enum SpokenNumbers {
     /// "One space 2." — so a separator has to accept a numeral on either side,
     /// not just a number word.
     static func isFigure(_ token: String) -> Bool {
-        let core = parts(of: token).core
+        let core = Token.parts(of: token).core
         guard !core.isEmpty else { return false }
         return digitWords[core.lowercased()] != nil || core.allSatisfy(\.isNumber)
     }
@@ -136,11 +133,6 @@ enum SpokenNumbers {
                 index += 1
                 continue
             }
-            if let match = spelled(tokens, at: index) {
-                out.append(match.text)
-                index += match.consumed
-                continue
-            }
             if let match = digitSequence(tokens, at: index) {
                 out.append(match.text)
                 index += match.consumed
@@ -181,14 +173,14 @@ enum SpokenNumbers {
     private static func spokenSeparator(
         _ tokens: [String], at index: Int, previous: String?
     ) -> String? {
-        let token = parts(of: tokens[index])
+        let token = Token.parts(of: tokens[index])
         guard let mark = separators[token.core.lowercased()],
               token.leading.isEmpty,
               token.trailing.isEmpty || token.trailing == mark,
               let previous, let next = tokens[safe: index + 1], isFigure(next)
         else { return nil }
 
-        let figure = parts(of: previous)
+        let figure = Token.parts(of: previous)
         guard figure.core.last?.isNumber == true,
               figure.trailing.isEmpty || figure.trailing == ","
         else { return nil }
@@ -213,7 +205,7 @@ enum SpokenNumbers {
         var cursor = index
 
         while cursor < tokens.count {
-            let piece = parts(of: tokens[cursor])
+            let piece = Token.parts(of: tokens[cursor])
             let word = piece.core.lowercased()
             guard let digit = digitWords[word] else { break }
 
@@ -226,7 +218,7 @@ enum SpokenNumbers {
             if digit == "0", word != "zero" {
                 guard piece.trailing.isEmpty,
                       let next = tokens[safe: cursor + 1],
-                      digitWords[parts(of: next).core.lowercased()] != nil
+                      digitWords[Token.parts(of: next).core.lowercased()] != nil
                 else { break }
             }
 
@@ -244,14 +236,14 @@ enum SpokenNumbers {
         // "one oh five" is a sequence; "one hundred" is arithmetic.
         if let next = tokens[safe: index + consumed],
            trailing.isEmpty,
-           scales[parts(of: next).core.lowercased()] != nil
-               || parts(of: next).core.lowercased() == "hundred" {
+           scales[Token.parts(of: next).core.lowercased()] != nil
+               || Token.parts(of: next).core.lowercased() == "hundred" {
             return nil
         }
 
         // A run opening on "oh" needs to be long enough to be a code: "oh two
         // one" is an area code, "oh two years ago" is not a number at all.
-        if digits.first == "0", parts(of: tokens[index]).core.lowercased() != "zero",
+        if digits.first == "0", Token.parts(of: tokens[index]).core.lowercased() != "zero",
            digits.count < 3 {
             return nil
         }
@@ -272,7 +264,7 @@ enum SpokenNumbers {
         var cursor = index
 
         while cursor < tokens.count {
-            let piece = parts(of: tokens[cursor])
+            let piece = Token.parts(of: tokens[cursor])
             guard !piece.core.isEmpty else { break }
             // "twenty-three" arrives as one token.
             let spelling = piece.core.split(separator: "-").map { $0.lowercased() }
@@ -314,11 +306,11 @@ enum SpokenNumbers {
         _ frame: (before: Set<String>, after: Set<String>),
         previous: String?, next: String?
     ) -> Bool {
-        if let previous, parts(of: previous).trailing.isEmpty,
-           frame.before.contains(parts(of: previous).core.lowercased()) {
+        if let previous, Token.parts(of: previous).trailing.isEmpty,
+           frame.before.contains(Token.parts(of: previous).core.lowercased()) {
             return true
         }
-        if let next, frame.after.contains(parts(of: next).core.lowercased()) {
+        if let next, frame.after.contains(Token.parts(of: next).core.lowercased()) {
             return true
         }
         return false
@@ -380,76 +372,4 @@ enum SpokenNumbers {
         }
     }
 
-    // MARK: - Spelled -> word
-
-    /// The shortest number word is three letters ("one"), the longest nine
-    /// ("seventeen"). Bounds the prefix search.
-    private static let shortestWord = 3
-    private static let longestWord = 9
-
-    private static func spelled(_ tokens: [String], at index: Int) -> Match? {
-        // "O-N-E" / "o.n.e" — the recognizer kept it as one token.
-        let first = parts(of: tokens[index])
-        let pieces = first.core.split(whereSeparator: isLetterSeparator)
-        if pieces.count >= shortestWord,
-           pieces.allSatisfy({ $0.count == 1 && ($0.first?.isLetter ?? false) }) {
-            let word = pieces.joined().lowercased()
-            if allWords.contains(word) {
-                return Match(text: first.leading + word + first.trailing, consumed: 1)
-            }
-        }
-
-        // "o n e" — separate letters, possibly each with its own full stop.
-        var letters: [String] = []
-        var cursor = index
-        while cursor < tokens.count, letters.count < longestWord {
-            let piece = parts(of: tokens[cursor])
-            guard piece.leading.isEmpty, piece.core.count == 1,
-                  let letter = piece.core.first, letter.isLetter else { break }
-            letters.append(letter.lowercased())
-            cursor += 1
-        }
-        guard letters.count >= shortestWord else { return nil }
-
-        // Longest match first, so "s i x t y" is "sixty" and not "six" + "ty".
-        for length in stride(from: letters.count, through: shortestWord, by: -1) {
-            let word = letters.prefix(length).joined()
-            if allWords.contains(word) {
-                // The full stops between letters are spelling artifacts, not
-                // sentence ends, so they are dropped with the letters.
-                return Match(text: word, consumed: length)
-            }
-        }
-        return nil
-    }
-
-    private static func isLetterSeparator(_ character: Character) -> Bool {
-        character == "-" || character == "." || character == "\u{2010}"
-            || character == "\u{2011}" || character == "\u{2013}"
-    }
-
-    // MARK: - Tokens
-
-    /// Splits a token into edge punctuation and the word inside it, so the
-    /// rewrite can put "(twenty-two," back together as "(22,".
-    static func parts(of token: String) -> (leading: String, core: String, trailing: String) {
-        var core = Substring(token)
-        var leading = ""
-        var trailing = ""
-        while let first = core.first, !first.isLetter, !first.isNumber {
-            leading.append(first)
-            core = core.dropFirst()
-        }
-        while let last = core.last, !last.isLetter, !last.isNumber {
-            trailing.insert(last, at: trailing.startIndex)
-            core = core.dropLast()
-        }
-        return (leading, String(core), trailing)
-    }
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
 }

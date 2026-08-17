@@ -131,8 +131,6 @@ public struct RulesCleanup: Sendable {
 
         var tokens = tokenize(trimmed)
         tokens = removeFillers(tokens)
-        // Before the collapse steps, which would otherwise read the "e e" in a
-        // spelled "t h r e e" as a stutter.
         if language.hasNumberWords { tokens = SpokenNumbers.apply(to: tokens) }
         tokens = collapseRepeats(tokens)
         tokens = collapseStutters(tokens)
@@ -143,6 +141,17 @@ public struct RulesCleanup: Sendable {
 
         var text = reassemble(tokens)
         text = tidyCommas(text)
+        // After the comma policy, not before: a comma the user asked for out
+        // loud is not a hesitation, and the policy has no way to tell. Running
+        // it here means the policy never sees one.
+        if language.hasPunctuationWords {
+            text = reassemble(SpokenPunctuation.apply(to: tokenize(text)))
+        }
+        // Last of the rewrites, so a spelled word cannot be converted back into
+        // the symbol it was spelled to escape.
+        if language.hasNumberWords || language.hasPunctuationWords {
+            text = reassemble(SpelledWords.apply(to: tokenize(text)))
+        }
         if language.hasLetterCase {
             text = capitalizeSentences(text)
             text = fixStandaloneI(text)
@@ -175,7 +184,9 @@ public struct RulesCleanup: Sendable {
             } ?? false
             // Digits repeat constantly and meaningfully — a dictated "5 5 5"
             // must not become "5".
-            if !previousEndsSentence, !bare.allSatisfy(\.isNumber),
+            // A spelled-out word ("t h r e e") legitimately repeats letters,
+            // and is not joined until after these steps.
+            if !previousEndsSentence, !bare.allSatisfy(\.isNumber), bare.count > 1,
                let last = out.last?.lowercased().trimmingCharacters(in: .punctuationCharacters),
                last == bare, !bare.isEmpty, !Self.legitimateRepeats.contains(bare) {
                 continue
@@ -211,6 +222,7 @@ public struct RulesCleanup: Sendable {
                     && next.hasPrefix(bare)
                     && !Self.realWords.contains(bare)
                     && !bare.allSatisfy(\.isNumber)
+                    && bare.count > 1
                     && !current.contains(where: \.isPunctuation)
                 if isFragment {
                     index += 1   // drop the fragment, keep the full word
@@ -229,21 +241,22 @@ public struct RulesCleanup: Sendable {
     private func capitalizeSentences(_ text: String) -> String {
         var result = ""
         var capitalizeNext = true
+        var afterTerminator = false
+
         for ch in text {
-            if capitalizeNext, ch.isLetter {
-                result.append(Character(ch.uppercased()))
-                capitalizeNext = false
-            } else {
+            if ch.isWhitespace {
+                // Only a terminator with a space after it ends a sentence.
+                // Without this, "me.txt" and "3.5" capitalize what follows the
+                // dot, and a sentence opening on a digit capitalizes its
+                // second word ("3 Things went wrong").
+                if afterTerminator { capitalizeNext = true; afterTerminator = false }
                 result.append(ch)
-                if ch == "." || ch == "!" || ch == "?" {
-                    capitalizeNext = true
-                } else if capitalizeNext, ch.isNumber {
-                    // A sentence opening on a digit is already capitalized as
-                    // far as it can be — without this, "3 things" becomes
-                    // "3 Things" as the search runs on to the next letter.
-                    capitalizeNext = false
-                }
+                continue
             }
+            result.append(capitalizeNext && ch.isLetter
+                          ? Character(ch.uppercased()) : ch)
+            capitalizeNext = false
+            afterTerminator = language.terminators.contains(ch)
         }
         return result
     }
@@ -326,7 +339,13 @@ public struct RulesCleanup: Sendable {
             // it is never a hesitation.
             let separatesFigures = word.dropLast().last?.isNumber == true
                 && next.first?.isNumber == true
-            let keep = language.clauseMarkers.contains(next) || separatesFigures
+            // A comma on a word that could be a spoken command is evidence
+            // `SpokenPunctuation` needs, and it runs after this. Dropping it
+            // here would turn "leave one space, two of them" into a command.
+            let carriesCommand = language.hasPunctuationWords
+                && SpokenPunctuation.isCommandWord(String(word.dropLast()))
+            let keep = language.clauseMarkers.contains(next)
+                || separatesFigures || carriesCommand
             result.append(keep ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")
