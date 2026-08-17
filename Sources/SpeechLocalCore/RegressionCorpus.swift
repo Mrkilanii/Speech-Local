@@ -69,7 +69,8 @@ public enum LightTouchInvariants {
               note: "NUMBERS — spelling a number is the escape hatch back to the word"),
 
         .init("the meeting is at 3 30 on the 15th of march",
-              survives: ["3", "30", "15th", "March"],
+              // "3 30" as a phrase: checking "3" alone passes on "30".
+              survives: ["3 30", "15th", "March"],
               note: "NUMBERS — numerals and ordinals"),
 
         .init("ask omar and priya about the kubernetes migration",

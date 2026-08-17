@@ -70,13 +70,24 @@ enum SpokenNumbers {
         "nine": "9",
     ]
 
-    /// Spoken separators that break a digit run, and what each leaves behind.
+    /// Spoken separators that break a run of digits, and what each leaves
+    /// behind — a comma, or nothing but the space the tokens already have.
     ///
-    /// Only recognized **between two digits**. Elsewhere these are ordinary
+    /// Only recognized **between two figures**. Elsewhere these are ordinary
     /// words ("the comma is missing", "we are out of disk space"), and
     /// rewriting them there would be a dictation command this app does not
-    /// have. Between two digits neither word has any other reading.
+    /// have. Between two figures neither word has any other reading.
     static let separators: [String: String] = ["comma": ",", "space": ""]
+
+    /// Whether a token is a figure, however it arrived. The recognizer mixes
+    /// forms freely inside one utterance — "one space two" came back as
+    /// "One space 2." — so a separator has to accept a numeral on either side,
+    /// not just a number word.
+    static func isFigure(_ token: String) -> Bool {
+        let core = parts(of: token).core
+        guard !core.isEmpty else { return false }
+        return digitWords[core.lowercased()] != nil || core.allSatisfy(\.isNumber)
+    }
 
     /// Frames in which a number word is not a figure and must stay a word.
     ///
@@ -120,6 +131,11 @@ enum SpokenNumbers {
         var out: [String] = []
         var index = 0
         while index < tokens.count {
+            if let mark = spokenSeparator(tokens, at: index, previous: out.last) {
+                out[out.count - 1] += mark   // "3" + "," ; "3" + "" drops the word
+                index += 1
+                continue
+            }
             if let match = spelled(tokens, at: index) {
                 out.append(match.text)
                 index += match.consumed
@@ -141,6 +157,32 @@ enum SpokenNumbers {
         return out
     }
 
+    // MARK: - Separators
+
+    /// What a spoken "comma" or "space" leaves behind, if this token is one
+    /// sitting between two figures. Nil means it is an ordinary word.
+    ///
+    /// Kept out of `digitSequence` because a separator has to work whichever
+    /// form each side arrived in — "one space 2", "1 space two", "3 comma 4"
+    /// are all the same utterance to the speaker, and the recognizer picks
+    /// between them unpredictably.
+    private static func spokenSeparator(
+        _ tokens: [String], at index: Int, previous: String?
+    ) -> String? {
+        let token = parts(of: tokens[index])
+        // Punctuation on the separator itself is allowed only when it says the
+        // same thing the word does. The recognizer marks a spoken comma twice
+        // ("Three comma, four."), but "leave one space, two of them" is a
+        // sentence — there the comma means the word is doing its own work.
+        guard let mark = separators[token.core.lowercased()],
+              token.leading.isEmpty, token.trailing.isEmpty || token.trailing == mark,
+              let previous, parts(of: previous).trailing.isEmpty,
+              parts(of: previous).core.last?.isNumber == true,
+              let next = tokens[safe: index + 1], isFigure(next)
+        else { return nil }
+        return mark
+    }
+
     // MARK: - Digit sequences
 
     /// Reads a run of adjacent single digits as one figure: "four four seven
@@ -155,7 +197,6 @@ enum SpokenNumbers {
         var leading = ""
         var trailing = ""
         var consumed = 0
-        var brokeOnSeparator = false
         var cursor = index
 
         while cursor < tokens.count {
@@ -181,23 +222,11 @@ enum SpokenNumbers {
             consumed += 1
             cursor += 1
             if !trailing.isEmpty { break }
-
-            // A spoken "comma" or "space" ends this figure and starts the next.
-            if let next = tokens[safe: cursor],
-               let separator = separators[parts(of: next).core.lowercased()],
-               let following = tokens[safe: cursor + 1],
-               digitWords[parts(of: following).core.lowercased()] != nil {
-                trailing = separator
-                consumed += 1
-                brokeOnSeparator = true
-                break
-            }
         }
 
-        // A lone digit is the arithmetic case — let `spoken` handle it, so its
-        // exception frames still apply. The exception is a spoken separator,
-        // which has to be consumed here or it stays in the text as a word.
-        guard digits.count >= 2 || brokeOnSeparator else { return nil }
+        // A lone digit is the arithmetic case — leave it to `spoken`, so its
+        // exception frames still apply.
+        guard digits.count >= 2 else { return nil }
 
         // "one oh five" is a sequence; "one hundred" is arithmetic.
         if let next = tokens[safe: index + consumed],

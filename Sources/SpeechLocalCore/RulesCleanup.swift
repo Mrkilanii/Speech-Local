@@ -204,9 +204,13 @@ public struct RulesCleanup: Sendable {
             if index + 1 < tokens.count, !bare.isEmpty, bare.count <= 4 {
                 let next = tokens[index + 1].lowercased()
                     .trimmingCharacters(in: .punctuationCharacters)
+                // A figure is never a stutter fragment. "3 30" and "5 500" have
+                // the shape exactly, and dropping the first loses a number the
+                // speaker said — "at 3 30" became "at 30".
                 let isFragment = next.count > bare.count
                     && next.hasPrefix(bare)
                     && !Self.realWords.contains(bare)
+                    && !bare.allSatisfy(\.isNumber)
                     && !current.contains(where: \.isPunctuation)
                 if isFragment {
                     index += 1   // drop the fragment, keep the full word

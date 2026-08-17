@@ -414,6 +414,31 @@ func leavesAmbiguousWordsAlone(word: String) {
     #expect(rules.apply(to: "the comma is missing") == "The comma is missing.")
 }
 
+@Test func separatorsWorkWhicheverFormTheRecognizerPicked() {
+    // Verbatim from the app log: one utterance, two notations. The recognizer
+    // chooses between them unpredictably, so both sides must be accepted.
+    #expect(rules.apply(to: "One space 2.") == "1 2.")
+    #expect(rules.apply(to: "1 space two") == "1 2.")
+    #expect(rules.apply(to: "3 comma 4") == "3, 4.")
+    // It also marks a spoken comma twice — the word and the punctuation.
+    #expect(rules.apply(to: "Three comma, four.") == "3, 4.")
+}
+
+@Test func separatorPunctuationThatMeansSomethingElseIsLeftAlone() {
+    // "space," is the word doing its own work, not a spoken separator.
+    #expect(rules.apply(to: "leave one space, two of them")
+            == "Leave 1 space 2 of them.")
+}
+
+@Test func aFigureIsNeverAStutterFragment() {
+    // "3 30" has the exact shape of a stutter ("st stop"), and collapsing it
+    // loses a number the speaker said.
+    #expect(rules.apply(to: "the meeting is at 3 30")
+            == "The meeting is at 3 30.")
+    #expect(rules.apply(to: "three thirty") == "3 30.")
+    #expect(rules.apply(to: "five five hundred") == "5 500.")
+}
+
 @Test func scaleWordsStayArithmetic() {
     // "five hundred" is 500, not a digit run.
     #expect(rules.apply(to: "five hundred and six") == "500 and 6.")
