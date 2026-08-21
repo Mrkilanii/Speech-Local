@@ -34,6 +34,10 @@ public actor MeetingSession {
 
     private let engine: any ASREngine
     private let buffer: AudioRingBuffer
+    /// The other side of the call, when system audio is being captured. Absent
+    /// is a working configuration, not a failure: it is what the app does today
+    /// and what it falls back to when the tap is refused.
+    private let systemBuffer: AudioRingBuffer?
     private let locale: String
     private let biasTerms: [String]
 
@@ -49,9 +53,11 @@ public actor MeetingSession {
     private var overran = false
 
     public init(engine: any ASREngine, buffer: AudioRingBuffer,
+                systemBuffer: AudioRingBuffer? = nil,
                 locale: String, biasTerms: [String] = []) {
         self.engine = engine
         self.buffer = buffer
+        self.systemBuffer = systemBuffer
         self.locale = locale
         self.biasTerms = biasTerms
     }
@@ -87,18 +93,33 @@ public actor MeetingSession {
         // Start reading from where the ring is now: a meeting begins when the
         // user says so, not 30 seconds of whatever preceded it.
         var cursor = buffer.writeCursor
+        var systemCursor = systemBuffer?.writeCursor ?? 0
         let buffer = self.buffer
+        let systemBuffer = self.systemBuffer
 
         pump = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.drainInterval)
                 if Task.isCancelled { break }
+
                 if buffer.hasOverrun(cursor: cursor) {
                     await self?.noteOverrun()
                     cursor = buffer.writeCursor      // resume from the live edge
                 }
-                let (samples, next) = buffer.read(from: cursor)
+                let (mic, next) = buffer.read(from: cursor)
                 cursor = next
+
+                var samples = mic
+                if let systemBuffer {
+                    if systemBuffer.hasOverrun(cursor: systemCursor) {
+                        await self?.noteOverrun()
+                        systemCursor = systemBuffer.writeCursor
+                    }
+                    let (system, systemNext) = systemBuffer.read(from: systemCursor)
+                    systemCursor = systemNext
+                    samples = Self.mix(mic, system)
+                }
+
                 guard !samples.isEmpty else { continue }
                 await self?.noteRead(samples.count)
                 continuation.yield(AudioChunk(samples: samples))
@@ -137,6 +158,29 @@ public actor MeetingSession {
         await reader?.value
         reader = nil
         if phase == .finishing { phase = .done }
+    }
+
+    /// Sums the microphone and the room into one stream.
+    ///
+    /// Both arrive at 16 kHz from the same wall clock, so they are aligned to
+    /// within a drain's jitter — close enough for a recognizer, which is the
+    /// only consumer. The lengths still differ tick to tick, so the shorter is
+    /// summed against the longer and the remainder carried through: a source
+    /// that stalls or was never granted degrades to the other rather than
+    /// truncating the meeting to its length.
+    ///
+    /// Clamped, because two loud sources add past full scale and a recognizer
+    /// hears clipping as noise.
+    static func mix(_ first: [Float], _ second: [Float]) -> [Float] {
+        if second.isEmpty { return first }
+        if first.isEmpty { return second }
+
+        let overlap = min(first.count, second.count)
+        var out = first.count >= second.count ? first : second
+        for index in 0..<overlap {
+            out[index] = max(-1, min(1, first[index] + second[index]))
+        }
+        return out
     }
 
     // MARK: - Bookkeeping

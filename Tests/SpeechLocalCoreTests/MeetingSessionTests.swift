@@ -157,3 +157,52 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
 
     #expect(await session.didLoseAudio, "an overrun must be reported")
 }
+
+// MARK: - Mixing the two sources
+
+@Test func mixingSumsBothSides() {
+    let mixed = MeetingSession.mix([0.1, 0.2, 0.3], [0.4, 0.4, 0.4])
+    #expect(mixed.count == 3)
+    #expect(abs(mixed[0] - 0.5) < 0.0001)
+    #expect(abs(mixed[2] - 0.7) < 0.0001)
+}
+
+@Test func mixingClampsInsteadOfWrapping() {
+    // Two loud sources add past full scale, and a recognizer hears clipping
+    // as noise.
+    let mixed = MeetingSession.mix([0.9, -0.9], [0.8, -0.8])
+    #expect(mixed[0] == 1)
+    #expect(mixed[1] == -1)
+}
+
+@Test func aMissingSourceDoesNotTruncateTheOther() {
+    // System capture refused, or the mic stalled for a tick: the meeting must
+    // keep the side it still has, at full length.
+    let mic: [Float] = [0.1, 0.2, 0.3, 0.4]
+    #expect(MeetingSession.mix(mic, []) == mic)
+    #expect(MeetingSession.mix([], mic) == mic)
+}
+
+@Test func unevenLengthsKeepEveryFrame() {
+    let mixed = MeetingSession.mix([0.1, 0.1], [0.2, 0.2, 0.5, 0.5])
+    #expect(mixed.count == 4, "the longer source sets the length")
+    #expect(abs(mixed[0] - 0.3) < 0.0001)
+    #expect(mixed[3] == 0.5, "the tail of the longer source survives untouched")
+}
+
+@Test func bothSourcesReachTheRecognizer() async throws {
+    let mic = ring()
+    let system = ring()
+    let engine = StubASR()
+    let session = MeetingSession(
+        engine: engine, buffer: mic, systemBuffer: system, locale: "en-US")
+
+    await session.start()
+    write(mic, seconds: 1)
+    write(system, seconds: 1)
+    try await Task.sleep(for: .milliseconds(1_100))
+    await session.stop()
+
+    let seen = await engine.seen()
+    #expect(seen.samples >= 16_000, "a second of mixed audio should arrive")
+}
