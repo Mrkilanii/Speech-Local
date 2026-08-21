@@ -31,6 +31,9 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>SpeechLocal transcribes your speech on-device. Audio never leaves this Mac.</string>
 
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>SpeechLocal records meeting audio on-device so it can transcribe and summarise it. Audio never leaves this Mac.</string>
+
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

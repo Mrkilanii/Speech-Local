@@ -379,6 +379,44 @@ and 5 are restated below.)*
 
 ---
 
+## 9. Spike 4 — system audio, for the meeting-notes feature (2026-08-22)
+
+Measured on macOS 26.6.2, M1, via `--probe-audio-sources` run from the bundle
+with speech playing continuously across the whole window. Both candidates
+capture, and capture equally well:
+
+| | frames / 6 s | rms | peak |
+|---|---|---|---|
+| CoreAudio process tap | 299,520 | 0.1320 | 0.8257 |
+| ScreenCaptureKit | 306,240 | 0.1348 | 0.8265 |
+
+**Chosen: the CoreAudio process tap.** Not on quality — the two are
+indistinguishable — but on cost. It is audio asking for audio permission:
+`AudioHardwareCreateProcessTap` (macOS 14.2+) with a mono global
+`CATapDescription` excluding our own process, wired into a private aggregate
+device. `NSAudioCaptureUsageDescription` in the plist was enough; no new prompt
+appeared and no TCC decision was logged. ScreenCaptureKit means opening a
+screen-capture session, discarding its video, asking for Screen Recording on a
+fresh install, and lighting the purple capture indicator — a strange thing for
+a note-taker to do for audio it could have had directly.
+
+Two traps this spike walked into, worth not repeating:
+
+- **`AudioDeviceStart` blocks forever without an NSApplication.** Same root
+  cause as the microphone note in §6: a TCC decision needs a WindowServer
+  connection and a live run loop to be presented. It also has to run off the
+  main thread, or the thread that would render the dialog is the one waiting
+  for it.
+- **`CMSampleBuffer.withAudioBufferList` gives a buffer valid only inside the
+  closure.** Returning it and reading it afterwards segfaults on the first
+  callback. Measure inside the closure.
+
+And one about the measurement rather than the API: an early run reported
+ScreenCaptureKit as silent-but-delivering-frames. The audio had simply stopped
+before its turn came — the tap probe runs first and takes 7 s. A capture path
+returning zeroed buffers looks identical to one that is not authorised, so
+always play audio across the whole window before believing a negative.
+
 ## Sources
 
 - [Wispr Flow review — Efficient App](https://efficient.app/apps/wispr-flow)

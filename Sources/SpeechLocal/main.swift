@@ -47,6 +47,11 @@ if arguments.contains("--ab") {
     exit(0)
 }
 
+if arguments.contains("--probe-audio-sources") {
+    await AudioSourceProbe.run()
+    exit(0)
+}
+
 if arguments.contains("--probe") {
     await Probe.run()
     exit(0)
