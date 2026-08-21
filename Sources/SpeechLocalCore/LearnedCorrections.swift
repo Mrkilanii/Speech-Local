@@ -139,6 +139,10 @@ public actor LearnedCorrections {
             guard bareHeard != bareIntended,
                   !bareHeard.isEmpty, !bareIntended.isEmpty else { continue }
 
+            // A figure is never a vocabulary fact. This is what recorded
+            // "katurian -> 2" from an edit that happened to line up.
+            if bareIntended.allSatisfy(\.isNumber) { continue }
+
             // A change of case only counts when it is not about the first
             // letter. "rag" -> "RAG" and "iphone" -> "iPhone" are facts about
             // the word; "so" -> "So" is only about where the sentence began,
@@ -239,7 +243,14 @@ public actor LearnedCorrections {
     /// words sit within the distance.
     static let fuzzyFloor = 5
     /// How alike two spellings must be, as a share of the longer one.
-    static let fuzzyThreshold = 0.7
+    ///
+    /// Raised from 0.7 after "et cetera" started coming out as "et Katurian":
+    /// "cetera" is two edits from the recorded form "cateria" and scored 0.714.
+    /// An ordinary word being swallowed by a taught name is worse than a name
+    /// needing one more correction, so the bar sits above that. The forms this
+    /// still has to catch score 0.875 ("keturian", "caturian"); the one it
+    /// gives up is "catering" at 0.75, which can be corrected once on its own.
+    static let fuzzyThreshold = 0.8
 
     /// Whether a transcript word is this term misheard again.
     ///

@@ -316,10 +316,25 @@ private let katurianForms = ["caterion", "keturian", "caturian",
         await store.learnFromInsertionEdit(
             inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
     }
-    for form in ["caturian", "cateria", "catering", "katurian"] {
+    for form in ["caturian", "katurian"] {
         #expect(await store.repair("\(form).") == "Katurian.",
                 "\"\(form)\" should be repaired once the term is known")
     }
+}
+
+@Test func soundAloneOnlyReachesTheCloseForms() async {
+    // Where the bar sits, and why. "caturian" is one edit from the target
+    // (0.875) and is caught; "cateria" is two (0.75) and is not. The band
+    // between them is where ordinary words live — "cetera" scores 0.714 — and
+    // letting a taught name reach into it is what produced "et Katurian".
+    let store = editStore()
+    for form in ["caterion", "keturian"] {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    #expect(await store.repair("caturian.") == "Katurian.")
+    #expect(await store.repair("cateria.") == "cateria.")
+    #expect(await store.repair("catering.") == "catering.")
 }
 
 @Test func aFormTooFarFromTheTermNeedsItsOwnCorrection() async {
@@ -353,14 +368,15 @@ private let katurianForms = ["caterion", "keturian", "caturian",
 }
 
 @Test func aTermRepairsAFormItHasNeverSeen() async {
-    // "catering" was never corrected, but it is a near miss of "caterion",
-    // which was — the recorded forms are the record of what it sounds like.
+    // "caturian" was never corrected, but it is one edit from the target and
+    // from the recorded "caterion" — the forms are the record of what the
+    // word sounds like to the recognizer.
     let store = editStore()
     for form in ["caterion", "keturian"] {
         await store.learnFromInsertionEdit(
             inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
     }
-    #expect(await store.repair("catering.") == "Katurian.")
+    #expect(await store.repair("caturian.") == "Katurian.")
     #expect(await store.repair("Katurian.") == "Katurian.")
 }
 
@@ -413,4 +429,27 @@ private let katurianForms = ["caterion", "keturian", "caturian",
     }
     #expect(await store.repair("chip it now") == "chip it now")
     #expect(await store.repair("tip it now") == "ship it now")   // exact, in context
+}
+
+@Test func aTermDoesNotSwallowAnOrdinaryWordThatSoundsLikeIt() async {
+    // The reported failure: "et cetera" came out as "et Katurian" in every
+    // dictation. "cetera" is two edits from the recorded form "cateria".
+    let store = editStore()
+    for form in katurianForms {
+        await store.learnFromInsertionEdit(
+            inserted: "\(form).", snapshot: "\(form).", current: "Katurian.")
+    }
+    #expect(await store.repair("et cetera") == "et cetera")
+    #expect(await store.repair("the cetera of it") == "the cetera of it")
+    // ...and the name it was taught still works.
+    for form in ["caterion", "keturian", "caturian"] {
+        #expect(await store.repair("\(form).") == "Katurian.")
+    }
+}
+
+@Test func aFigureIsNeverLearnedAsAWord() {
+    // This is what recorded "katurian -> 2" in the real store.
+    #expect(LearnedCorrections.derive(raw: "ask katurian first",
+                                      corrected: "ask 2 first").isEmpty)
+    #expect(LearnedCorrections.derive(raw: "chapter one", corrected: "chapter 1").isEmpty)
 }
