@@ -47,6 +47,14 @@ if arguments.contains("--ab") {
     exit(0)
 }
 
+if let index = CommandLine.arguments.firstIndex(of: "--probe-meeting") {
+    let next = index + 1
+    let seconds = next < CommandLine.arguments.count
+        ? Double(CommandLine.arguments[next]) ?? 300 : 300
+    await MeetingProbe.run(seconds: seconds)
+    exit(0)
+}
+
 if arguments.contains("--probe-audio-sources") {
     await AudioSourceProbe.run()
     exit(0)

@@ -47,9 +47,23 @@ public final class AudioRingBuffer: @unchecked Sendable {
 
     /// Appends samples. **Must stay allocation-free and lock-free.**
     public func write(_ samples: UnsafeBufferPointer<Float>) {
-        guard let base = samples.baseAddress, !samples.isEmpty else { return }
-        let count = samples.count
-        let start = Int(written.load(ordering: .relaxed) & UInt64(mask))
+        guard let first = samples.baseAddress, !samples.isEmpty else { return }
+
+        // A write bigger than the ring can only leave its tail behind. Without
+        // this the wrap-around copy below runs off the end of storage and
+        // smashes the heap — the microphone never writes more than 4096 samples
+        // at a time, so nothing hit it until a meeting session drained a
+        // backlog in one go. The cursor still advances by everything written,
+        // so consumers see the gap rather than a rewritten history.
+        let total = samples.count
+        let count = min(total, capacity)
+        let base = first + (total - count)
+
+        // The kept samples sit at absolute positions [total - count, total),
+        // so they must land where a reader asking for those positions will
+        // look — not at the cursor the write started from.
+        let cursor = written.load(ordering: .relaxed) + UInt64(total - count)
+        let start = Int(cursor & UInt64(mask))
 
         if start + count <= capacity {
             (storage + start).update(from: base, count: count)
@@ -58,7 +72,7 @@ public final class AudioRingBuffer: @unchecked Sendable {
             (storage + start).update(from: base, count: first)
             storage.update(from: base + first, count: count - first)
         }
-        written.add(UInt64(count), ordering: .releasing)
+        written.add(UInt64(total), ordering: .releasing)
     }
 
     // MARK: - Consumer

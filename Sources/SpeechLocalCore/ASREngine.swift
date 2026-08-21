@@ -18,9 +18,14 @@ public protocol ASREngine: Sendable {
 
     /// Transcribes an audio stream, emitting cumulative text as it resolves.
     /// The final element is the complete transcript.
+    ///
+    /// `biasTerms` nudges the recognizer toward words the user has corrected
+    /// before, exactly as the buffered path does — a meeting is the last place
+    /// to give up on getting someone's name right.
     func transcribe(
         audio: AsyncStream<AudioChunk>,
-        locale: String
+        locale: String,
+        biasTerms: [String]
     ) -> AsyncThrowingStream<String, Error>
 }
 

@@ -163,12 +163,15 @@ public actor AppleASREngine: ASREngine {
 
     public nonisolated func transcribe(
         audio: AsyncStream<AudioChunk>,
-        locale: String
+        locale: String,
+        biasTerms: [String] = []
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let text = try await self.run(audio: audio, locale: locale) { partial in
+                    let text = try await self.run(
+                        audio: audio, locale: locale, biasTerms: biasTerms
+                    ) { partial in
                         continuation.yield(partial)
                     }
                     continuation.yield(text)

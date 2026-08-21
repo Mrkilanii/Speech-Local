@@ -108,3 +108,26 @@ private func write(_ buffer: AudioRingBuffer, count: Int, value: Float = 0.5) {
     #expect(samples.count == 20)
     #expect(samples.allSatisfy { $0 == 0.9 }, "wrapped read returned stale samples")
 }
+
+@Test func aWriteLargerThanTheRingKeepsItsTail() {
+    // Writing more than the ring holds used to run the wrap-around copy off
+    // the end of storage. The microphone never does it — it writes 4096
+    // samples at a time — but a consumer draining a backlog in one go does.
+    let buffer = AudioRingBuffer(seconds: 1, sampleRate: 16_000)   // 16384 samples
+    let samples = (0..<100_000).map { Float($0) }
+    samples.withUnsafeBufferPointer { buffer.write($0) }
+
+    #expect(buffer.writeCursor == 100_000, "the cursor counts everything written")
+
+    let (recovered, _) = buffer.read(from: 0)
+    #expect(recovered.count == 16_384, "only the ring's worth survives")
+    #expect(recovered.last == 99_999, "and it is the most recent audio, not the oldest")
+    #expect(recovered.first == Float(100_000 - 16_384))
+}
+
+@Test func anOversizedWriteIsReportedAsAnOverrun() {
+    let buffer = AudioRingBuffer(seconds: 1, sampleRate: 16_000)
+    let samples = [Float](repeating: 0.5, count: 100_000)
+    samples.withUnsafeBufferPointer { buffer.write($0) }
+    #expect(buffer.hasOverrun(cursor: 0))
+}
