@@ -96,3 +96,17 @@ import Foundation
     #expect(recovered.kind == .conversation)
     #expect(recovered.title == "Old one")
 }
+
+@Test func everyPromptSaysWhatToDoWithAGarbledPassage() {
+    // A real recording produced "Plot is the brain" for "Claude is the brain",
+    // and the model wrote a confident definition of the misheard word plus a
+    // person named Claude who does not exist. Telling it not to invent was not
+    // enough; it has to be told that omitting is the right answer.
+    for prompt in [MeetingSummarizer.mapPrompt,
+                   MeetingSummarizer.reducePrompt,
+                   MeetingSummarizer.talkPrompt] {
+        #expect(prompt.contains("machine-generated"))
+        #expect(prompt.contains("leave it out"))
+        #expect(prompt.contains("A short note is a good outcome"))
+    }
+}

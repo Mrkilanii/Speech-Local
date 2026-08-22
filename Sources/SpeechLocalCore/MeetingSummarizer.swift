@@ -211,6 +211,14 @@ public actor MeetingSummarizer {
     Never invent anything. Never add advice, opinions or commentary. If a \
     passage says nothing worth noting, output nothing at all.
 
+    The transcript is machine-generated and will contain mishearings. Where a \
+    passage is garbled, leave it out. Do not repair it into something that \
+    reads well, do not guess what a mangled word was, and do not explain a term \
+    you cannot make out — a confident definition of a misheard word is the \
+    worst thing this can produce. A short note is a good outcome when the \
+    recording was poor.
+
+
     Output only the bullets, with no preamble and no tags.
     """
 
@@ -235,6 +243,14 @@ public actor MeetingSummarizer {
 
     Never invent anything, and never drop a decision, a number or a commitment. \
     Output only the note, with no preamble and no tags.
+
+    The transcript is machine-generated and will contain mishearings. Where a \
+    passage is garbled, leave it out. Do not repair it into something that \
+    reads well, do not guess what a mangled word was, and do not explain a term \
+    you cannot make out — a confident definition of a misheard word is the \
+    worst thing this can produce. A short note is a good outcome when the \
+    recording was poor.
+
     """
 
     /// One voice explaining something. Different headings, and one instruction
@@ -262,9 +278,21 @@ public actor MeetingSummarizer {
     example is a note on nothing. "Worth looking up" is for things the speaker \
     referred to without explaining: a name, a paper, a tool.
 
+    Only list something under "Worth looking up" if the speaker's own words for \
+    it came through clearly. A name you had to guess at is not a lead, it is a \
+    wrong answer.
+
     Never invent anything. Never add advice or opinions of your own. Do not \
     write action items — there is nobody to assign one to. Output only the \
     note, with no preamble and no tags.
+
+    The transcript is machine-generated and will contain mishearings. Where a \
+    passage is garbled, leave it out. Do not repair it into something that \
+    reads well, do not guess what a mangled word was, and do not explain a term \
+    you cannot make out — a confident definition of a misheard word is the \
+    worst thing this can produce. A short note is a good outcome when the \
+    recording was poor.
+
     """
 
     static let enhancePrompt = """
