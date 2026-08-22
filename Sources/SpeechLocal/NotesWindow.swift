@@ -137,7 +137,12 @@ final class NotesModel: ObservableObject {
             buffer: capture.buffer,
             systemBuffer: systemBuffer,
             locale: settingsStore.current.locale,
-            biasTerms: await learned.biasTerms(),
+            // Both halves of what the user has taught the app: corrections it
+            // learned, and the vocabulary they typed in. A meeting is where
+            // proper nouns matter most and the recognizer is least likely to
+            // get them — "Higgsfield" came back as "G Field" and "barn towns".
+            biasTerms: await learned.biasTerms()
+                + Array(settingsStore.current.vocabulary.aliases.values),
             playbackRate: playbackRate)
         self.session = session
         await session.start()
@@ -172,7 +177,10 @@ final class NotesModel: ObservableObject {
         tap?.stop()
         tap = nil
 
-        transcript = await session.transcript
+        // Substitution as well as bias: bias nudges the recognizer while it
+        // listens, this fixes what it still got wrong.
+        transcript = VocabularyMatcher().apply(
+            settingsStore.current.vocabulary, to: await session.transcript)
         elapsed = await session.elapsed
         let lostAudio = await session.didLoseAudio
         self.session = nil
