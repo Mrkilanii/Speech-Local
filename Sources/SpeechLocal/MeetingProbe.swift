@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Darwin
 import SpeechLocalCore
 
@@ -14,6 +15,17 @@ import SpeechLocalCore
 /// of the feature is built on sand.
 enum MeetingProbe {
     static func run(seconds: Double) async {
+        // Before any CoreAudio call. A process tap needs a WindowServer
+        // connection for TCC to attribute it to this bundle — the audio-source
+        // spike does this and captures; the first version of this probe did
+        // not, and its tap started cleanly, reported no error, and delivered
+        // zero buffers for three minutes.
+        await MainActor.run {
+            let app = NSApplication.shared
+            app.setActivationPolicy(.accessory)
+            app.activate(ignoringOtherApps: true)
+        }
+
         log("=== meeting session probe ===")
         log("target: \(Int(seconds))s — the old hands-free cap was 300s")
 
@@ -27,10 +39,28 @@ enum MeetingProbe {
         }
         defer { capture.stop() }
 
+        // The other side of a call. Without this the probe only proves the
+        // microphone works, which was never in doubt — and a mic hearing the
+        // speakers across the room looks deceptively like a working tap.
+        var systemBuffer: AudioRingBuffer?
+        var tap: SystemAudioTap?
+        do {
+            let started = try SystemAudioTap()
+            try started.start()
+            tap = started
+            systemBuffer = started.buffer
+            log("system audio: capturing")
+            log("  \(started.diagnostics)")
+        } catch {
+            log("system audio: UNAVAILABLE (\(error)) — microphone only")
+        }
+        defer { tap?.stop() }
+
         let settings = SettingsStore()
         let session = MeetingSession(
             engine: AppleASREngine(),
             buffer: capture.buffer,
+            systemBuffer: systemBuffer,
             locale: settings.current.locale)
 
         let baseline = residentMB()
@@ -46,8 +76,14 @@ enum MeetingProbe {
             samples.append((elapsed, mb))
             let captured = await session.secondsCaptured
             let length = await session.transcript.count
-            log(String(format: "  %5.0fs  resident %6.1f MB  (+%.1f)  audio %5.0fs  transcript %d chars",
-                       elapsed, mb, mb - baseline, captured, length))
+            // Level per source, so a silent tap is visible rather than hidden
+            // behind a microphone that is doing all the work.
+            let micLevel = level(capture.buffer)
+            let systemLevel = systemBuffer.map(level) ?? 0
+            log(String(format: "  %5.0fs  resident %6.1f MB  (%+.1f)  audio %5.0fs  "
+                       + "mic %.4f  system %.4f (%d buffers)  transcript %d chars",
+                       elapsed, mb, mb - baseline, captured,
+                       micLevel, systemLevel, tap?.deliveredBuffers ?? 0, length))
         }
 
         await session.stop()
@@ -55,7 +91,17 @@ enum MeetingProbe {
 
         log("")
         log(String(format: "final resident: %.1f MB  (+%.1f from baseline)", final, final - baseline))
-        if let first = samples.first, let last = samples.last, last.t > first.t {
+        // A slope needs a window long enough that ordinary allocator noise is
+        // not the whole signal. Two samples 16 s apart extrapolate a 1.4 MB
+        // wobble into "+330 MB/hour" and call it a leak.
+        guard let first = samples.first, let last = samples.last,
+              last.t - first.t >= 120 else {
+            log("run was too short to judge a trend — use 300s or more")
+            let text = await session.transcript
+            log("transcript (\(text.count) chars): \(text.prefix(300))")
+            return
+        }
+        if last.t > first.t {
             let perHour = (last.mb - first.mb) / (last.t - first.t) * 3600
             log(String(format: "slope: %+.1f MB/hour", perHour))
             log(perHour < 60
@@ -65,6 +111,14 @@ enum MeetingProbe {
         let text = await session.transcript
         log("transcript (\(text.count) chars): \(text.prefix(300))")
         log("audio lost to overrun: \(await session.didLoseAudio)")
+    }
+
+    /// RMS of the last second, so each source can be seen to be carrying audio.
+    private static func level(_ buffer: AudioRingBuffer) -> Double {
+        let samples = buffer.snapshot(lastSeconds: 1)
+        guard !samples.isEmpty else { return 0 }
+        let sum = samples.reduce(0.0) { $0 + Double($1 * $1) }
+        return (sum / Double(samples.count)).squareRoot()
     }
 
     /// Resident size of this process, the number Activity Monitor shows.

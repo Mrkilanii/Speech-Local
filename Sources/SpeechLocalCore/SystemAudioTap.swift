@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import CoreAudio
+import Synchronization
 
 /// Captures what the Mac is playing — the other people on a call — into an
 /// `AudioRingBuffer`, in the same 16 kHz mono the microphone path produces.
@@ -46,6 +47,9 @@ public final class SystemAudioTap: @unchecked Sendable {
     private var scratch: AVAudioPCMBuffer?
     private var sourceFormat: AVAudioFormat?
     private var running = false
+    /// Buffers the IOProc has delivered. A tap that is silent and a tap that
+    /// never fires look identical from the ring, and they have different causes.
+    private let delivered = Atomic<Int>(0)
 
     public init(sampleRate: Double = 16_000, historySeconds: Double = 30) throws {
         guard let format = AVAudioFormat(
@@ -71,12 +75,11 @@ public final class SystemAudioTap: @unchecked Sendable {
             throw TapError.processObjectUnavailable
         }
 
-        let description = CATapDescription()
+        // The purpose-made initialiser, not a bare init with the flags set by
+        // hand: that one leaves UUID and deviceUID unset, and the tap it
+        // produces is accepted, started, and silent.
+        let description = CATapDescription(monoGlobalTapButExcludeProcesses: [ourProcess])
         description.name = "SpeechLocal meeting"
-        description.processes = [ourProcess]
-        description.isMono = true
-        description.isExclusive = true      // everything *except* the listed process
-        description.isMixdown = true
         description.isPrivate = true
         description.muteBehavior = .unmuted // never silence the user's own speakers
 
@@ -93,19 +96,40 @@ public final class SystemAudioTap: @unchecked Sendable {
         }
         sourceFormat = source
 
+        // Anchored to the device the audio is coming out of, which supplies the
+        // aggregate's clock.
+        //
+        // Honest history: this was added while chasing a tap that delivered
+        // zero buffers, on a theory that turned out to be wrong. The real cause
+        // was that nothing capturable was playing — with the output device
+        // idle there is no IO cycle to deliver anything, which is correct
+        // behaviour and not a fault. The audio-source spike captures fine with
+        // an empty sub-device list, so this anchoring is not required; it is
+        // kept because it is what was measured working end to end, and
+        // removing it would put unverified code back in the capture path.
         var aggregate = AudioObjectID(kAudioObjectUnknown)
-        let aggregateDescription: [String: Any] = [
+        var subDevices: [[String: Any]] = []
+        var spec: [String: Any] = [
             kAudioAggregateDeviceNameKey: "SpeechLocal meeting",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
-            kAudioAggregateDeviceSubDeviceListKey: [[String: Any]](),
             kAudioAggregateDeviceTapListKey: [[
                 kAudioSubTapUIDKey: uid,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
         ]
+        if let output = Self.defaultOutputUID() {
+            subDevices = [[
+                kAudioSubDeviceUIDKey: output,
+                kAudioSubDeviceDriftCompensationKey: true,
+            ]]
+            spec[kAudioAggregateDeviceMainSubDeviceKey] = output
+            spec[kAudioAggregateDeviceClockDeviceKey] = output
+        }
+        spec[kAudioAggregateDeviceSubDeviceListKey] = subDevices
+        let aggregateDescription = spec
         let madeDevice = AudioHardwareCreateAggregateDevice(
             aggregateDescription as CFDictionary, &aggregate)
         guard madeDevice == noErr, aggregate != kAudioObjectUnknown else {
@@ -161,6 +185,95 @@ public final class SystemAudioTap: @unchecked Sendable {
         return running
     }
 
+    /// How many buffers the system has handed us since `start()`.
+    public var deliveredBuffers: Int { delivered.load(ordering: .relaxed) }
+
+    /// What the tap is actually attached to. A tap that starts cleanly and
+    /// delivers nothing gives no other way to tell whether it is pointed at the
+    /// device the audio is coming out of.
+    public var diagnostics: String {
+        lock.lock(); defer { lock.unlock() }
+        var parts: [String] = []
+        parts.append("tap=\(tapID)")
+        parts.append("aggregate=\(aggregateID)")
+        parts.append("tapFormat=\(sourceFormat.map { "\(Int($0.sampleRate))Hz x\($0.channelCount)" } ?? "none")")
+        parts.append("defaultOutput=\(Self.defaultOutputDescription())")
+        parts.append("aggregateInputChannels=\(Self.inputChannels(of: aggregateID))")
+        return parts.joined(separator: "  ")
+    }
+
+    /// UID of the device the audio is coming out of, which the aggregate
+    /// borrows as its clock.
+    private static func defaultOutputUID() -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr,
+            device != kAudioObjectUnknown else { return nil }
+
+        var uidAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var uid: CFString = "" as CFString
+        var uidSize = UInt32(MemoryLayout<CFString>.size)
+        let result = withUnsafeMutablePointer(to: &uid) {
+            AudioObjectGetPropertyData(device, &uidAddress, 0, nil, &uidSize, $0)
+        }
+        return result == noErr ? uid as String : nil
+    }
+
+    /// The device the user is actually listening through.
+    private static func defaultOutputDescription() -> String {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr
+        else { return "unknown" }
+
+        var nameAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var name: CFString = "" as CFString
+        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        let named = withUnsafeMutablePointer(to: &name) {
+            AudioObjectGetPropertyData(device, &nameAddress, 0, nil, &nameSize, $0)
+        }
+        return named == noErr ? "\(device) \"\(name as String)\"" : "\(device)"
+    }
+
+    /// Input channels the aggregate actually exposes. Zero means the tap never
+    /// made it into the device, whatever the creation call returned.
+    private static func inputChannels(of device: AudioObjectID) -> Int {
+        guard device != kAudioObjectUnknown else { return -1 }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamConfiguration,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr,
+              size > 0 else { return -1 }
+
+        let raw = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, raw) == noErr
+        else { return -1 }
+
+        let list = UnsafeMutableAudioBufferListPointer(
+            raw.assumingMemoryBound(to: AudioBufferList.self))
+        return list.reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+
     /// Caller already holds the lock.
     private func cleanUp() {
         if let procID, aggregateID != kAudioObjectUnknown {
@@ -185,6 +298,7 @@ public final class SystemAudioTap: @unchecked Sendable {
     /// Converts to 16 kHz mono and appends to the ring. Audio thread: no
     /// allocation, no locking, no logging.
     private func ingest(_ input: UnsafePointer<AudioBufferList>) {
+        delivered.add(1, ordering: .relaxed)
         guard let converter, let scratch, let sourceFormat,
               let pcm = AVAudioPCMBuffer(
                 pcmFormat: sourceFormat,

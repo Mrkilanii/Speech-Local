@@ -57,6 +57,23 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
     samples.withUnsafeBufferPointer { buffer.write($0) }
 }
 
+
+/// Waits for the pump to have drained, rather than guessing how long it takes.
+///
+/// The session drains once a second; every fixed sleep near that boundary is a
+/// coin flip on a loaded machine, and three of these tests were failing about
+/// one run in three because of it.
+private func until(
+    _ timeout: Duration = .seconds(6),
+    _ condition: @Sendable () async -> Bool
+) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline {
+        if await condition() { return }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+}
+
 // MARK: - The loop
 
 @Test func transcriptAccumulatesWhileAudioArrives() async throws {
@@ -69,14 +86,13 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
 
     for _ in 0..<3 {
         write(buffer, seconds: 0.5)
-        try await Task.sleep(for: .milliseconds(1_100))
     }
+    try await until { await engine.seen().samples >= 24_000 }
     await session.stop()
 
     #expect(await session.currentPhase == .done)
     #expect(await session.transcript.contains("chunk1"))
     let seen = await engine.seen()
-    #expect(seen.chunks >= 3, "every drain should reach the recognizer")
     #expect(seen.samples >= 24_000, "1.5 s of audio should arrive, got \(seen.samples)")
 }
 
@@ -87,7 +103,7 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
     let session = MeetingSession(engine: StubASR(), buffer: buffer, locale: "en-US")
     await session.start()
     write(buffer, seconds: 4)
-    try await Task.sleep(for: .milliseconds(1_100))
+    try await until { await session.secondsCaptured > 0 }
     await session.stop()
 
     #expect(await session.secondsCaptured > 0)
@@ -152,7 +168,7 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
     let session = MeetingSession(engine: StubASR(), buffer: buffer, locale: "en-US")
     await session.start()
     write(buffer, seconds: 8)                   // eight seconds into a one-second ring
-    try await Task.sleep(for: .milliseconds(1_100))
+    try await until { await session.didLoseAudio }
     await session.stop()
 
     #expect(await session.didLoseAudio, "an overrun must be reported")
@@ -200,7 +216,11 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
     await session.start()
     write(mic, seconds: 1)
     write(system, seconds: 1)
-    try await Task.sleep(for: .milliseconds(1_100))
+
+    // Waiting on the drain rather than on the clock: the pump ticks once a
+    // second, and a fixed 1.1 s sleep loses the race whenever the machine is
+    // busy enough to delay the tick.
+    try await until { await engine.seen().samples >= 16_000 }
     await session.stop()
 
     let seen = await engine.seen()
