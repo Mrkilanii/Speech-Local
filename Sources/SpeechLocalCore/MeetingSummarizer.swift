@@ -22,6 +22,12 @@ public actor MeetingSummarizer {
         public let stage: String
         public let done: Int
         public let total: Int
+
+        public init(stage: String, done: Int, total: Int) {
+            self.stage = stage
+            self.done = done
+            self.total = total
+        }
     }
 
     public enum SummaryError: Error, Sendable, Equatable {

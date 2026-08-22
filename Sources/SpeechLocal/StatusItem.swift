@@ -42,7 +42,11 @@ final class StatusItem {
     var onQuit: (() -> Void)?
     var onCorrect: (() -> Void)?
     var onSettings: (() -> Void)?
+    var onMeeting: (() -> Void)?
+    var onNotes: (() -> Void)?
     private var correctItem: NSMenuItem!
+    private var meetingItem: NSMenuItem!
+    private var notesItem: NSMenuItem!
 
     init() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -54,6 +58,14 @@ final class StatusItem {
             title: "Fix last dictation…", action: #selector(correctPressed), keyEquivalent: "")
         correctItem.isEnabled = false
         menu.addItem(correctItem)
+
+        menu.addItem(NSMenuItem.separator())
+        meetingItem = NSMenuItem(
+            title: "Start meeting recording", action: #selector(meetingPressed), keyEquivalent: "")
+        menu.addItem(meetingItem)
+        notesItem = NSMenuItem(
+            title: "Meeting Notes…", action: #selector(notesPressed), keyEquivalent: "")
+        menu.addItem(notesItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(
             title: "Hold Right Option — light-touch", action: nil, keyEquivalent: ""))
@@ -73,6 +85,8 @@ final class StatusItem {
         menu.autoenablesItems = false
         item.menu = menu
         correctItem.target = self
+        meetingItem.target = self
+        notesItem.target = self
 
         apply(.idle)
     }
@@ -120,6 +134,16 @@ final class StatusItem {
         let edited = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return edited.isEmpty || edited == original ? nil : edited
     }
+
+    /// Reflects whether a meeting is running, so the menu is a control rather
+    /// than a guess.
+    func setMeetingRunning(_ running: Bool) {
+        meetingItem.title = running ? "Stop meeting recording" : "Start meeting recording"
+    }
+
+    @objc private func meetingPressed() { onMeeting?() }
+
+    @objc private func notesPressed() { onNotes?() }
 
     @objc private func correctPressed() {
         onCorrect?()

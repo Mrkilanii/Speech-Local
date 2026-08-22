@@ -330,6 +330,22 @@ private struct SettingsView: View {
                      + "Fix last dictation. Reads the field you dictated into.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("File meetings in the second brain", isOn: Binding(
+                    get: { model.settings.autoFileMeetings },
+                    set: { on in model.apply { $0.autoFileMeetings = on } }
+                ))
+                TextField("Vault folder", text: Binding(
+                    get: { model.settings.vaultPath },
+                    set: { path in model.apply { $0.vaultPath = path } }
+                ))
+                Text(model.settings.vaultURL == nil
+                     ? "No vault at that path — meetings will not be filed."
+                     : "A finished meeting is written to raw/meetings/ as source "
+                       + "material: your notes and the transcript, never the "
+                       + "generated summary. Run the vault's ingest skill to "
+                       + "promote it into wiki/.")
+                    .font(.caption)
+                    .foregroundStyle(model.settings.vaultURL == nil ? .red : .secondary)
                 Toggle("Keep transcript history", isOn: Binding(
                     get: { model.settings.keepHistory },
                     set: { model.setKeepHistory($0) }

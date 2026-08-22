@@ -34,6 +34,8 @@ final class Listener: @unchecked Sendable {
     private let learned = LearnedCorrections()
     private let settingsStore = SettingsStore()
     private var settingsWindow: SettingsWindow?
+    private var notesWindow: NotesWindow?
+    private var notesModel: NotesModel?
     private let inserter = TextInserter()
     private let lifecycle = LifecycleMonitor()
     private let history = TranscriptHistory()
@@ -56,6 +58,13 @@ final class Listener: @unchecked Sendable {
         app.setActivationPolicy(.accessory)
         status = StatusItem()
         status?.onCorrect = { [weak self] in self?.correctLast() }
+        status?.onNotes = { [weak self] in self?.openNotes() }
+        status?.onMeeting = { [weak self] in
+            guard let self else { return }
+            self.openNotes()
+            self.notesWindow?.toggleRecording()
+            self.status?.setMeetingRunning(!(self.notesWindow?.isRecording ?? false))
+        }
         status?.onSettings = { [weak self] in self?.openSettings() }
 
         let panel = DictationPanel()
@@ -334,6 +343,24 @@ final class Listener: @unchecked Sendable {
         case .rightControl: return .rightControl
         case .fn:           return .fn
         }
+    }
+
+    /// The meeting window is built once and kept — it is a place the user
+    /// leaves open, not a dialog.
+    @MainActor
+    private func openNotes() {
+        if notesWindow == nil {
+            guard let capture else {
+                log("  cannot open meeting notes — audio capture is not running")
+                return
+            }
+            let model = NotesModel(
+                asr: asr, capture: capture,
+                settingsStore: settingsStore, learned: learned)
+            notesModel = model
+            notesWindow = NotesWindow(model: model)
+        }
+        notesWindow?.show()
     }
 
     @MainActor

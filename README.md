@@ -57,6 +57,28 @@ brackets") is read as the same command.
 "C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
 the reason each one can afford to be decisive.
 
+### It takes meeting notes
+
+**Meeting Notes…** in the menu bar opens a window you leave open. Press Record
+and it captures both your microphone and the audio your Mac is playing — the
+other people on the call — mixing them into one on-device transcript.
+
+Type while it runs. Your notes are the skeleton: afterwards the summary is
+built *from what you wrote*, with the transcript filling in the detail you
+missed, the number you half-caught, the decision that followed. Write nothing
+and it summarises the meeting on its own.
+
+Everything stays on this Mac. An hour of speech is far past what the on-device
+model can read at once, so it is summarised in windows and merged — a minute
+or two of work after you stop, in the background.
+
+A finished meeting is filed into your Obsidian vault at `raw/meetings/` as
+source material: your notes and the transcript, never the generated summary —
+`raw/` is for sources, and promoting a meeting into `wiki/` is the vault's own
+`ingest` skill's job. Nothing already in the vault is ever modified, and a
+vault that is not there is never created. Configure it under
+**Settings → General**.
+
 ### It learns how you speak
 
 When a word comes out wrong, open **Fix last dictation…** from the menu bar and
@@ -113,7 +135,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `268 tests ... passed`.
+You should see `311 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

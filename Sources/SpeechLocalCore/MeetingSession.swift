@@ -23,6 +23,10 @@ public actor MeetingSession {
         case idle
         case recording
         case finishing
+        /// The session is over and the note is being written. Owned by the
+        /// caller rather than reached from here: the recorder's job ends when
+        /// the audio does.
+        case summarising
         case done
         case failed(String)
     }

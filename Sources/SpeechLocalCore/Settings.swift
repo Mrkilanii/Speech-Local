@@ -51,6 +51,11 @@ public struct Settings: Codable, Sendable, Equatable {
     public var locale: String
     public var playSounds: Bool
     public var keepHistory: Bool
+    /// Where finished meetings are filed as source material. Empty means the
+    /// feature is off; a vault is never created, only written into.
+    public var vaultPath: String
+    /// Whether a finished meeting files itself without being asked.
+    public var autoFileMeetings: Bool
     /// Whether editing inserted text teaches the recognizer.
     ///
     /// Reads the focused field back at the start of the next dictation to see
@@ -67,7 +72,9 @@ public struct Settings: Codable, Sendable, Equatable {
         locale: "en-US",
         playSounds: true,
         keepHistory: true,
-        learnFromEdits: true
+        learnFromEdits: true,
+        vaultPath: VaultWriter.defaultRoot()?.path ?? "",
+        autoFileMeetings: true
     )
 
     public init(
@@ -79,7 +86,9 @@ public struct Settings: Codable, Sendable, Equatable {
         locale: String,
         playSounds: Bool,
         keepHistory: Bool,
-        learnFromEdits: Bool
+        learnFromEdits: Bool,
+        vaultPath: String,
+        autoFileMeetings: Bool
     ) {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
@@ -90,6 +99,8 @@ public struct Settings: Codable, Sendable, Equatable {
         self.playSounds = playSounds
         self.keepHistory = keepHistory
         self.learnFromEdits = learnFromEdits
+        self.vaultPath = vaultPath
+        self.autoFileMeetings = autoFileMeetings
     }
 
     /// Older files may lack fields added later; every key decodes with a
@@ -115,6 +126,10 @@ public struct Settings: Codable, Sendable, Equatable {
             Bool.self, forKey: .keepHistory) ?? fallback.keepHistory
         learnFromEdits = try container.decodeIfPresent(
             Bool.self, forKey: .learnFromEdits) ?? fallback.learnFromEdits
+        vaultPath = try container.decodeIfPresent(
+            String.self, forKey: .vaultPath) ?? fallback.vaultPath
+        autoFileMeetings = try container.decodeIfPresent(
+            Bool.self, forKey: .autoFileMeetings) ?? fallback.autoFileMeetings
     }
 
     /// The two hotkeys must differ, or one gesture becomes unreachable.
@@ -133,6 +148,14 @@ public struct Settings: Codable, Sendable, Equatable {
     }
 
     public var vocabulary: Vocabulary { Vocabulary(aliases: aliases) }
+
+    /// The vault to file meetings into, if one is configured and present.
+    public var vaultURL: URL? {
+        let trimmed = vaultPath.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath)
+        return VaultWriter(root: url).isUsable ? url : nil
+    }
 }
 
 /// Loads and saves `Settings` as JSON.
