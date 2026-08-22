@@ -75,6 +75,15 @@ Definitions, Examples and "Worth looking up" — and is told to keep the worked
 example, since a note on a tutorial that drops the example is a note on
 nothing. Asking a lecture for action items only makes the model invent some.
 
+**If you watch at 2×, tell it so.** There is a speed control next to the record
+button. Sped-up playback is slowed back to normal before the recogniser hears
+it — measured on the same minute of the same video, 1× came back word-perfect
+and 2× came back as "I, I, I, I, I, I, and most importantly, find find". It is
+a time-stretch rather than a resample, because a player speeding video up
+preserves pitch and undoing it must too. Above 1× your microphone is not
+recorded: only the playback was sped up, and stretching a mix would slow your
+own voice to half pace.
+
 Everything stays on this Mac. An hour of speech is far past what the on-device
 model can read at once, so it is summarised in windows and merged — a minute
 or two of work after you stop, in the background.
@@ -142,7 +151,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `316 tests ... passed`.
+You should see `327 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

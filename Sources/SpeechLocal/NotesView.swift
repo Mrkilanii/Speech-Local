@@ -107,6 +107,19 @@ struct NotesView: View {
             .help("A talk gets definitions and examples; a conversation gets "
                   + "decisions and action items.")
 
+            Picker("", selection: $model.playbackRate) {
+                ForEach(SpeedCorrector.supportedRates, id: \.self) { rate in
+                    Text(NotesModel.rateLabel(rate)).tag(rate)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 72)
+            .disabled(model.isRecording)
+            .help("The speed the video is playing at. It is slowed back to "
+                  + "normal before transcription — watching at 2x costs about "
+                  + "70% of the transcript otherwise. Above 1x your microphone "
+                  + "is not recorded, since only the playback was sped up.")
+
             Spacer()
 
             if model.isRecording {

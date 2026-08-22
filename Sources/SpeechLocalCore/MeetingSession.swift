@@ -43,6 +43,8 @@ public actor MeetingSession {
     /// and what it falls back to when the tap is refused.
     private let systemBuffer: AudioRingBuffer?
     private let locale: String
+    /// Undoes sped-up playback before the recognizer hears it. Nil at 1x.
+    private let speed: SpeedCorrector?
     private let biasTerms: [String]
 
     private var phase: Phase = .idle
@@ -56,10 +58,16 @@ public actor MeetingSession {
     private var samplesRead = 0
     private var overran = false
 
+    /// - Parameter playbackRate: what the system audio is playing at. Above 1
+    ///   the microphone is dropped: only the playback was sped up, and
+    ///   stretching a mix would slow the speaker's own voice to half pace.
+    ///   Someone recording a course at 2x is not also in a conversation.
     public init(engine: any ASREngine, buffer: AudioRingBuffer,
                 systemBuffer: AudioRingBuffer? = nil,
-                locale: String, biasTerms: [String] = []) {
+                locale: String, biasTerms: [String] = [],
+                playbackRate: Double = 1) {
         self.engine = engine
+        self.speed = SpeedCorrector.make(rate: playbackRate)
         self.buffer = buffer
         self.systemBuffer = systemBuffer
         self.locale = locale
@@ -100,6 +108,7 @@ public actor MeetingSession {
         var systemCursor = systemBuffer?.writeCursor ?? 0
         let buffer = self.buffer
         let systemBuffer = self.systemBuffer
+        let speed = self.speed
 
         pump = Task { [weak self] in
             while !Task.isCancelled {
@@ -113,7 +122,7 @@ public actor MeetingSession {
                 let (mic, next) = buffer.read(from: cursor)
                 cursor = next
 
-                var samples = mic
+                var samples = speed == nil ? mic : []
                 if let systemBuffer {
                     if systemBuffer.hasOverrun(cursor: systemCursor) {
                         await self?.noteOverrun()
@@ -121,7 +130,9 @@ public actor MeetingSession {
                     }
                     let (system, systemNext) = systemBuffer.read(from: systemCursor)
                     systemCursor = systemNext
-                    samples = Self.mix(mic, system)
+                    // Only the playback was sped up, so only it is stretched —
+                    // and at that point the microphone is not in the mix.
+                    samples = Self.mix(samples, speed.map { $0.process(system) } ?? system)
                 }
 
                 guard !samples.isEmpty else { continue }

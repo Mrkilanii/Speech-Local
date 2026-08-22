@@ -63,6 +63,8 @@ final class NotesModel: ObservableObject {
     @Published var capturingSystemAudio = false
     /// Set before recording; a course wants different headings from a call.
     @Published var kind: MeetingSummarizer.Kind = .conversation
+    /// What the video is playing at. Above 1x the microphone is dropped.
+    @Published var playbackRate: Double = 1
 
     private let asr: AppleASREngine
     private let capture: AudioCapture
@@ -82,9 +84,14 @@ final class NotesModel: ObservableObject {
         self.capture = capture
         self.settingsStore = settingsStore
         self.learned = learned
+        self.playbackRate = settingsStore.current.playbackRate
     }
 
     var isRecording: Bool { phase == .recording }
+
+    static func rateLabel(_ rate: Double) -> String {
+        rate == rate.rounded() ? "\(Int(rate))x" : "\(rate)x"
+    }
 
     func refresh() async { past = await store.all() }
 
@@ -130,11 +137,19 @@ final class NotesModel: ObservableObject {
             buffer: capture.buffer,
             systemBuffer: systemBuffer,
             locale: settingsStore.current.locale,
-            biasTerms: await learned.biasTerms())
+            biasTerms: await learned.biasTerms(),
+            playbackRate: playbackRate)
         self.session = session
         await session.start()
         phase = .recording
-        log("  MEETING started (system audio: \(capturingSystemAudio))")
+        settingsStore.update { $0.playbackRate = playbackRate }
+        log("  MEETING started (system audio: \(capturingSystemAudio), "
+            + "playback \(playbackRate)x)")
+        if playbackRate > 1 {
+            status = "Recording at \(Self.rateLabel(playbackRate)) — playback is "
+                + "slowed back to normal before transcription, and your "
+                + "microphone is not recorded."
+        }
 
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.tick() }

@@ -226,3 +226,55 @@ private func until(
     let seen = await engine.seen()
     #expect(seen.samples >= 16_000, "a second of mixed audio should arrive")
 }
+
+// MARK: - Sped-up playback
+
+@Test func atNormalSpeedTheMicrophoneIsStillRecorded() async throws {
+    let mic = ring()
+    let system = ring()
+    let engine = StubASR()
+    let session = MeetingSession(
+        engine: engine, buffer: mic, systemBuffer: system,
+        locale: "en-US", playbackRate: 1)
+
+    await session.start()
+    write(mic, seconds: 1)
+    try await until { await engine.seen().samples > 0 }
+    await session.stop()
+    #expect(await engine.seen().samples >= 16_000, "a conversation needs both sides")
+}
+
+@Test func aboveNormalSpeedTheMicrophoneIsDropped() async throws {
+    // Only the playback was sped up. Stretching a mix would slow the speaker's
+    // own voice to half pace, and someone recording a course at 2x is not also
+    // in a conversation.
+    let mic = ring()
+    let system = ring()
+    let engine = StubASR()
+    let session = MeetingSession(
+        engine: engine, buffer: mic, systemBuffer: system,
+        locale: "en-US", playbackRate: 2)
+
+    await session.start()
+    write(mic, seconds: 2)          // microphone only — nothing is playing
+    try await Task.sleep(for: .milliseconds(1_400))
+    await session.stop()
+    #expect(await engine.seen().samples == 0, "the microphone must not reach it at 2x")
+}
+
+@Test func spedUpPlaybackArrivesStretched() async throws {
+    let system = ring()
+    let engine = StubASR()
+    let session = MeetingSession(
+        engine: engine, buffer: ring(), systemBuffer: system,
+        locale: "en-US", playbackRate: 2)
+
+    await session.start()
+    write(system, seconds: 1)       // one second captured at 2x…
+    try await until { await engine.seen().samples > 20_000 }
+    await session.stop()
+
+    // …is two seconds of speech at normal pace by the time it is transcribed.
+    let seen = await engine.seen()
+    #expect(seen.samples > 24_000, "expected ~32000 stretched samples, got \(seen.samples)")
+}

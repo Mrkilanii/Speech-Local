@@ -56,6 +56,9 @@ public struct Settings: Codable, Sendable, Equatable {
     public var vaultPath: String
     /// Whether a finished meeting files itself without being asked.
     public var autoFileMeetings: Bool
+    /// Speed the system audio is playing at, undone before transcription.
+    /// Watching at 2x costs about 70% of the transcript if left uncorrected.
+    public var playbackRate: Double
     /// Whether editing inserted text teaches the recognizer.
     ///
     /// Reads the focused field back at the start of the next dictation to see
@@ -74,7 +77,8 @@ public struct Settings: Codable, Sendable, Equatable {
         keepHistory: true,
         learnFromEdits: true,
         vaultPath: VaultWriter.defaultRoot()?.path ?? "",
-        autoFileMeetings: true
+        autoFileMeetings: true,
+        playbackRate: 1
     )
 
     public init(
@@ -88,7 +92,8 @@ public struct Settings: Codable, Sendable, Equatable {
         keepHistory: Bool,
         learnFromEdits: Bool,
         vaultPath: String,
-        autoFileMeetings: Bool
+        autoFileMeetings: Bool,
+        playbackRate: Double
     ) {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
@@ -101,6 +106,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.learnFromEdits = learnFromEdits
         self.vaultPath = vaultPath
         self.autoFileMeetings = autoFileMeetings
+        self.playbackRate = playbackRate
     }
 
     /// Older files may lack fields added later; every key decodes with a
@@ -130,6 +136,8 @@ public struct Settings: Codable, Sendable, Equatable {
             String.self, forKey: .vaultPath) ?? fallback.vaultPath
         autoFileMeetings = try container.decodeIfPresent(
             Bool.self, forKey: .autoFileMeetings) ?? fallback.autoFileMeetings
+        playbackRate = try container.decodeIfPresent(
+            Double.self, forKey: .playbackRate) ?? fallback.playbackRate
     }
 
     /// The two hotkeys must differ, or one gesture becomes unreachable.
