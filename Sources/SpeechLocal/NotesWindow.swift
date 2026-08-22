@@ -226,6 +226,7 @@ final class NotesModel: ObservableObject {
                 transcript: transcript,
                 notes: notes,
                 kind: kind,
+                knownNames: Array(settingsStore.current.vocabulary.aliases.values),
                 onProgress: { [weak self] update in
                     Task { @MainActor in self?.progress = update }
                 })

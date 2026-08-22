@@ -79,10 +79,15 @@ public actor MeetingSummarizer {
 
     // MARK: - The pass
 
+    /// - Parameter knownNames: spellings the user has taught the app. Handed to
+    ///   the model so a mangled name can be recognised rather than invented —
+    ///   shown "Shesfield" with nothing to compare it against, it wrote a
+    ///   confident entry for a product called "Shesfield and Pace".
     public func summarise(
         transcript: String,
         notes: String = "",
         kind: Kind = .conversation,
+        knownNames: [String] = [],
         onProgress: (@Sendable (Progress) -> Void)? = nil
     ) async throws -> String {
         guard case .available = SystemLanguageModel.default.availability else {
@@ -106,7 +111,8 @@ public actor MeetingSummarizer {
         }
 
         onProgress?(Progress(stage: "Writing", done: windows.count, total: windows.count))
-        let merged = try await merge(digests: digests, notes: notes, kind: kind)
+        let merged = try await merge(
+            digests: digests, notes: notes, kind: kind, knownNames: knownNames)
         return merged.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -130,8 +136,19 @@ public actor MeetingSummarizer {
         }
     }
 
-    private func merge(digests: [String], notes: String, kind: Kind) async throws -> String {
-        let body = digests.joined(separator: "\n")
+    private func merge(
+        digests: [String], notes: String, kind: Kind, knownNames: [String] = []
+    ) async throws -> String {
+        var body = digests.joined(separator: "\n")
+        if !knownNames.isEmpty {
+            body = """
+            These are spelled this way: \(knownNames.joined(separator: ", ")). \
+            Anything in the notes that is nearly one of them is that word \
+            misheard. Anything that is not near one of them is not a name — do \
+            not treat it as one.
+
+            """ + body
+        }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmedNotes.isEmpty {
@@ -268,19 +285,11 @@ public actor MeetingSummarizer {
 
     ## Summary
     ## Key points
-    ## Definitions
     ## Examples
-    ## Worth looking up
 
-    Summary is two or three sentences on what it was about. Definitions is for \
-    terms the speaker explained, each in their own words. Examples keeps the \
+    Summary is two or three sentences on what it was about. Examples keeps the \
     worked examples and concrete numbers — a note on a tutorial that drops the \
-    example is a note on nothing. "Worth looking up" is for things the speaker \
-    referred to without explaining: a name, a paper, a tool.
-
-    Only list something under "Worth looking up" if the speaker's own words for \
-    it came through clearly. A name you had to guess at is not a lead, it is a \
-    wrong answer.
+    example is a note on nothing.
 
     Never invent anything. Never add advice or opinions of your own. Do not \
     write action items — there is nobody to assign one to. Output only the \

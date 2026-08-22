@@ -55,10 +55,15 @@ import Foundation
     // them anyway, a model finds some — and invented action items are worse
     // than absent ones.
     let talk = MeetingSummarizer.talkPrompt
-    #expect(talk.contains("## Definitions"))
     #expect(talk.contains("## Examples"))
     #expect(talk.contains("Do not write action items"))
     #expect(!talk.contains("## Decisions"))
+    // Headings that ask the model to name things are how invention gets in.
+    // Told "Shesfield" — the recognizer's version of "Higgsfield" — it wrote a
+    // definition for a product called "Shesfield and Pace" and listed it as
+    // worth looking up. Instructions did not stop it; removing the prompt did.
+    #expect(!talk.contains("Worth looking up"))
+    #expect(!talk.contains("## Definitions"))
 
     let conversation = MeetingSummarizer.reducePrompt
     #expect(conversation.contains("## Decisions"))
