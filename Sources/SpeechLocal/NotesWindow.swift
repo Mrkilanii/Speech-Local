@@ -50,7 +50,18 @@ final class NotesWindow {
 
 @MainActor
 final class NotesModel: ObservableObject {
-    @Published var phase: MeetingSession.Phase = .idle
+    /// Anything that shows recording state watches this rather than guessing.
+    /// The menu bar used to predict the new state by negating the old one
+    /// immediately after firing an async toggle, which made it wrong whenever
+    /// the window's own button was used and wrong again when starting failed.
+    var onRecordingChanged: ((Bool) -> Void)?
+
+    @Published var phase: MeetingSession.Phase = .idle {
+        didSet {
+            guard (oldValue == .recording) != (phase == .recording) else { return }
+            onRecordingChanged?(phase == .recording)
+        }
+    }
     @Published var elapsed: TimeInterval = 0
     @Published var transcript = ""
     @Published var notes = ""

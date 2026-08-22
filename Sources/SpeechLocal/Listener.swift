@@ -63,7 +63,6 @@ final class Listener: @unchecked Sendable {
             guard let self else { return }
             self.openNotes()
             self.notesWindow?.toggleRecording()
-            self.status?.setMeetingRunning(!(self.notesWindow?.isRecording ?? false))
         }
         status?.onSettings = { [weak self] in self?.openSettings() }
 
@@ -357,6 +356,11 @@ final class Listener: @unchecked Sendable {
             let model = NotesModel(
                 asr: asr, capture: capture,
                 settingsStore: settingsStore, learned: learned)
+            // The menu bar follows the real state, from whichever control
+            // started it.
+            model.onRecordingChanged = { [weak self] running in
+                self?.status?.setMeetingRunning(running)
+            }
             notesModel = model
             notesWindow = NotesWindow(model: model)
         }
