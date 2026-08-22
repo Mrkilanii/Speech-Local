@@ -102,6 +102,14 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    /// Same contract as history: off means gone, not hidden.
+    func setKeepMeetings(_ enabled: Bool) {
+        apply { $0.keepMeetings = enabled }
+        if !enabled {
+            Task { await MeetingStore().clear() }
+        }
+    }
+
     func clearHistory() async {
         await historyStore.clear()
         await refreshHistory()
@@ -328,6 +336,15 @@ private struct SettingsView: View {
                 Text("Fix a word after dictating it and the correction is "
                      + "picked up on your next dictation, without opening "
                      + "Fix last dictation. Reads the field you dictated into.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Keep recorded meetings", isOn: Binding(
+                    get: { model.settings.keepMeetings },
+                    set: { model.setKeepMeetings($0) }
+                ))
+                Text("A meeting holds everything said in the room. Turning this "
+                     + "off deletes the ones already stored, it does not hide "
+                     + "them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle("File meetings in the second brain", isOn: Binding(

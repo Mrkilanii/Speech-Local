@@ -56,6 +56,9 @@ public struct Settings: Codable, Sendable, Equatable {
     public var vaultPath: String
     /// Whether a finished meeting files itself without being asked.
     public var autoFileMeetings: Bool
+    /// Whether recorded meetings are kept on disk at all. The same promise
+    /// transcript history makes: turning it off deletes what was stored.
+    public var keepMeetings: Bool
     /// Speed the system audio is playing at, undone before transcription.
     /// Watching at 2x costs about 70% of the transcript if left uncorrected.
     public var playbackRate: Double
@@ -78,6 +81,7 @@ public struct Settings: Codable, Sendable, Equatable {
         learnFromEdits: true,
         vaultPath: VaultWriter.defaultRoot()?.path ?? "",
         autoFileMeetings: true,
+        keepMeetings: true,
         playbackRate: 1
     )
 
@@ -93,6 +97,7 @@ public struct Settings: Codable, Sendable, Equatable {
         learnFromEdits: Bool,
         vaultPath: String,
         autoFileMeetings: Bool,
+        keepMeetings: Bool,
         playbackRate: Double
     ) {
         self.lightTouchKey = lightTouchKey
@@ -106,6 +111,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.learnFromEdits = learnFromEdits
         self.vaultPath = vaultPath
         self.autoFileMeetings = autoFileMeetings
+        self.keepMeetings = keepMeetings
         self.playbackRate = playbackRate
     }
 
@@ -136,6 +142,8 @@ public struct Settings: Codable, Sendable, Equatable {
             String.self, forKey: .vaultPath) ?? fallback.vaultPath
         autoFileMeetings = try container.decodeIfPresent(
             Bool.self, forKey: .autoFileMeetings) ?? fallback.autoFileMeetings
+        keepMeetings = try container.decodeIfPresent(
+            Bool.self, forKey: .keepMeetings) ?? fallback.keepMeetings
         playbackRate = try container.decodeIfPresent(
             Double.self, forKey: .playbackRate) ?? fallback.playbackRate
     }

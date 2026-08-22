@@ -81,7 +81,7 @@ final class NotesModel: ObservableObject {
     private let capture: AudioCapture
     private let settingsStore: SettingsStore
     private let learned: LearnedCorrections
-    private let store = MeetingStore()
+    let store = MeetingStore()
     private let summariser = MeetingSummarizer()
 
     private var session: MeetingSession?
@@ -204,7 +204,7 @@ final class NotesModel: ObservableObject {
         meeting.title = title
         meeting.notes = notes
         meeting.transcript = transcript
-        await store.save(meeting)
+        if settingsStore.current.keepMeetings { await store.save(meeting) }
         current = meeting
         await refresh()
 
@@ -235,7 +235,7 @@ final class NotesModel: ObservableObject {
             saved.summary = written
             saved.notes = notes
             saved.title = title
-            await store.save(saved)
+            if settingsStore.current.keepMeetings { await store.save(saved) }
             current = saved
             phase = .done
             progress = nil
@@ -264,7 +264,7 @@ final class NotesModel: ObservableObject {
         do {
             let url = try VaultWriter(root: root).write(meeting)
             meeting.filedAt = url.path
-            await store.save(meeting)
+            if settingsStore.current.keepMeetings { await store.save(meeting) }
             current = meeting
             status = "Filed in \(url.lastPathComponent). Run the vault's ingest "
                 + "skill to promote it into wiki/."

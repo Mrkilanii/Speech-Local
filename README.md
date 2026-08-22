@@ -95,6 +95,12 @@ source material: your notes and the transcript, never the generated summary —
 vault that is not there is never created. Configure it under
 **Settings → General**.
 
+Recorded meetings are kept under `~/Library/Application Support/SpeechLocal/`,
+one file each, readable only by you. A meeting holds everything said in a room,
+so it gets the same promise transcript history gets: **Settings → General →
+Keep recorded meetings**, and turning it off deletes what was stored rather
+than hiding it.
+
 ### It learns how you speak
 
 When a word comes out wrong, open **Fix last dictation…** from the menu bar and
