@@ -91,9 +91,21 @@ struct NotesView: View {
             }
             .disabled(model.phase == .finishing || model.phase == .summarising)
 
-            TextField("Untitled meeting", text: $model.title)
+            TextField("Untitled", text: $model.title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
+
+            Picker("", selection: $model.kind) {
+                ForEach(MeetingSummarizer.Kind.allCases, id: \.self) { kind in
+                    Text(kind.displayName).tag(kind)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .disabled(model.isRecording)
+            .help("A talk gets definitions and examples; a conversation gets "
+                  + "decisions and action items.")
 
             Spacer()
 

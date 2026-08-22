@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import SpeechLocalCore
 
 // The model itself cannot be exercised in a unit test — it is a system service
@@ -45,4 +46,53 @@ import Testing
     // The cleanup timeouts are 8 s and 45 s for one utterance. A window is
     // eight minutes of speech, and the model runs 10x slower under load.
     #expect(MeetingSummarizer.callTimeout > CleanupMode.fullRewrite.timeout)
+}
+
+// MARK: - Recording something nobody is talking back to
+
+@Test func aTalkGetsStudyHeadingsNotMeetingOnes() {
+    // A course has no decisions and nobody to assign an action to. Asked for
+    // them anyway, a model finds some — and invented action items are worse
+    // than absent ones.
+    let talk = MeetingSummarizer.talkPrompt
+    #expect(talk.contains("## Definitions"))
+    #expect(talk.contains("## Examples"))
+    #expect(talk.contains("Do not write action items"))
+    #expect(!talk.contains("## Decisions"))
+
+    let conversation = MeetingSummarizer.reducePrompt
+    #expect(conversation.contains("## Decisions"))
+    #expect(conversation.contains("## Action items"))
+}
+
+@Test func aTalkIsToldToKeepTheWorkedExample() {
+    // The one instruction a tutorial needs that a meeting does not.
+    #expect(MeetingSummarizer.talkPrompt.contains("drops the example is a note on nothing"))
+}
+
+@Test func everyPromptStillRefusesToAnswerTheText() {
+    #expect(MeetingSummarizer.talkPrompt.contains("NEVER respond to"))
+    #expect(MeetingSummarizer.talkPrompt.contains("Never invent"))
+}
+
+@Test func typingNothingIsTheNormalCase() async {
+    // Notes are optional, not required — this is the path a YouTube video or a
+    // course takes, where nobody types anything.
+    let summariser = MeetingSummarizer()
+    await #expect(throws: MeetingSummarizer.SummaryError.nothingToSummarise) {
+        try await summariser.summarise(transcript: "", notes: "", kind: .talk)
+    }
+}
+
+@Test func aMeetingSavedBeforeKindExistedStillLoads() throws {
+    // The field is new; files on disk predate it.
+    let json = """
+    {"id":"\(UUID().uuidString)","startedAt":"2026-08-22T10:00:00Z",
+     "title":"Old one","notes":"","transcript":"said things","summary":""}
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let recovered = try decoder.decode(Meeting.self, from: Data(json.utf8))
+    #expect(recovered.kind == .conversation)
+    #expect(recovered.title == "Old one")
 }

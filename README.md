@@ -63,10 +63,17 @@ the reason each one can afford to be decisive.
 and it captures both your microphone and the audio your Mac is playing — the
 other people on the call — mixing them into one on-device transcript.
 
-Type while it runs. Your notes are the skeleton: afterwards the summary is
-built *from what you wrote*, with the transcript filling in the detail you
-missed, the number you half-caught, the decision that followed. Write nothing
-and it summarises the meeting on its own.
+**Typing is optional.** Write nothing and it summarises what it heard on its
+own — that is the normal case for a video or a lecture. If you *do* type, your
+notes become the skeleton: the summary is built *from what you wrote*, with the
+transcript filling in the detail you missed, the number you half-caught, the
+decision that followed.
+
+Pick what you are recording, because the two want different notes. A
+**conversation** gets Decisions and Action items. A **talk or course** gets
+Definitions, Examples and "Worth looking up" — and is told to keep the worked
+example, since a note on a tutorial that drops the example is a note on
+nothing. Asking a lecture for action items only makes the model invent some.
 
 Everything stays on this Mac. An hour of speech is far past what the on-device
 model can read at once, so it is summarised in windows and merged — a minute
@@ -135,7 +142,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `311 tests ... passed`.
+You should see `316 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

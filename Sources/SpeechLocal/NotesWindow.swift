@@ -61,6 +61,8 @@ final class NotesModel: ObservableObject {
     @Published var past: [Meeting] = []
     @Published var selected: Meeting?
     @Published var capturingSystemAudio = false
+    /// Set before recording; a course wants different headings from a call.
+    @Published var kind: MeetingSummarizer.Kind = .conversation
 
     private let asr: AppleASREngine
     private let capture: AudioCapture
@@ -120,7 +122,7 @@ final class NotesModel: ObservableObject {
             log("  MEETING system audio unavailable: \(error)")
         }
 
-        let meeting = Meeting()
+        let meeting = Meeting(kind: kind)
         current = meeting
 
         let session = MeetingSession(
@@ -164,6 +166,7 @@ final class NotesModel: ObservableObject {
 
         guard var meeting = current else { phase = .done; return }
         meeting.endedAt = Date()
+        meeting.kind = kind
         meeting.title = title
         meeting.notes = notes
         meeting.transcript = transcript
@@ -188,6 +191,7 @@ final class NotesModel: ObservableObject {
             let written = try await summariser.summarise(
                 transcript: transcript,
                 notes: notes,
+                kind: kind,
                 onProgress: { [weak self] update in
                     Task { @MainActor in self?.progress = update }
                 })
@@ -241,6 +245,7 @@ final class NotesModel: ObservableObject {
         guard !isRecording else { return }
         selected = meeting
         current = meeting
+        kind = meeting.kind
         title = meeting.title
         notes = meeting.notes
         transcript = meeting.transcript

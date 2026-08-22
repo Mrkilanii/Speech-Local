@@ -14,10 +14,13 @@ public struct Meeting: Codable, Sendable, Equatable, Identifiable {
     public var summary: String
     /// Where it was filed in the vault, if it was.
     public var filedAt: String?
+    /// What it was, which decides how the note is shaped.
+    public var kind: MeetingSummarizer.Kind
 
     public init(id: UUID = UUID(), startedAt: Date = Date(), endedAt: Date? = nil,
                 title: String = "", notes: String = "", transcript: String = "",
-                summary: String = "", filedAt: String? = nil) {
+                summary: String = "", filedAt: String? = nil,
+                kind: MeetingSummarizer.Kind = .conversation) {
         self.id = id
         self.startedAt = startedAt
         self.endedAt = endedAt
@@ -26,6 +29,22 @@ public struct Meeting: Codable, Sendable, Equatable, Identifiable {
         self.transcript = transcript
         self.summary = summary
         self.filedAt = filedAt
+        self.kind = kind
+    }
+
+    /// A meeting saved before `kind` existed still has to load.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        transcript = try container.decodeIfPresent(String.self, forKey: .transcript) ?? ""
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        filedAt = try container.decodeIfPresent(String.self, forKey: .filedAt)
+        kind = try container.decodeIfPresent(
+            MeetingSummarizer.Kind.self, forKey: .kind) ?? .conversation
     }
 
     public var duration: TimeInterval {
