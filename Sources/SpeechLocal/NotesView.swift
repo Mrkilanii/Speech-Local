@@ -65,7 +65,7 @@ struct NotesView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            if model.isRecording || model.phase == .finishing {
+            if model.isLive || model.phase == .finishing {
                 live
             } else {
                 finished
@@ -90,6 +90,17 @@ struct NotesView: View {
                       systemImage: model.isRecording ? "stop.circle.fill" : "record.circle")
             }
             .disabled(model.phase == .finishing || model.phase == .summarising)
+
+            if model.isLive {
+                Button {
+                    Task { await model.togglePause() }
+                } label: {
+                    Label(model.isPaused ? "Resume" : "Pause",
+                          systemImage: model.isPaused ? "play.circle" : "pause.circle")
+                }
+                .help("Stops taking audio without ending the meeting. Paused "
+                      + "time is not counted in the length.")
+            }
 
             TextField("Untitled", text: $model.title)
                 .textFieldStyle(.plain)
@@ -122,10 +133,12 @@ struct NotesView: View {
 
             Spacer()
 
-            if model.isRecording {
+            if model.isLive {
                 HStack(spacing: 5) {
-                    Circle().fill(.red).frame(width: 7, height: 7)
+                    Circle().fill(model.isPaused ? Color.secondary : Color.red)
+                        .frame(width: 7, height: 7)
                     Text(Self.clock(model.elapsed)).monospacedDigit()
+                    if model.isPaused { Text("paused") }
                     if !model.capturingSystemAudio {
                         Image(systemName: "mic")
                             .help("Microphone only — system audio unavailable")
@@ -157,7 +170,9 @@ struct NotesView: View {
             }
             pane("Heard so far") {
                 ScrollView {
-                    Text(model.transcript.isEmpty ? "Listening…" : model.transcript)
+                    Text(model.transcript.isEmpty
+                         ? (model.isPaused ? "Paused" : "Listening…")
+                         : model.transcript)
                         .font(.system(size: 12))
                         .foregroundStyle(model.transcript.isEmpty ? .tertiary : .secondary)
                         .textSelection(.enabled)

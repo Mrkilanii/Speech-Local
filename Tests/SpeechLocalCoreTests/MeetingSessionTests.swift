@@ -278,3 +278,97 @@ private func until(
     let seen = await engine.seen()
     #expect(seen.samples > 24_000, "expected ~32000 stretched samples, got \(seen.samples)")
 }
+
+// MARK: - Pausing
+
+@Test func pausingStopsTakingAudio() async throws {
+    // A long course has interruptions and they do not belong in the note.
+    let buffer = ring()
+    let engine = StubASR()
+    let session = MeetingSession(engine: engine, buffer: buffer, locale: "en-US")
+
+    await session.start()
+    write(buffer, seconds: 1)
+    try await until { await engine.seen().samples >= 16_000 }
+
+    await session.pause()
+    #expect(await session.isPaused)
+    let atPause = await engine.seen().samples
+
+    write(buffer, seconds: 2)               // the interruption
+    try await Task.sleep(for: .milliseconds(1_400))
+    #expect(await engine.seen().samples == atPause, "nothing may arrive while paused")
+
+    await session.resume()
+    write(buffer, seconds: 1)
+    try await until { await engine.seen().samples > atPause }
+    await session.stop()
+    #expect(await engine.seen().samples > atPause, "and it picks up again after")
+}
+
+@Test func aPauseIsNotLostAudio() async throws {
+    // Skipping is not losing. Left unread, the ring laps in ~32 s and reports
+    // an overrun — a pause longer than that would claim to have dropped
+    // speech nobody wanted.
+    let buffer = ring(seconds: 1)           // laps almost immediately
+    let session = MeetingSession(engine: StubASR(), buffer: buffer, locale: "en-US")
+
+    await session.start()
+    await session.pause()
+    write(buffer, seconds: 8)               // eight seconds into a one-second ring
+    try await Task.sleep(for: .milliseconds(1_400))
+    await session.resume()
+    await session.stop()
+
+    #expect(await session.didLoseAudio == false)
+}
+
+@Test func pausedTimeIsNotPartOfTheLength() async throws {
+    // A meeting should read as what was recorded, not how long the window was
+    // open. Twenty minutes of course plus a ten-minute break is twenty.
+    let session = MeetingSession(engine: StubASR(), buffer: ring(), locale: "en-US")
+    let started = Date()
+    await session.start()
+    try await Task.sleep(for: .milliseconds(200))
+
+    await session.pause()
+    try await Task.sleep(for: .milliseconds(400))
+    let whilePaused = await session.elapsed
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(await session.elapsed == whilePaused, "the clock stops while paused")
+
+    await session.resume()
+    await session.stop()
+
+    // Measured against the wall clock rather than a fixed number: actor hops
+    // and awaits make the real elapsed time longer than the sleeps, and the
+    // property under test is the difference, not the total.
+    let wall = Date().timeIntervalSince(started)
+    let total = await session.elapsed
+    #expect(total <= wall - 0.65,
+            "700ms of pause should be missing from \(wall)s, got \(total)s")
+}
+
+@Test func pauseAndResumeAreIdempotent() async throws {
+    let session = MeetingSession(engine: StubASR(), buffer: ring(), locale: "en-US")
+    await session.resume()                  // before starting: no effect
+    #expect(await session.currentPhase == .idle)
+
+    await session.start()
+    await session.pause()
+    await session.pause()                   // twice is safe
+    #expect(await session.isPaused)
+    await session.resume()
+    await session.resume()
+    #expect(await session.currentPhase == .recording)
+    await session.stop()
+}
+
+@Test func aPausedMeetingCanBeStopped() async throws {
+    // Forgetting to resume before stopping must not strand the session.
+    let session = MeetingSession(engine: StubASR(), buffer: ring(), locale: "en-US")
+    await session.start()
+    await session.pause()
+    await session.stop()
+    #expect(await session.currentPhase == .done)
+}

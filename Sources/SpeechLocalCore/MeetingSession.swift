@@ -22,6 +22,9 @@ public actor MeetingSession {
     public enum Phase: Sendable, Equatable {
         case idle
         case recording
+        /// Still running, still holding the recognizer open, but skipping the
+        /// audio. A course has interruptions and they do not belong in the note.
+        case paused
         case finishing
         /// The session is over and the note is being written. Owned by the
         /// caller rather than reached from here: the recorder's job ends when
@@ -57,6 +60,10 @@ public actor MeetingSession {
     /// Samples seen but not yet handed over, for the record — never the audio.
     private var samplesRead = 0
     private var overran = false
+    /// Time spent paused, subtracted from the length so a meeting reads as
+    /// what was recorded rather than how long the window was open.
+    private var pausedTotal: TimeInterval = 0
+    private var pausedAt: Date?
 
     /// - Parameter playbackRate: what the system audio is playing at. Above 1
     ///   the microphone is dropped: only the playback was sped up, and
@@ -82,8 +89,14 @@ public actor MeetingSession {
 
     public var elapsed: TimeInterval {
         guard let startedAt else { return 0 }
-        return (endedAt ?? Date()).timeIntervalSince(startedAt)
+        // One `now` for both halves. Reading the clock twice made the value
+        // creep by microseconds while paused, when it should be frozen.
+        let now = Date()
+        let paused = pausedTotal + (pausedAt.map { now.timeIntervalSince($0) } ?? 0)
+        return max(0, (endedAt ?? now).timeIntervalSince(startedAt) - paused)
     }
+
+    public var isPaused: Bool { phase == .paused }
 
     /// Seconds of audio actually handed to the recognizer. Diverging from
     /// `elapsed` is how a dropped stretch shows up.
@@ -114,6 +127,15 @@ public actor MeetingSession {
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.drainInterval)
                 if Task.isCancelled { break }
+
+                // Paused: advance past whatever arrived without reading it.
+                // Not reading at all would let the ring lap and report an
+                // overrun, and audio deliberately skipped is not audio lost.
+                if await self?.isPaused == true {
+                    cursor = buffer.writeCursor
+                    systemCursor = systemBuffer?.writeCursor ?? systemCursor
+                    continue
+                }
 
                 if buffer.hasOverrun(cursor: cursor) {
                     await self?.noteOverrun()
@@ -159,6 +181,11 @@ public actor MeetingSession {
     /// Stops recording and waits for the recognizer to finish the audio it has
     /// already been given. Safe to call twice.
     public func stop() async {
+        if phase == .paused {
+            if let pausedAt { pausedTotal += Date().timeIntervalSince(pausedAt) }
+            self.pausedAt = nil
+            phase = .recording          // so the guard below still admits it
+        }
         guard phase == .recording else { return }
         phase = .finishing
         endedAt = Date()
@@ -173,6 +200,25 @@ public actor MeetingSession {
         await reader?.value
         reader = nil
         if phase == .finishing { phase = .done }
+    }
+
+    /// Stops taking audio without ending the meeting.
+    ///
+    /// The recognizer stream stays open and the transcript stays put; the pump
+    /// keeps ticking so the ring cursor tracks the live edge. Tearing the
+    /// recognizer down and building it again on resume would split the meeting
+    /// into two transcripts and pay the analyzer's start-up cost every time.
+    public func pause() {
+        guard phase == .recording else { return }
+        phase = .paused
+        pausedAt = Date()
+    }
+
+    public func resume() {
+        guard phase == .paused else { return }
+        if let pausedAt { pausedTotal += Date().timeIntervalSince(pausedAt) }
+        pausedAt = nil
+        phase = .recording
     }
 
     /// Sums the microphone and the room into one stream.

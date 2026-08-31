@@ -84,6 +84,12 @@ preserves pitch and undoing it must too. Above 1× your microphone is not
 recorded: only the playback was sped up, and stretching a mix would slow your
 own voice to half pace.
 
+**Pause it.** A long course has interruptions and they do not belong in the
+note. Pausing stops taking audio without ending the meeting — the recogniser
+stays open, so it does not split into two transcripts — and paused time is not
+counted in the length. Twenty minutes of course plus a ten-minute break reads
+as twenty minutes.
+
 Everything stays on this Mac. An hour of speech is far past what the on-device
 model can read at once, so it is summarised in windows and merged — a minute
 or two of work after you stop, in the background.
@@ -157,7 +163,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `327 tests ... passed`.
+You should see `332 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

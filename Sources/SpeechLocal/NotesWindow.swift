@@ -58,8 +58,10 @@ final class NotesModel: ObservableObject {
 
     @Published var phase: MeetingSession.Phase = .idle {
         didSet {
-            guard (oldValue == .recording) != (phase == .recording) else { return }
-            onRecordingChanged?(phase == .recording)
+            let wasLive = oldValue == .recording || oldValue == .paused
+            let live = phase == .recording || phase == .paused
+            guard wasLive != live else { return }
+            onRecordingChanged?(live)
         }
     }
     @Published var elapsed: TimeInterval = 0
@@ -99,6 +101,9 @@ final class NotesModel: ObservableObject {
     }
 
     var isRecording: Bool { phase == .recording }
+    var isPaused: Bool { phase == .paused }
+    /// Running, whether or not audio is being taken right now.
+    var isLive: Bool { isRecording || isPaused }
 
     static func rateLabel(_ rate: Double) -> String {
         rate == rate.rounded() ? "\(Int(rate))x" : "\(rate)x"
@@ -109,7 +114,19 @@ final class NotesModel: ObservableObject {
     // MARK: Recording
 
     func toggleRecording() async {
-        isRecording ? await stop() : await start()
+        isLive ? await stop() : await start()
+    }
+
+    func togglePause() async {
+        guard let session else { return }
+        if isPaused {
+            await session.resume()
+            status = nil
+        } else {
+            await session.pause()
+            status = "Paused — audio is being skipped, not recorded."
+        }
+        phase = await session.currentPhase
     }
 
     func start() async {
@@ -179,7 +196,7 @@ final class NotesModel: ObservableObject {
     }
 
     func stop() async {
-        guard let session, isRecording else { return }
+        guard let session, isLive else { return }
         phase = .finishing
         ticker?.invalidate()
         ticker = nil
