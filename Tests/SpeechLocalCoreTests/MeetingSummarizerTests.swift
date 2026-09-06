@@ -115,3 +115,68 @@ import Foundation
         #expect(prompt.contains("A short note is a good outcome"))
     }
 }
+
+// MARK: - Folding, so a long recording can be merged at all
+
+/// The measured shape of the failure: a 99-minute recording, 17 windows,
+/// whose digests came to 9,104 tokens against a 4,096 ceiling.
+private func digests(count: Int, wordsEach: Int) -> [String] {
+    (0..<count).map { i in
+        (0..<wordsEach).map { "w\(i)_\($0)" }.joined(separator: " ")
+    }
+}
+
+@Test func batchesNeverExceedTheBudget() {
+    let batched = MeetingSummarizer.batches(
+        of: digests(count: 17, wordsEach: 400), budget: 1_400)
+    #expect(batched.count > 1, "17 digests cannot go in one call")
+    for batch in batched {
+        #expect(MeetingSummarizer.words(batch) <= 1_400 || batch.count == 1)
+    }
+}
+
+@Test func everyDigestSurvivesBatching() {
+    // Losing one is losing a stretch of the meeting.
+    let input = digests(count: 17, wordsEach: 400)
+    let batched = MeetingSummarizer.batches(of: input, budget: 1_400)
+    #expect(batched.flatMap { $0 } == input, "same items, same order, none dropped")
+}
+
+@Test func anOversizedDigestStillGetsABatch() {
+    // Bigger than the budget on its own — it goes alone rather than being
+    // dropped, and the model's own halving retry deals with it.
+    let batched = MeetingSummarizer.batches(
+        of: [digests(count: 1, wordsEach: 5_000)[0], "small one"], budget: 1_400)
+    #expect(batched.count == 2)
+    #expect(batched[0].count == 1)
+}
+
+@Test func aSingleDigestNeedsNoFolding() {
+    let batched = MeetingSummarizer.batches(of: ["one short note"], budget: 1_400)
+    #expect(batched.count == 1)
+}
+
+@Test func theMergeBudgetLeavesRoomForTheAnswer() {
+    // 4096 tokens is prompt and answer together. A budget in words that fills
+    // the window on its own would fail exactly where the real one did.
+    let budgetTokens = MeetingSummarizer.mergeBudgetWords * 4 / 3
+    #expect(budgetTokens < 4_096 / 2,
+            "\(budgetTokens) tokens of input leaves too little for prompt and answer")
+}
+
+@Test func foldingConvergesOnRealisticInput() {
+    // 17 digests of 400 words = 6,800 words. Each round should divide the pile
+    // by roughly the budget, reaching one within the round limit.
+    var level = digests(count: 17, wordsEach: 400)
+    var rounds = 0
+    while level.count > 1, rounds < MeetingSummarizer.foldRounds {
+        rounds += 1
+        // Merging is lossy in reality; assume a batch halves.
+        level = MeetingSummarizer.batches(of: level, budget: 1_400).map {
+            $0.joined(separator: " ").split(separator: " ")
+                .prefix($0.joined(separator: " ").split(separator: " ").count / 2)
+                .joined(separator: " ")
+        }
+    }
+    #expect(level.count == 1, "should reach a single note in \(MeetingSummarizer.foldRounds) rounds, took \(rounds)")
+}

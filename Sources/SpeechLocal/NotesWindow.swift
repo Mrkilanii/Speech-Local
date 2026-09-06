@@ -238,6 +238,15 @@ final class NotesModel: ObservableObject {
 
         phase = .summarising
         progress = MeetingSummarizer.Progress(stage: "Reading", done: 0, total: 1)
+        // Roughly a minute and a half per window on this hardware, measured
+        // over a 99-minute recording. Long enough that saying nothing looks
+        // like a hang.
+        let windows = max(1, transcript.split(whereSeparator: \.isWhitespace).count / 1_800)
+        if windows > 3 {
+            status = "Reading \(windows) passages — this takes a few minutes for "
+                + "a recording this long, and runs in the background. The "
+                + "transcript is already saved."
+        }
         do {
             let written = try await summariser.summarise(
                 transcript: transcript,

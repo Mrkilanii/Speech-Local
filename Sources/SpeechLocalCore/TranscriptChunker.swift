@@ -11,15 +11,22 @@ import Foundation
 /// end of a thought and hands the next window a fragment to open on, and the
 /// merge step is where quality is already thinnest.
 enum TranscriptChunker {
-    /// Words per window. About eight minutes of speech — small enough to leave
-    /// the model room to answer, large enough that a decision and its reasoning
-    /// usually survive in the same window.
-    static let targetWords = 1_200
+    /// Words per window.
+    ///
+    /// Every window is a model call, and a call is the expensive unit: a
+    /// 99-minute recording at 1,200 words made 17 of them and took twenty-five
+    /// minutes. At 1,800 the same recording is 11 windows.
+    ///
+    /// The ceiling is the model's 4,096-token context, prompt and answer
+    /// together. 1,800 words is ~2,400 tokens, leaving ~1,700 for the
+    /// instructions and the bullets — and an overflow is recoverable anyway,
+    /// since a refused window is halved and retried.
+    static let targetWords = 1_800
 
     /// A sentence longer than this is not a sentence; it is a transcript with
     /// no punctuation, which happens when the recognizer never hears a pause.
     /// Cut it anyway rather than hand over the whole meeting.
-    static let hardLimit = 2_000
+    static let hardLimit = 2_600
 
     static func chunks(of transcript: String, targetWords: Int = targetWords) -> [String] {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -16,7 +16,7 @@ private func transcript(words: Int) -> String {
 @Test func anHourIsCutIntoReadableWindows() {
     // ~9,000 words is a 60-minute meeting.
     let chunks = TranscriptChunker.chunks(of: transcript(words: 9_000))
-    #expect(chunks.count >= 7 && chunks.count <= 9, "got \(chunks.count)")
+    #expect(chunks.count >= 4 && chunks.count <= 7, "got \(chunks.count)")
     for chunk in chunks {
         let words = chunk.split(whereSeparator: \.isWhitespace).count
         #expect(words <= TranscriptChunker.hardLimit)
@@ -37,6 +37,23 @@ private func transcript(words: Int) -> String {
     for chunk in TranscriptChunker.chunks(of: transcript(words: 4_000)) {
         #expect(chunk.hasSuffix("."), "a window should not end mid-sentence")
     }
+}
+
+@Test func aWindowFitsTheModelsContext() {
+    // 4096 tokens is prompt and answer together, so a window that fills it is
+    // a window that fails. Measured at ~4/3 tokens per word.
+    let chunks = TranscriptChunker.chunks(of: transcript(words: 20_000))
+    for chunk in chunks {
+        let tokens = chunk.split(whereSeparator: \.isWhitespace).count * 4 / 3
+        #expect(tokens < 3_000, "a window of \(tokens) tokens leaves no room to answer")
+    }
+}
+
+@Test func aNinetyNineMinuteRecordingIsElevenWindows() {
+    // The real one: 19,498 words. Each window is a model call and a call is
+    // roughly a minute and a half, so the count is the running time.
+    let chunks = TranscriptChunker.chunks(of: transcript(words: 19_500))
+    #expect(chunks.count <= 12, "\(chunks.count) windows is \(chunks.count * 3 / 2) minutes")
 }
 
 @Test func emptyInputProducesNoChunks() {
