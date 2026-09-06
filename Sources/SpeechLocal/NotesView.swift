@@ -204,6 +204,24 @@ struct NotesView: View {
                         Spacer()
                     }
                 }
+
+                // Offered whenever there is a transcript, summary or not —
+                // the case that matters most is the one where summarising
+                // failed and the transcript is all there is.
+                if !model.transcript.isEmpty && !model.isLive {
+                    HStack {
+                        Button(model.summary.isEmpty
+                               ? "Summarise this transcript" : "Summarise again") {
+                            Task { await model.resummarise() }
+                        }
+                        .disabled(model.phase == .summarising)
+                        Text("Re-runs the model over the saved transcript. "
+                             + "Nothing is re-recorded.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
                 if !model.notes.isEmpty {
                     section("Your notes") {
                         Text(model.notes).font(.system(size: 12))
@@ -217,7 +235,7 @@ struct NotesView: View {
                             .textSelection(.enabled)
                     }
                 }
-                if model.summary.isEmpty && model.transcript.isEmpty {
+                if model.summary.isEmpty && model.transcript.isEmpty && !model.isLive {
                     Text("Press Record and start talking. Type notes while it runs — "
                          + "the summary is built from what you wrote, with the "
                          + "transcript filling in the rest.")

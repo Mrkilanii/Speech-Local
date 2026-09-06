@@ -228,6 +228,29 @@ final class NotesModel: ObservableObject {
         await summarise(meeting)
     }
 
+    /// Runs the summariser again over a transcript already on disk.
+    ///
+    /// The transcript is the expensive half — a 99-minute recording is
+    /// 99 minutes — and the summary is the half that changes: a prompt is
+    /// edited, a window size is tuned, a merge that failed is fixed. Without
+    /// this the only way to try again was to record the meeting again.
+    func resummarise() async {
+        guard !isLive, phase != .summarising else { return }
+        guard let meeting = current ?? selected,
+              !meeting.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            status = "Nothing to summarise — this meeting has no transcript."
+            return
+        }
+        // Summarise what is on disk, not what happens to be on screen.
+        transcript = meeting.transcript
+        notes = meeting.notes
+        kind = meeting.kind
+        summary = ""
+        log("  MEETING re-summarising \(meeting.transcript.count) chars")
+        await summarise(meeting)
+    }
+
     private func summarise(_ meeting: Meeting) async {
         guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -260,7 +283,7 @@ final class NotesModel: ObservableObject {
             var saved = meeting
             saved.summary = written
             saved.notes = notes
-            saved.title = title
+            saved.title = title.isEmpty ? meeting.title : title
             if settingsStore.current.keepMeetings { await store.save(saved) }
             current = saved
             phase = .done
