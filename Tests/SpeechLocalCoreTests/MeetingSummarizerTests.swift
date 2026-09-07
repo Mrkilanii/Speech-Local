@@ -180,3 +180,30 @@ private func digests(count: Int, wordsEach: Int) -> [String] {
     }
     #expect(level.count == 1, "should reach a single note in \(MeetingSummarizer.foldRounds) rounds, took \(rounds)")
 }
+
+@Test func oneOversizedNoteIsSplitRatherThanAccepted() {
+    // The measured failure: eleven windows folded to a single 3,000-word note,
+    // the loop stopped because there was only one item left, and the final
+    // write was handed 4,089 tokens and refused. One item that is too big must
+    // still be divisible.
+    let note = (0..<40).map { "- point number \($0) with some words after it" }
+        .joined(separator: "\n")
+    let halves = MeetingSummarizer.halve(note)
+    #expect(halves.count == 2)
+    #expect(halves.joined(separator: "\n") == note, "splitting must lose nothing")
+}
+
+@Test func aNoteWithNothingToSplitOnIsLeftAlone() {
+    // No line boundary means no safe split; the caller stops rather than
+    // cutting mid-sentence.
+    #expect(MeetingSummarizer.halve("one single unbroken line").count == 1)
+}
+
+@Test func theStoppingConditionIsSizeNotCount() {
+    // A single item over budget is not done. This is the property the loop got
+    // wrong: `count > 1` was false, so it exited with 4,089 tokens in hand.
+    let oversized = [(0..<3_000).map { "w\($0)" }.joined(separator: " ")]
+    #expect(oversized.count == 1)
+    #expect(MeetingSummarizer.words(oversized) > MeetingSummarizer.mergeBudgetWords,
+            "one item can be over budget, so count is the wrong test")
+}

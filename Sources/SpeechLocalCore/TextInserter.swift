@@ -176,7 +176,8 @@ public actor TextInserter {
         // Only the desktop is excluded from (1): with Finder frontmost and
         // nothing focused, there is genuinely nowhere for a paste to go.
         guard let element = try? focusedElement() else {
-            guard !Self.isDesktop(NSWorkspace.shared.frontmostApplication) else {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            guard !Self.isDesktop(frontmost) else {
                 throw InsertError.noTextInput
             }
             try insertViaPaste(payload)
@@ -189,7 +190,17 @@ public actor TextInserter {
         // cannot take text still "succeeds": the keystroke is delivered, nothing
         // happens, and the clipboard is then restored — silently destroying the
         // transcript. The caller needs to know so it can offer the text instead.
-        guard acceptsText(element) else { throw InsertError.noTextInput }
+        //
+        // Unless the app is known to lie. PowerPoint reports `AXScrollArea`
+        // with no text attributes while editing a slide, and ⌘V works there —
+        // the check is right about what it was told and wrong about the app.
+        if !acceptsText(element) {
+            guard Self.pastesBlind(NSWorkspace.shared.frontmostApplication) else {
+                throw InsertError.noTextInput
+            }
+            try insertViaPaste(payload)
+            return .paste
+        }
 
         let method: Method
         if insertViaAccessibility(element, text: payload) {
@@ -208,16 +219,26 @@ public actor TextInserter {
         return method
     }
 
-    /// Apps that accept ⌘V but expose no focused AX element.
+    /// Apps that accept ⌘V while telling accessibility nothing useful.
     ///
-    /// Terminals are the obvious members — they render their own text surface
-    /// and publish nothing through accessibility — but the category is broader
-    /// than that. The Codex desktop app (`com.openai.codex`) also reports no
-    /// focused element while pasting perfectly, which is why this list is keyed
-    /// on "no AX focus, paste works" rather than on being a terminal.
+    /// Two shapes, one category. Terminals publish **no focused element at
+    /// all** — they render their own text surface — and so does the Codex
+    /// desktop app, which is why this is keyed on "paste works, AX does not"
+    /// rather than on being a terminal.
     ///
-    /// For these, `focusedElement()` throws before any capability check runs, so
-    /// they must be recognised up front or they can never be dictated into.
+    /// The Office and iWork apps do something worse: they publish a focused
+    /// element that is useless. Editing a text box on a PowerPoint slide
+    /// reports `AXScrollArea` with `valueRead=false`, no settable text and no
+    /// caret range — indistinguishable, from the element alone, from having
+    /// clicked on nothing. Their own search fields report `AXSearchField` and
+    /// work fine, so the app is not uniformly opaque; only its document
+    /// surface is.
+    ///
+    /// Both shapes are refused by the ordinary checks, so both need naming.
+    /// The cost of a wrong entry is bounded: ⌘V with nothing in edit mode
+    /// pastes the text as a new object rather than losing it, which is visible
+    /// and undoable. The cost of omitting one is that the app can never be
+    /// dictated into.
     static let pasteOnlyBundleIDs: Set<String> = [
         // No-AX-focus apps that are not terminals.
         "com.openai.codex",
@@ -232,7 +253,22 @@ public actor TextInserter {
         "com.github.wez.wezterm",
         "co.zeit.hyper",
         "com.raycast.macos",
+        // Document surfaces that publish a container role instead of text.
+        "com.microsoft.Powerpoint",
+        "com.microsoft.Word",
+        "com.microsoft.Excel",
+        "com.microsoft.Onenote.mac",
+        "com.apple.iWork.Keynote",
+        "com.apple.iWork.Pages",
+        "com.apple.iWork.Numbers",
+        "com.figma.Desktop",
     ]
+
+    /// Whether the frontmost app is one that lies about its text.
+    static func pastesBlind(_ app: NSRunningApplication?) -> Bool {
+        guard let id = app?.bundleIdentifier else { return false }
+        return pasteOnlyBundleIDs.contains(id)
+    }
 
     /// Finder frontmost with nothing focused means the desktop: no paste target.
     static func isDesktop(_ app: NSRunningApplication?) -> Bool {

@@ -523,3 +523,27 @@ func leavesAmbiguousWordsAlone(word: String) {
     let other = RulesCleanup(language: .other)
     #expect(other.apply(to: "send me one file") == "Send me one file.")
 }
+
+// MARK: - Apps that lie about their text
+
+@Test func appsThatPasteBlindAreRecognised() {
+    // PowerPoint reports AXScrollArea with no text attributes while a slide's
+    // text box is being edited — indistinguishable from having clicked on
+    // nothing — yet paste works there. Terminals publish no focused element at
+    // all. Both are refused by the ordinary checks, so both are named.
+    for id in ["com.microsoft.Powerpoint", "com.apple.iWork.Keynote",
+               "com.apple.Terminal", "com.openai.codex"] {
+        #expect(TextInserter.pasteOnlyBundleIDs.contains(id), "missing \(id)")
+    }
+}
+
+@Test func anUnknownAppIsNotGivenABlindPaste() {
+    // The refusal is the protection: clicking off a text box reports a
+    // container role, and a blind paste there is delivered, discarded, and
+    // the clipboard restored over the transcript.
+    #expect(!TextInserter.pasteOnlyBundleIDs.contains("com.example.unknown"))
+}
+
+@Test func theDesktopIsNeverAPasteTarget() {
+    #expect(TextInserter.isDesktop(nil))
+}

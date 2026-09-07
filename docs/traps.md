@@ -50,6 +50,19 @@ to tell them apart.
 protected browser streams) cannot be captured by any path. Two independent APIs
 reporting silence means the source, not the code.
 
+## Insertion
+
+**Some apps publish a container role instead of their text.** Editing a text
+box on a PowerPoint slide reports `AXScrollArea` with `valueRead=false`, no
+settable text and no caret range — the same shape as having clicked on nothing.
+Its own search field reports `AXSearchField` and works, so the app is not
+uniformly opaque; only the document surface is. `⌘V` works regardless.
+
+These apps are named in `TextInserter.pasteOnlyBundleIDs`, which is consulted
+both when there is no focused element (terminals) and when there is a useless
+one (Office, iWork). An app missing from that list cannot be dictated into, and
+the only symptom is the panel offering Copy instead of typing.
+
 ## Shell
 
 **`pkill -f <pattern>` matches its own shell.** The pattern appears in the

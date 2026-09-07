@@ -175,13 +175,24 @@ public actor MeetingSummarizer {
     ) async throws -> [String] {
         var level = digests
         var round = 0
-        while level.count > 1, Self.words(level) > Self.mergeBudgetWords,
-              round < Self.foldRounds {
+        // The condition is total size, not item count. Stopping at one item
+        // was the bug: eleven windows folded down to a single 3,000-word note
+        // and the loop exited satisfied, because `count > 1` was false — then
+        // the final write was handed 4,089 tokens and refused.
+        while Self.words(level) > Self.mergeBudgetWords, round < Self.foldRounds {
             round += 1
+
+            // One item that is itself too big cannot be batched with anything.
+            // Split it so there is something to fold.
+            if level.count == 1 {
+                level = Self.halve(level[0])
+                guard level.count > 1 else { break }
+            }
+
             var next: [String] = []
-            for batch in Self.batches(of: level, budget: Self.mergeBudgetWords) {
-                onProgress?(Progress(stage: "Merging", done: next.count,
-                                     total: max(1, level.count / 2)))
+            let batches = Self.batches(of: level, budget: Self.mergeBudgetWords)
+            for (index, batch) in batches.enumerated() {
+                onProgress?(Progress(stage: "Merging", done: index, total: batches.count))
                 // A batch that fails is kept rather than dropped: a rough note
                 // beats losing the passage entirely.
                 next.append((try? await respond(
@@ -189,10 +200,23 @@ public actor MeetingSummarizer {
                     input: "<notes>\n\(batch.joined(separator: "\n"))\n</notes>"))
                     ?? batch.joined(separator: "\n"))
             }
-            guard next.count < level.count else { break }   // no progress, stop
+            // Folding is not guaranteed to shrink anything — the prompt asks it
+            // to drop nothing, and a model that obeys returns what it was
+            // given. Without this the loop spends its rounds achieving nothing.
+            guard Self.words(next) < Self.words(level) else { break }
             level = next
         }
         return level
+    }
+
+    /// Splits one note in two on a line boundary, so an oversized single item
+    /// can be folded against itself.
+    static func halve(_ note: String) -> [String] {
+        let lines = note.split(separator: "\n", omittingEmptySubsequences: false)
+        guard lines.count > 1 else { return [note] }
+        let middle = lines.count / 2
+        return [lines[..<middle].joined(separator: "\n"),
+                lines[middle...].joined(separator: "\n")]
     }
 
     /// Groups items so each group fits the budget. An item bigger than the
@@ -398,9 +422,14 @@ public actor MeetingSummarizer {
     The input is bullet notes taken from consecutive parts of one recording, \
     in order. Combine them into a single shorter list, in the same order.
 
-    Merge points that say the same thing. Keep every decision, number, name, \
-    date and commitment exactly as written. Drop nothing else — this is not \
-    the final summary, and anything you leave out here is gone for good.
+    Merge points that say the same thing, and merge points that are the same \
+    point said twice. Keep every decision, number, name, date and commitment \
+    exactly as written — those are what the note is for.
+
+    Everything else is fair to compress: three bullets about one topic become \
+    one bullet about that topic. **The output must be shorter than the input.** \
+    A merge that returns what it was given has done nothing, and this runs \
+    several times over.
 
     Use "-" bullets and nothing else. No headings, no preamble, no commentary.
     """
