@@ -207,3 +207,48 @@ private func digests(count: Int, wordsEach: Int) -> [String] {
     #expect(MeetingSummarizer.words(oversized) > MeetingSummarizer.mergeBudgetWords,
             "one item can be over budget, so count is the wrong test")
 }
+
+// MARK: - Reading while it records
+
+@Test func ingestDoesNothingUntilAWholeWindowHasArrived() async {
+    // Called once a second for the length of a meeting, so the cheap case has
+    // to be the common one.
+    let summariser = MeetingSummarizer()
+    await summariser.ingest((0..<500).map { "w\($0)" }.joined(separator: " "))
+    #expect(await summariser.windowsRead == 0, "half a window is not a window")
+    #expect(await summariser.secondsInModel == 0, "and must not have called the model")
+}
+
+@Test func resetClearsWhatWasReadBefore() async {
+    // Each meeting starts from nothing, and re-summarising starts over.
+    let summariser = MeetingSummarizer()
+    await summariser.reset()
+    #expect(await summariser.windowsRead == 0)
+    #expect(await summariser.secondsInModel == 0)
+}
+
+@Test func finishingWithNothingReadIsRefused() async {
+    let summariser = MeetingSummarizer()
+    await #expect(throws: MeetingSummarizer.SummaryError.nothingToSummarise) {
+        try await summariser.finish(transcript: "   ")
+    }
+}
+
+@Test func progressCarriesTheTimeACallTook() {
+    // Without this the log could say a summary started and finished and
+    // nothing in between — which is how a 25-minute run went unexplained.
+    let update = MeetingSummarizer.Progress(stage: "Reading", done: 3, total: 11, seconds: 92.4)
+    #expect(update.seconds == 92.4)
+    #expect(MeetingSummarizer.Progress(stage: "x", done: 0, total: 1).seconds == nil)
+}
+
+@Test func readingWhileRecordingLeavesLittleForTheEnd() {
+    // The arithmetic the change is for: a 99-minute recording is 19,498 words.
+    // Read as it arrives, all but the last window is done before Stop.
+    let words = 19_498
+    let windows = words / TranscriptChunker.targetWords
+    #expect(windows >= 10, "\(windows) windows")
+    // What remains at Stop is the partial window, the folds and the write —
+    // not eleven windows of reading.
+    #expect(windows - (windows - 1) == 1)
+}

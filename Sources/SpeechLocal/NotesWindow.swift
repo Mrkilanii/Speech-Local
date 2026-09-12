@@ -90,6 +90,10 @@ final class NotesModel: ObservableObject {
     private var tap: SystemAudioTap?
     private var ticker: Timer?
     private var current: Meeting?
+    /// Reading happens while the meeting runs, so stopping is not the start of
+    /// a twenty-five-minute wait.
+    private var reading: Task<Void, Never>?
+    private var windowsRead = 0
 
     init(asr: AppleASREngine, capture: AudioCapture,
          settingsStore: SettingsStore, learned: LearnedCorrections) {
@@ -160,6 +164,9 @@ final class NotesModel: ObservableObject {
         let meeting = Meeting(kind: kind)
         current = meeting
 
+        await summariser.reset()
+        windowsRead = 0
+
         let session = MeetingSession(
             engine: asr,
             buffer: capture.buffer,
@@ -193,6 +200,26 @@ final class NotesModel: ObservableObject {
         guard let session else { return }
         elapsed = await session.elapsed
         transcript = await session.transcript
+
+        // Hand the transcript over without waiting for it. At `.utility` the
+        // recognizer keeps the machine when it wants it — a meeting summarised
+        // late is better than a meeting transcribed badly.
+        guard reading == nil || reading?.isCancelled == true else { return }
+        let text = transcript
+        let summariser = self.summariser
+        reading = Task(priority: .utility) { [weak self] in
+            await summariser.ingest(text)
+            let read = await summariser.windowsRead
+            let spent = Int(await summariser.secondsInModel)
+            await MainActor.run {
+                guard let self else { return }
+                self.reading = nil
+                guard read > self.windowsRead else { return }
+                self.windowsRead = read
+                log("  MEETING read window \(read) while recording "
+                    + "(\(spent)s in the model so far)")
+            }
+        }
     }
 
     func stop() async {
@@ -248,6 +275,7 @@ final class NotesModel: ObservableObject {
         kind = meeting.kind
         summary = ""
         log("  MEETING re-summarising \(meeting.transcript.count) chars")
+        await summariser.reset()
         await summarise(meeting)
     }
 
@@ -264,14 +292,17 @@ final class NotesModel: ObservableObject {
         // Roughly a minute and a half per window on this hardware, measured
         // over a 99-minute recording. Long enough that saying nothing looks
         // like a hang.
-        let windows = max(1, transcript.split(whereSeparator: \.isWhitespace).count / 1_800)
-        if windows > 3 {
-            status = "Reading \(windows) passages — this takes a few minutes for "
-                + "a recording this long, and runs in the background. The "
-                + "transcript is already saved."
+        let total = max(1, transcript.split(whereSeparator: \.isWhitespace).count / 1_800)
+        let remaining = max(0, total - windowsRead)
+        if remaining > 2 {
+            status = "\(remaining) passages still to read — the other "
+                + "\(windowsRead) were read while you recorded. The transcript "
+                + "is already saved."
+        } else if total > 3 {
+            status = "Read as it recorded — just writing the note now."
         }
         do {
-            let written = try await summariser.summarise(
+            let written = try await summariser.finish(
                 transcript: transcript,
                 notes: notes,
                 kind: kind,
@@ -279,6 +310,8 @@ final class NotesModel: ObservableObject {
                 onProgress: { [weak self] update in
                     Task { @MainActor in self?.progress = update }
                 })
+            log("  MEETING model time \(Int(await summariser.secondsInModel))s total, "
+                + "\(await summariser.windowsRead) windows")
             summary = written
             var saved = meeting
             saved.summary = written

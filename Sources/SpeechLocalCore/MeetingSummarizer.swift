@@ -22,11 +22,19 @@ public actor MeetingSummarizer {
         public let stage: String
         public let done: Int
         public let total: Int
+        /// How long the call that just finished took. Nil before the first one.
+        ///
+        /// Added because a 99-minute recording took twenty-five minutes to
+        /// summarise and the log could not say where any of it went — only
+        /// that it started and finished. An optimisation that cannot be
+        /// measured is a guess.
+        public let seconds: Double?
 
-        public init(stage: String, done: Int, total: Int) {
+        public init(stage: String, done: Int, total: Int, seconds: Double? = nil) {
             self.stage = stage
             self.done = done
             self.total = total
+            self.seconds = seconds
         }
     }
 
@@ -82,11 +90,100 @@ public actor MeetingSummarizer {
 
     private static let options = GenerationOptions(sampling: .greedy)
 
+    /// Notes taken from windows already read. The incremental path fills this
+    /// while the meeting runs; the batch path fills it in one go at the end.
+    private var digests: [String] = []
+    /// Words of the transcript already turned into a digest.
+    private var consumedWords = 0
+    /// One model call at a time. The recognizer is running too, and this model
+    /// was measured ten times slower under machine load — two inferences
+    /// racing would cost more than they save.
+    private var working = false
+    /// Wall-clock seconds spent in the model, for the log.
+    private var modelSeconds: Double = 0
+
     public init() {}
+
+    public var secondsInModel: Double { modelSeconds }
+    public var windowsRead: Int { digests.count }
+
+    public func reset() {
+        digests = []
+        consumedWords = 0
+        modelSeconds = 0
+    }
 
     public func availability() -> Bool {
         if case .available = SystemLanguageModel.default.availability { return true }
         return false
+    }
+
+    // MARK: - Reading while it records
+
+    /// Digests one window, if a whole one has arrived since the last call.
+    ///
+    /// The windows are independent and the audio arrives over the length of
+    /// the meeting anyway, so there is no reason to leave all the reading
+    /// until the end. A 99-minute recording spent twenty-five minutes being
+    /// read *after* the user pressed stop, when ten of its eleven windows
+    /// could have been read while it was still running.
+    ///
+    /// Deliberately does one window per call and refuses to overlap: the
+    /// recognizer is working at the same time, and this model is ten times
+    /// slower under load. Being late is better than making the transcript
+    /// worse.
+    ///
+    /// Safe to call often — it returns immediately unless a full window is
+    /// waiting.
+    public func ingest(_ transcript: String) async {
+        guard !working else { return }
+        let words = transcript.split(whereSeparator: \.isWhitespace)
+        guard words.count - consumedWords >= TranscriptChunker.targetWords else { return }
+
+        let remainder = words[consumedWords...].joined(separator: " ")
+        // Only the first window: the rest is not finished arriving, and a cut
+        // taken now would land somewhere the speaker had not got to yet.
+        guard let window = TranscriptChunker.chunks(of: remainder).first else { return }
+
+        working = true
+        defer { working = false }
+        if let digested = try? await digest(window), !digested.isEmpty {
+            digests.append(digested)
+        }
+        consumedWords += window.split(whereSeparator: \.isWhitespace).count
+    }
+
+    /// Reads whatever is left and writes the note.
+    ///
+    /// What is left after a meeting that ran long enough is one partial
+    /// window, so this is the fold and the write and little else.
+    public func finish(
+        transcript: String,
+        notes: String = "",
+        kind: Kind = .conversation,
+        knownNames: [String] = [],
+        onProgress: (@Sendable (Progress) -> Void)? = nil
+    ) async throws -> String {
+        guard case .available = SystemLanguageModel.default.availability else {
+            return try fallback(transcript: transcript, notes: notes,
+                                because: "the on-device model is unavailable")
+        }
+
+        let words = transcript.split(whereSeparator: \.isWhitespace)
+        if words.count > consumedWords {
+            let remainder = words[consumedWords...].joined(separator: " ")
+            let windows = TranscriptChunker.chunks(of: remainder)
+            for (index, window) in windows.enumerated() {
+                onProgress?(Progress(stage: "Reading", done: index, total: windows.count))
+                digests.append((try? await digest(window))
+                               ?? "[a passage could not be read]")
+            }
+            consumedWords = words.count
+        }
+
+        guard !digests.isEmpty else { throw SummaryError.nothingToSummarise }
+        return try await assemble(notes: notes, kind: kind,
+                                  knownNames: knownNames, onProgress: onProgress)
     }
 
     // MARK: - The pass
@@ -110,7 +207,7 @@ public actor MeetingSummarizer {
         let windows = TranscriptChunker.chunks(of: transcript)
         guard !windows.isEmpty else { throw SummaryError.nothingToSummarise }
 
-        var digests: [String] = []
+        reset()                                   // re-summarising starts over
         for (index, window) in windows.enumerated() {
             onProgress?(Progress(stage: "Reading", done: index, total: windows.count))
             do {
@@ -122,10 +219,19 @@ public actor MeetingSummarizer {
             }
         }
 
-        let folded = try await fold(digests, onProgress: onProgress)
-        onProgress?(Progress(stage: "Writing", done: windows.count, total: windows.count))
+        return try await assemble(notes: notes, kind: kind,
+                                  knownNames: knownNames, onProgress: onProgress)
+    }
 
-        // The map phase is the expensive half — seventeen windows of a
+    /// Folds the notes taken and writes the final one. Shared by both paths.
+    private func assemble(
+        notes: String, kind: Kind, knownNames: [String],
+        onProgress: (@Sendable (Progress) -> Void)?
+    ) async throws -> String {
+        let folded = try await fold(digests, onProgress: onProgress)
+        onProgress?(Progress(stage: "Writing", done: 1, total: 1))
+
+        // The reading is the expensive half — seventeen windows of a
         // 99-minute recording took twenty-five minutes. Losing it because the
         // last call failed is not an acceptable outcome, so a failed write
         // degrades to the notes themselves rather than throwing.
@@ -281,6 +387,8 @@ public actor MeetingSummarizer {
     /// cleanup engine measured, and a watchdog because a hang here would sit
     /// behind a spinner with nothing to bound it.
     private func respond(instructions: String, input: String) async throws -> String {
+        let began = Date()
+        defer { modelSeconds += Date().timeIntervalSince(began) }
         let work = Task { () -> String in
             let session = LanguageModelSession(instructions: instructions)
             let reply = try await session.respond(to: input, options: Self.options)

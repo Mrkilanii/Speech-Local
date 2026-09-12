@@ -91,8 +91,14 @@ counted in the length. Twenty minutes of course plus a ten-minute break reads
 as twenty minutes.
 
 Everything stays on this Mac. An hour of speech is far past what the on-device
-model can read at once, so it is summarised in windows and merged — a minute
-or two of work after you stop, in the background.
+model can read at once, so it is summarised in windows and merged.
+
+**It reads while you record.** Each window is summarised as it completes, so by
+the time you press stop almost all the reading is done and only the last
+passage and the note itself remain. A 99-minute recording used to mean
+twenty-five minutes of waiting afterwards; nearly all of that now happens while
+the meeting is still running, at low priority so the transcription keeps the
+machine when it needs it.
 
 A finished meeting is filed into your Obsidian vault at `raw/meetings/` as
 source material: your notes and the transcript, never the generated summary —
