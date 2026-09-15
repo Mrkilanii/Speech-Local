@@ -143,7 +143,8 @@ writes the line breaks and four-space indentation into one paste, starting
 from the caret line's indentation when accessibility publishes it. This also
 restores "never synthesize Return" without exception.
 
-**Not verified:** that CodeMirror and VS Code leave a multi-line paste's
-indentation alone (neither re-indents on paste by default, per their
-settings; not run). Where the caret line is not published, a block started
+**Verified in CodeMirror:** a paste event carrying the six-line grade block
+into Trace Table's editor (live site, in the Claude browser pane, not Arc)
+left the document byte-for-byte as pasted, indentation included. **Not
+verified in VS Code**, which does not re-indent on paste by default. Where the caret line is not published, a block started
 inside an indented body is placed from column 0 on its later lines.
