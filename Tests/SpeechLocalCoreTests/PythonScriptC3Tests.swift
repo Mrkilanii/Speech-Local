@@ -42,3 +42,41 @@ let c3Presses: [(spoken: String, code: String)] = [
     #expect(got[17].hasPrefix(#"for region in df["region"].unique():"#))
     #expect(got[19] == "def summarize_data():")
 }
+
+@Test func theC3ScriptSecondRun() {
+    // Verbatim recognizer output, second unscripted run.
+    let heard = "Import pandas as PD, next line, import non P as NP, next line, import math plotlib.piplot, SPLT, next line. DF equals pd.read underscore CSV quotation marksales.csv. Next line, DF equals DF.drop NA, next line, print, df.head, next line, print, df.shape, next line, total equals DF, square brackets, quotation marks, price. Outside of brackets.sum. Next line, average equals np.mean df square brackets, quotation marks price. Next line, print, F, quotation marks, average price colons, squiggly brackets, average. Next line, buy underscore region, equals DF.group by quotation marks region outside parentheses. Square brackets, quotation marks price. mean. Next line, buy underscore region.plot kind equals quotation marks bar. Next on PLT.title, quotation marks, average price by region. Next line, plt.xlabel, quotation marks region. Next line, PLT.show, next line, hi, equals DF square brackets, DF, square brackets, quotation marks price outside inner square brackets. Greater than 100 next. Next line, print, len, taking high. Next line, 4 region and DF quotation, square brackets quotation marks region. Outside of brackets.unique, colon, next line, print region, next line, deaf, summarize, taking data, colon, next line, returndata.describe, next line, print, summarize, paren, DF."
+    let lines = PythonDictation.lines(of: heard)
+    #expect(lines.map(\.text) == [
+        "import pandas as pd",
+        "import numpy as np",
+        "import matplotlib.pyplot as plt",
+        #"df = pd.read_csv("sales.csv")"#,
+        "df = df.dropna()",
+        "print(df.head())",
+        "print(df.shape)",
+        #"total = df["price"].sum()"#,
+        #"average = np.mean(df["price"])"#,
+        #"print(f"average price: {average}")"#,
+        #"buy_region = df.groupby("region")["price"].mean()"#,   // "buy": heard, not fixable
+        #"buy_region.plot(kind="bar")"#,
+        #"plt.title("average price by region")"#,
+        #"plt.xlabel("region")"#,
+        "plt.show()",
+        #"hi = df[df["price"] > 100]"#,                            // "hi": heard, not fixable
+        "print(len(high))",
+        #"for region in df["region"].unique():"#,
+        "print(region)",
+        "def summarize(data):",
+        "return data.describe()",
+        "print(summarize(df))",
+    ])
+    #expect(PythonDictation.block(Array(lines.suffix(5)), caretLine: nil) == """
+
+        for region in df["region"].unique():
+            print(region)
+        def summarize(data):
+            return data.describe()
+            print(summarize(df))
+        """)
+}

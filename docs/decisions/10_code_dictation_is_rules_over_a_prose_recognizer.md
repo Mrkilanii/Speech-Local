@@ -165,3 +165,23 @@ Left to the recognizer or the speaker, not fixable in rules: "printed the F"
 for "print df", "buy region" for "by region", a spoken "title" that never
 arrived, and "summarize data" / "summarize, DF" where no bracket was said.
 His verbatim run is `theC3ScriptAsOmarActuallySaidIt`.
+
+### C3, second run: 20 of 22 from the same words
+
+Same script, unscripted again. New wordings, each now accepted: "outside
+parentheses" / "outside inner square brackets" (every combination of outside ·
+of · the · inner · bracket noun), a method glued to a command word
+("brackets.sum"), "price. mean" with a space, "quotation marksales.csv",
+"colons," with a pause, "next on" for "next line", a stuttered "next" before a
+break, "4 region and df" for `for … in`, "non P" and "math plotlib" (module
+aliases, including across two words), "SPLT" for "as plt", "returndata",
+"paren" for "open paren", a lone abandoned "quotation".
+
+One structural rule: **`def` and `class` step out of a loop or `if` opened in
+the same dictation** — to the enclosing class, or column 0. Omar's `def` had
+landed inside his `for` loop.
+
+Replayed through the rules, the verbatim second run gives 22 lines of which 20
+are what was meant; the other two are "buy" for "by" and "hi" for "high" —
+real words, left alone. `theC3ScriptSecondRun` holds it. **This is a replay of
+his recorded words, not a fresh dictation.**

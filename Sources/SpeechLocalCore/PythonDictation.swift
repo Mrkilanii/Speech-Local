@@ -58,7 +58,7 @@ public enum PythonDictation {
     // "next time" is how the recognizer heard "next line" once in a real
     // dictation, and `next(time)` is never what anyone dictating meant.
     static let lineBreaks: Set<String> = ["next line", "new line", "newline", "line break",
-                                          "next time", "next lines"]
+                                          "next time", "next lines", "next on"]
     // The recognizer does not know "dedent": Omar's came back as "D dent",
     // and "the dent" when said in a sentence. "step out" is plain English it
     // hears reliably.
@@ -70,12 +70,16 @@ public enum PythonDictation {
     /// A dedent with no line break before it is dropped: there is no fresh
     /// line for it to apply to.
     public static func lines(of transcript: String) -> [Line] {
-        let tokens = Token.split(transcript).filter { !fillers.contains(Token.word($0)) }
+        let tokens = tidyGlue(Token.split(transcript).filter { !fillers.contains(Token.word($0)) })
         var groups: [(tokens: [String], breakBefore: Bool, dedent: Int)] = [([], false, 0)]
         var pending = 0
         var index = 0
         while index < tokens.count {
             if let (_, length) = phrase(tokens, at: index, in: lineBreaks, longest: 2) {
+                // "greater than 100 next. Next line" — a false start on the break.
+                if Token.word(groups[groups.count - 1].tokens.last ?? "") == "next" {
+                    groups[groups.count - 1].tokens.removeLast()
+                }
                 groups.append(([], true, pending))
                 pending = 0
                 index += length
@@ -126,16 +130,31 @@ public enum PythonDictation {
         let leading = current.prefix { $0 == " " || $0 == "\t" }
         var level = leading.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) } / 4
         var text = ""
+        // Blocks opened in this dictation: keyword and the level of its line.
+        var blocks: [(keyword: String, level: Int)] = []
         for (index, line) in lines.enumerated() {
+            let keyword = String(line.text.prefix { $0 != " " && $0 != ":" && $0 != "(" })
             if line.breakBefore {
                 if index == 0, current.trimmingCharacters(in: .whitespaces).hasSuffix(":") {
                     level += 1
                 }
                 level = max(0, level - line.dedent)
+                // A function or class inside a loop or an `if` is almost never
+                // meant — Omar's C3 `def` landed inside a `for` because "dedent"
+                // was not said. Step out to the enclosing class, or the top.
+                if keyword == "def" || keyword == "class",
+                   blocks.contains(where: { $0.level < level && !["class", "def"].contains($0.keyword) }) {
+                    let enclosingClass = blocks.last { $0.keyword == "class" && $0.level < level }
+                    level = keyword == "def" ? (enclosingClass.map { $0.level + 1 } ?? 0) : 0
+                }
+                blocks.removeAll { $0.level >= level }
                 text += "\n" + (line.text.isEmpty ? "" : String(repeating: "    ", count: level))
             }
             text += line.text
-            if line.text.hasSuffix(":") { level += 1 }
+            if line.text.hasSuffix(":") {
+                blocks.append((keyword, level))
+                level += 1
+            }
         }
         return text
     }
@@ -161,6 +180,25 @@ public enum PythonDictation {
 
         if ["lf", "elf", "elif"].contains(word) { return ["elif"] + restAfter(1) }
         if ["deaf", "death", "def"].contains(word) { return ["def"] + restAfter(1) }
+        // "4 region and df" — "for" as the number and "in" as "and".
+        if ["4", "four", "fore", "for"].contains(word), tokens.count > 2,
+           ["and", "an", "in"].contains(Token.word(tokens[2])) {
+            return ["for", tokens[1], "in"] + restAfter(3)
+        }
+        // "returndata.describe"
+        if word.hasPrefix("return"), word.count > 6,
+           !["returns", "returned", "returning"].contains(word) {
+            let parts = Token.parts(of: first)
+            return ["return", String(parts.core.dropFirst(6)) + parts.trailing] + restAfter(1)
+        }
+        // "import matplotlib.pyplot, SPLT" — "as plt" run into one word.
+        if word == "import" || word == "from" {
+            return tokens.flatMap { token -> [String] in
+                let bare = Token.word(token)
+                guard ["splt", "spd", "snp", "ssns", "snn"].contains(bare) else { return [token] }
+                return ["as", String(bare.dropFirst())]
+            }
+        }
         // "4 region in df" — "for" heard as the number. Only with an `in` close
         // behind it, which a line starting with a figure never has.
         if ["4", "four", "fore"].contains(word),
@@ -171,6 +209,41 @@ public enum PythonDictation {
         if ["ls", "els", "else", "otherwise"].contains(word) { return ["else"] + restAfter(1) }
         if word == "l", onlyColonFollows { return ["else"] + restAfter(1) }
         return tokens
+    }
+
+    /// Undoes what the recognizer runs together, measured on Omar's C3 runs:
+    ///
+    /// * "brackets.sum" — a command word with the method glued on after it.
+    /// * "marksales.csv" — "quotation mark" run into the string.
+    /// * "quotation" said and abandoned before "square brackets".
+    static func tidyGlue(_ tokens: [String]) -> [String] {
+        let commandTails: Set<String> = ["brackets", "bracket", "parentheses", "parenthesis",
+                                         "paren", "parens", "marks", "quote"]
+        var out: [String] = []
+        for (index, token) in tokens.enumerated() {
+            let parts = Token.parts(of: token)
+            let lower = parts.core.lowercased()
+            if let dot = lower.firstIndex(of: "."), commandTails.contains(String(lower[..<dot])),
+               lower.index(after: dot) < lower.endIndex {
+                let split = parts.core.index(parts.core.startIndex,
+                                             offsetBy: lower.distance(from: lower.startIndex, to: dot))
+                out.append(parts.leading + String(parts.core[..<split]) + ".")
+                out.append(String(parts.core[parts.core.index(after: split)...]) + parts.trailing)
+                continue
+            }
+            if Token.word(out.last ?? "") == "quotation", lower.hasPrefix("mark"), lower.count > 5,
+               !["marks", "marked", "marker", "market", "markets"].contains(lower) {
+                out.append("mark")
+                out.append(String(parts.core.dropFirst(4)) + parts.trailing)
+                continue
+            }
+            if lower == "quotation",
+               !Token.word(tokens[safe: index + 1] ?? "").hasPrefix("mark") {
+                continue
+            }
+            out.append(token)
+        }
+        return out
     }
 
     /// "Matchmark" — the recognizer ran the keyword into the subject.
@@ -231,9 +304,9 @@ public enum PythonDictation {
         // brackets" to leave it.
         add(.open("["), "square brackets", "square bracket")
         add(.open("{"), "squiggly brackets", "squiggly bracket", "curly brackets", "curly bracket")
-        add(.close(""), "outside of brackets", "outside the brackets", "outside of the brackets",
-            "outside brackets", "outside of bracket", "outside of the inner brackets",
-            "outside the inner brackets")
+        for phrase in outsidePhrases { table[phrase] = .close("") }
+        // "open paren" arrived as just "paren".
+        add(.open("("), "paren")
         add(.close(""), "close", "closed")
         add(.comma(hard: true), "comma")
         add(.colon, "colon")
@@ -274,6 +347,24 @@ public enum PythonDictation {
         return table
     }()
 
+    /// "outside parentheses", "outside of the inner square brackets": each
+    /// form a real dictation produced, and the ones next to them.
+    static let outsidePhrases: [String] = {
+        var phrases: [String] = []
+        for of in ["", "of "] {
+            for the in ["", "the "] {
+                for inner in ["", "inner "] {
+                    for noun in ["brackets", "bracket", "parentheses", "parenthesis", "parens",
+                                 "paren", "square brackets", "square bracket", "curly brackets",
+                                 "squiggly brackets"] {
+                        phrases.append("outside " + of + the + inner + noun)
+                    }
+                }
+            }
+        }
+        return phrases
+    }()
+
     static let commandPhrases = Set(commands.keys)
     static let longestCommand = commands.keys.map { $0.split(separator: " ").count }.max() ?? 1
 
@@ -286,14 +377,10 @@ public enum PythonDictation {
         "f quotation marks": "f\"", "f quotation mark": "f\"",
     ]
 
-    static let stringClosers: Set<String> = [
+    static let stringClosers: Set<String> = Set([
         "close quote", "closed quote", "end quote", "unquote",
         "quote", "quotes", "quotation mark", "quotation marks",
-        // Leaving the brackets leaves the string inside them too.
-        "outside of brackets", "outside the brackets", "outside of the brackets",
-        "outside brackets", "outside of bracket", "outside of the inner brackets",
-        "outside the inner brackets",
-    ]
+    ]).union(outsidePhrases)   // leaving the brackets leaves the string inside them too
 
     /// Mishearings measured in the spike, where the words around them make the
     /// correction certain. A table, not a rule: add a row when a real
@@ -382,7 +469,7 @@ public enum PythonDictation {
             var leavesBracket = false
             var method: (name: String, token: String)?
             while cursor < tokens.count {
-                if let (closer, length) = phrase(tokens, at: cursor, in: stringClosers, longest: 5) {
+                if let (closer, length) = phrase(tokens, at: cursor, in: stringClosers, longest: 6) {
                     cursor += length
                     closed = true
                     leavesBracket = closer.hasPrefix("outside")
@@ -395,6 +482,17 @@ public enum PythonDictation {
                     content.append(head)
                     method = (name, tokens[cursor])
                     cursor += 1
+                    closed = true
+                    break
+                }
+                // The same with a space: "quotation marks price. mean".
+                if Token.parts(of: tokens[cursor]).trailing == ".",
+                   let next = tokens[safe: cursor + 1], next.first?.isLowercase == true,
+                   let (entry, _) = PythonNameIndex.shared.member(of: nil, words: [Token.word(next)]),
+                   entry.kind == .callable {
+                    content.append(tokens[cursor])
+                    method = (Token.word(next), next)
+                    cursor += 2
                     closed = true
                     break
                 }
@@ -508,7 +606,10 @@ public enum PythonDictation {
         // "price colon, squiggly brackets" — a pause after a spoken mark is
         // not part of the string, and it stops the mark being read.
         body = body.map { word in
-            SpokenPunctuation.isCommandWord(Token.word(word)) && word.hasSuffix(",")
+            let bare = Token.word(word)
+            let command = SpokenPunctuation.isCommandWord(bare)
+                || (bare.hasSuffix("s") && SpokenPunctuation.isCommandWord(String(bare.dropLast())))
+            return command && word.hasSuffix(",")
                 ? String(word.dropLast()) : word
         }
         body = SpokenPunctuation.apply(to: body)
@@ -558,8 +659,7 @@ public enum PythonDictation {
     private static func interpolate(_ words: [String]) -> [String] {
         let openers: Set<String> = ["curly", "open curly", "squiggly brackets", "squiggly bracket",
                                     "curly brackets", "curly bracket", "squiggly"]
-        let closers: Set<String> = ["close curly", "closed curly", "outside of brackets",
-                                    "outside the brackets", "outside of the brackets", "outside brackets"]
+        let closers = Set(["close curly", "closed curly"]).union(outsidePhrases)
         var out: [String] = []
         var index = 0
         while index < words.count {
@@ -571,7 +671,7 @@ public enum PythonDictation {
             var cursor = index + length
             var inner: [String] = []
             while cursor < words.count {
-                if let (_, closer) = phrase(words, at: cursor, in: closers, longest: 4) {
+                if let (_, closer) = phrase(words, at: cursor, in: closers, longest: 6) {
                     cursor += closer
                     break
                 }
@@ -699,11 +799,17 @@ public enum PythonDictation {
                     continue
                 }
             } else if case .word(let keyword, .keyword)? = out.last,
-                      keyword == "import" || keyword == "from",
-                      let entry = names.module(word) {
-                out.append(.word(entry.name, .module))
-                index += 1
-                continue
+                      keyword == "import" || keyword == "from" {
+                if run.count >= 2, let entry = names.moduleExact(run[0] + run[1]) {
+                    out.append(.word(entry.name, .module))
+                    index += 2
+                    continue
+                }
+                if let entry = names.module(word) {
+                    out.append(.word(entry.name, .module))
+                    index += 1
+                    continue
+                }
             }
             if run.count >= 2, let (entry, used) = names.global(words: run) {
                 out.append(.word(entry.name, kind(of: entry)))
@@ -902,7 +1008,8 @@ public enum PythonDictation {
                 // slice or a dict.
                 // At the end of the line it is the block's colon whoever opened
                 // the bracket: "def f taking data colon" is `def f(data):`.
-                if isBlock, stack.allSatisfy(\.automatic) || index == units.count - 1 { closeAll() }
+                let last = units.lastIndex { $0 != .comma(hard: false) } ?? units.count - 1
+                if isBlock, stack.allSatisfy(\.automatic) || index == last { closeAll() }
                 out.append(.colon)
 
             case .dot:
@@ -1077,11 +1184,31 @@ struct PythonNameIndex: Sendable {
     func module(_ word: String) -> Entry? {
         guard let modules = owners["module"] else { return nil }
         let key = Self.squash(word)
+        if let entry = moduleExact(word) { return entry }
         if let entry = Self.lookup(key, in: modules, fuzzy: true) { return entry }
         // A clipped ending: "import nump". Only when one module starts that way.
         guard key.count >= 4 else { return nil }
         let starts = modules.filter { $0.key.hasPrefix(key) }
         return starts.count == 1 ? starts.first?.value : nil
+    }
+
+    /// How the recognizer spells module names, from real dictations ("non P",
+    /// "math plotlib", "piplot", "Skullern") and their near neighbours.
+    static let moduleAliases: [String: String] = [
+        "nonp": "numpy", "nonpi": "numpy", "numpie": "numpy", "numbpie": "numpy",
+        "numpi": "numpy", "numbpy": "numpy", "nump": "numpy",
+        "mathplotlib": "matplotlib", "mathplotlip": "matplotlib", "matplotlip": "matplotlib",
+        "mattplotlib": "matplotlib", "piplot": "pyplot", "pieplot": "pyplot",
+        "skullern": "sklearn", "sklern": "sklearn", "scikitlearn": "sklearn",
+        "seaborne": "seaborn",
+    ]
+
+    /// A module by exact name or known misspelling — no guessing, so it is safe
+    /// to try on two words at once.
+    func moduleExact(_ word: String) -> Entry? {
+        guard let modules = owners["module"] else { return nil }
+        let key = Self.squash(word)
+        return modules[key] ?? Self.moduleAliases[key].flatMap { modules[$0] }
     }
 
     /// What people conventionally call these objects, mapped to the table's
