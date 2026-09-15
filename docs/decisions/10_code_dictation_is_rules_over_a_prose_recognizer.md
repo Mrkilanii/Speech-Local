@@ -92,3 +92,24 @@ cannot absorb the mishearings.
   would come out as code, and browser notebooks can't be detected.
 - **A menu toggle:** forgetting that it is on turns prose into code with no
   warning.
+
+## Addendum 2026-09-15 — first dictation by a real voice
+
+Omar dictated a grade-from-a-mark solution into Trace Table (CodeMirror in
+Arc; insertion via paste). From `doctor.log`, what the synthetic voice had not
+shown:
+
+- **"next line" was read as the builtin `next`** — `next(line_case, …)`. It is
+  now a command that presses Return, so the editor indents. That reverses
+  "never synthesize Return" for this one case, deliberately: it only happens in
+  code mode and only when the speaker says it.
+- **"or" is heard as "are", or dropped**: "greater than are equal to",
+  "greater than equal to". Both are now `>=`, as is "is greater than …".
+- **"sixty" and "seventy" came back as 16 and 17.** Not fixable in rules — a
+  16 is a legal number. Say "six zero".
+- **`match` and `case` are soft keywords** and were not in the table; the
+  recognizer also ran "match mark" together. Both handled at line start.
+- **A pause comma after the last figure was treated as spoken** ("50," →
+  `50,:`). A comma is now hard only between two figures.
+- Several presses used Fn (light-touch) instead of the code key, producing
+  "Print F." — not a bug, but the pill colour is the only cue.

@@ -319,7 +319,9 @@ final class Listener: @unchecked Sendable {
             if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
             cleaned = opened
             do {
-                let method = try await inserter.insert(cleaned)
+                let method = mode == .code
+                    ? try await inserter.insert(lines: PythonDictation.lines(of: raw))
+                    : try await inserter.insert(cleaned)
                 // Editing a line of code afterwards is programming, not
                 // correcting a mishearing — nothing there to learn from.
                 if mode == .code { await inserter.forgetInsertion() }

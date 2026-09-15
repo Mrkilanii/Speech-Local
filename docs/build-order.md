@@ -52,7 +52,7 @@ alongside the others, because it costs recording time, not build time.
 |---|---|---|
 | C0 | **Spike, before any grammar.** (a) What the recognizer writes for ~30 dictated Python lines. (b) What insertion does in VS Code, the Terminal REPL and Jupyter | (a) **done, stage 15** (decision 10). (b) **not done**: one press is one line and the editor indents, so (b) folds into C2's live check |
 | C1 | **Python grammar in `SpeechLocalCore`.** Recognizer casing and punctuation stripped outside strings; operators; keywords; strings to end of line; brackets closed at the end; block colons; identifiers joined | **Done, stage 15**: `PythonDictationTests`, 21 cases taken from real recognizer output |
-| C2 | **Wiring.** Third hotkey (right Option for Omar, Right Control by default); one press is one line; 0.5 s silence padding | **Built, stage 15.** Done when a 15-line script is dictated into VS Code and runs unedited |
+| C2 | **Wiring.** Third hotkey (right Option for Omar, Right Control by default); "next line" presses Return, "dedent" presses Backspace; 0.5 s silence padding | **Built; first live run 15 Sep** (Trace Table, Arc) found `next line` → `next(line)`, no `match`/`case`, "greater than are equal to", hard commas at line end — all fixed. Done when a 15-line script runs unedited |
 | C3 | **Library names.** 5,965 names generated from the libraries (`scripts/python_names.py`), with owner-scoped fuzzy matching | **Built, stage 15.** Bias terms dropped: no measured effect. Done when a fixed 30-line data script dictated by a person is scored |
 | C4 | **Cambridge pseudocode.** The same engine with a different table: upper-case keywords, `←`, `ENDIF`, `OUTPUT`/`INPUT` | Corpus plus a live script |
 | C5 | **SQL** | Corpus plus live |

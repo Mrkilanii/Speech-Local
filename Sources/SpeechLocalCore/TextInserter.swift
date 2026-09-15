@@ -219,6 +219,37 @@ public actor TextInserter {
         return method
     }
 
+    /// Types dictated code a line at a time.
+    ///
+    /// The one place this app presses Return. `insert` never does, because in
+    /// a chat app Return sends the message — but here it happens only where
+    /// the speaker said "next line", in the mode for writing code, which is
+    /// exactly what they asked for. The editor's own Return is used rather
+    /// than a newline character so the editor indents after a colon.
+    @discardableResult
+    public func insert(lines: [PythonDictation.Line]) throws -> Method {
+        var method = Method.paste
+        for line in lines {
+            if line.breakBefore { try press(36) }                   // Return
+            for _ in 0..<line.dedent { try press(51) }              // Backspace
+            if !line.text.isEmpty { method = try insert(line.text) }
+        }
+        return method
+    }
+
+    private func press(_ key: CGKeyCode) throws {
+        guard let source = CGEventSource(stateID: .combinedSessionState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
+        else { throw InsertError.bothMethodsFailed("could not create key events") }
+        down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticTag)
+        up.setIntegerValueField(.eventSourceUserData, value: Self.syntheticTag)
+        down.post(tap: .cgAnnotatedSessionEventTap)
+        up.post(tap: .cgAnnotatedSessionEventTap)
+        // Let the editor finish its auto-indent before the next keystroke.
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+
     /// Apps that accept ⌘V while telling accessibility nothing useful.
     ///
     /// Two shapes, one category. Terminals publish **no focused element at

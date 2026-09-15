@@ -112,3 +112,46 @@ func libraries(spoken: String, code: String) {
     #expect(py("np dot lenspace") == "np.linspace()")
     #expect(py("thing dot lenspace") == "thing.lenspace")
 }
+
+// MARK: - Omar's own voice, 15 Sep (doctor.log, code key)
+
+@Test(arguments: [
+    ("If Mark is greater than 50,", "if mark > 50:"),
+    ("Greater than or equal to 0, and mark, is less than 15.", ">= 0 and mark < 15"),
+    ("Case, mark, greater than or equal to 0 and mark less than 50?",
+     "case mark >= 0 and mark < 50:"),
+    ("Case if mark greater than are equal to 50 and mark less than 16.",
+     "case _ if mark >= 50 and mark < 16:"),
+    ("Case if mark greater than equal to 60 and mark less than 17.",
+     "case _ if mark >= 60 and mark < 17:"),
+    ("Matchmark.", "match mark:"),
+    ("Colon.", ":"),
+])
+func realVoice(spoken: String, code: String) {
+    #expect(py(spoken) == code)
+}
+
+@Test func nextLinePressesReturnInsteadOfCallingNext() {
+    // Said in one press. It came out as `next(line_case, ...)`.
+    let lines = PythonDictation.lines(of: "Next line. Case, mark, greater than Or equal to 50 and mark less than 60 colon, next line, Case, mark, greater than are equal to 60, and mark less than 70. Colon, next line, case mark greater than or equal to 70 and mark less than 100 colon.")
+    #expect(lines.map(\.text) == [
+        "case mark >= 50 and mark < 60:",
+        "case mark >= 60 and mark < 70:",
+        "case mark >= 70 and mark < 100:",
+    ])
+    #expect(lines.allSatisfy { $0.breakBefore }, "a leading next line is a Return too")
+}
+
+@Test func dedentBelongsToAFreshLineOnly() {
+    let lines = PythonDictation.lines(of: "print quote f next line dedent case if mark less than 60")
+    #expect(lines == [
+        PythonDictation.Line(text: #"print("f")"#, breakBefore: false, dedent: 0),
+        PythonDictation.Line(text: "case _ if mark < 60:", breakBefore: true, dedent: 1),
+    ])
+    // No Return before it: a Backspace would delete a character, so none.
+    #expect(PythonDictation.lines(of: "dedent pass").first?.dedent == 0)
+}
+
+@Test func matchAndCaseAreNamesMidLine() {
+    #expect(py("x equals case plus 1") == "x = case + 1")
+}

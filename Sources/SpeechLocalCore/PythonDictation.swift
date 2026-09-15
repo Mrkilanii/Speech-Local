@@ -33,12 +33,83 @@ import Foundation
 ///   two names side by side are never valid Python: "my list" is `my_list`.
 ///   After `class` they run together as `CapWords`.
 public enum PythonDictation {
+    /// One line of code, and what to press before typing it.
+    public struct Line: Equatable, Sendable {
+        public let text: String
+        /// Return first. Only ever true because the speaker said "next line".
+        public let breakBefore: Bool
+        /// Backspaces after that Return, each undoing one level of the
+        /// editor's auto-indent.
+        public let dedent: Int
+
+        public init(text: String, breakBefore: Bool, dedent: Int) {
+            self.text = text
+            self.breakBefore = breakBefore
+            self.dedent = dedent
+        }
+    }
+
+    /// The whole dictation as text, for history and the copy panel.
     public static func apply(to transcript: String) -> String {
-        let tokens = Token.split(transcript)
-            .filter { !fillers.contains(Token.word($0)) }
-            .flatMap(unglueQuote)
-        guard !tokens.isEmpty else { return "" }
-        return render(structure(shape(lex(tokens))))
+        let lines = lines(of: transcript)
+        return (lines.first?.breakBefore == true ? "\n" : "")
+            + lines.map(\.text).joined(separator: "\n")
+    }
+
+    static let lineBreaks: Set<String> = ["next line", "new line", "newline", "line break"]
+    static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent"]
+
+    /// Several lines in one press, split where the speaker said "next line".
+    ///
+    /// Indentation is left to the editor: it indents after a colon on Return
+    /// better than anything here could guess, and knows its own tab width.
+    /// "dedent" is a Backspace on the fresh line, which steps back one level
+    /// in VS Code and CodeMirror alike. A dedent with no Return before it is
+    /// dropped — Backspace mid-line would delete a character.
+    public static func lines(of transcript: String) -> [Line] {
+        let tokens = Token.split(transcript).filter { !fillers.contains(Token.word($0)) }
+        var groups: [(tokens: [String], breakBefore: Bool, dedent: Int)] = [([], false, 0)]
+        var pending = 0
+        var index = 0
+        while index < tokens.count {
+            if let (_, length) = phrase(tokens, at: index, in: lineBreaks, longest: 2) {
+                groups.append(([], true, pending))
+                pending = 0
+                index += length
+                continue
+            }
+            if let (_, length) = phrase(tokens, at: index, in: dedents, longest: 2) {
+                if groups[groups.count - 1].tokens.isEmpty {
+                    groups[groups.count - 1].dedent += 1
+                } else {
+                    pending += 1
+                }
+                index += length
+                continue
+            }
+            groups[groups.count - 1].tokens.append(tokens[index])
+            index += 1
+        }
+        // A "next line" that opened the dictation leaves an empty first group.
+        if groups.count > 1, groups[0].tokens.isEmpty { groups.removeFirst() }
+
+        return groups.map { group in
+            var words = group.tokens.flatMap(unglueQuote)
+            if let first = words.first { words = unglueMatch(first) + words.dropFirst() }
+            let text = words.isEmpty ? "" : render(structure(shape(lex(words))))
+            return Line(text: text, breakBefore: group.breakBefore,
+                        dedent: group.breakBefore ? group.dedent : 0)
+        }.filter { !$0.text.isEmpty || $0.breakBefore }
+    }
+
+    /// "Matchmark" — the recognizer ran the keyword into the subject.
+    static func unglueMatch(_ token: String) -> [String] {
+        let parts = Token.parts(of: token)
+        let lower = parts.core.lowercased()
+        guard lower.hasPrefix("match"), lower.count > 6,
+              !["matches", "matched", "matcher", "matching", "matchbox"].contains(lower)
+        else { return [token] }
+        return [parts.leading + "match", String(parts.core.dropFirst(5)) + parts.trailing]
     }
 
     static let fillers: Set<String> = ["um", "uh", "er", "erm", "ah", "hmm"]
@@ -98,10 +169,18 @@ public enum PythonDictation {
         add(.op("-="), "minus equals")
         add(.op("*="), "times equals")
         add(.op("/="), "divide equals", "divided equals")
-        add(.op(">="), "greater than or equal to", "greater than or equals")
-        add(.op("<="), "less than or equal to", "less than or equals")
-        add(.op(">"), "greater than")
-        add(.op("<"), "less than")
+        // "or" is heard as "are", or dropped: "greater than are equal to" and
+        // "greater than equal to" both came from a real voice. "is greater
+        // than" is English wrapped round the operator.
+        for (words, mark) in [("greater than", ">"), ("less than", "<"), ("more than", ">")] {
+            for lead in ["", "is "] {
+                add(.op(mark), lead + words)
+                for tail in [" or equal to", " or equals", " or equal", " are equal to",
+                             " are equal", " equal to", " equals"] {
+                    add(.op(mark + "="), lead + words + tail)
+                }
+            }
+        }
         add(.op("+"), "plus")
         add(.op("-"), "minus", "negative")
         add(.op("*"), "times", "multiplied by")
@@ -149,7 +228,7 @@ public enum PythonDictation {
         return [parts.leading + "quote", String(parts.core.dropFirst(5)) + parts.trailing]
     }
 
-    private static func phrase(_ tokens: [String], at index: Int, in table: Set<String>,
+    static func phrase(_ tokens: [String], at index: Int, in table: Set<String>,
                                longest: Int) -> (String, Int)? {
         for length in stride(from: min(longest, tokens.count - index), through: 1, by: -1) {
             let phrase = tokens[index..<(index + length)].map(Token.word).joined(separator: " ")
@@ -277,14 +356,17 @@ public enum PythonDictation {
 
     /// What the punctuation hanging off a token means in code.
     ///
-    /// Mostly nothing: the recognizer punctuates for a reader. A comma after a
-    /// figure is the one the speaker said ("ten comma one" arrives as "10,
+    /// Mostly nothing: the recognizer punctuates for a reader. A comma between
+    /// figures is the one the speaker said ("ten comma one" arrives as "10,
     /// one"); any other comma is soft. A full stop is a dot only when a
     /// lowercase word follows it — "nn. linear" is `nn.linear`, and the full
     /// stop at the end of the line is prose.
     private static func trailingUnits(_ token: String, next: String?, afterCommand: Bool) -> [Unit] {
         let parts = Token.parts(of: token)
+        // Between two figures the comma was spoken ("ten comma one"); after
+        // the last one it was a pause ("greater than 50, and").
         let isFigure = !parts.core.isEmpty && parts.core.allSatisfy(\.isNumber)
+            && next.map(SpokenNumbers.isFigure) == true
         var units: [Unit] = []
         for character in parts.trailing {
             switch character {
@@ -354,8 +436,11 @@ public enum PythonDictation {
 
     static let blockKeywords: Set<String> = [
         "if", "elif", "else", "for", "while", "try", "except", "finally", "with",
-        "def", "class",
+        "def", "class", "match", "case",
     ]
+
+    /// Keywords only at the start of a line; elsewhere ordinary names.
+    static let softKeywords: Set<String> = ["match", "case"]
 
     static let indexers: Set<String> = ["iloc", "loc", "iat", "at"]
 
@@ -370,13 +455,17 @@ public enum PythonDictation {
             case .glue(let mark):
                 let right = spelling(input[safe: index + 1])
                 let left = spelling(units.last)
-                if mark == "__", let right, left == nil || names.isKeyword(left!) {
+                let leftIsName = left.map { !names.isKeyword($0) } ?? false
+                let rightIsName = right.map { !names.isKeyword($0) } ?? false
+                if mark == "__", let right, rightIsName, !leftIsName {
                     units.append(.word("__" + right + "__", .unknown))
                     index += 2
-                } else if let left, let right {
+                } else if let left, let right, leftIsName, rightIsName {
                     units[units.count - 1] = .word(left + mark + right, .unknown)
                     index += 2
                 } else {
+                    // A bare underscore: the wildcard in `case _`.
+                    if mark == "_" { units.append(.word("_", .unknown)) }
                     index += 1
                 }
             case .capital:
@@ -433,7 +522,7 @@ public enum PythonDictation {
                 index += 1
                 continue
             }
-            if names.isKeyword(word) {
+            if names.isKeyword(word) || (out.isEmpty && softKeywords.contains(word)) {
                 out.append(.word(names.keywordSpelling(word), .keyword))
                 index += 1
                 continue
@@ -465,6 +554,11 @@ public enum PythonDictation {
                 out.append(.word(word, .unknown))
             }
             index += 1
+        }
+        // `case if x > 3` is not Python; `case _ if x > 3` is the only
+        // reading of it.
+        if out.count >= 2, out[0] == .word("case", .keyword), out[1] == .word("if", .keyword) {
+            out.insert(.word("_", .unknown), at: 1)
         }
         return joinIdentifiers(out)
     }

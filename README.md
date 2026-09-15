@@ -70,16 +70,22 @@ Hold the code key (Right Control by default) and say one line of Python.
 | "model equals linear regression" | `model = LinearRegression()` |
 | "plt dot show" | `plt.show()` |
 
-- **One press is one line.** Press Return yourself, and let the editor indent
-  after a colon. SpeechLocal never types a newline.
+- **Say "next line" to go down a line** — several lines fit in one press. It
+  presses Return, so the editor indents after a colon the way it would for
+  you. Say **"dedent"** after "next line" to step back one level (it presses
+  Backspace on the fresh line, never mid-line). This is the only place
+  SpeechLocal presses Return, and only when you say so.
 - **Brackets close themselves at the end of the line.** A function followed by
   a value is called, so "print len x" is `print(len(x))`. Say **close** to end
   one early: "print len x close plus one" is `print(len(x) + 1)`.
 - **A string runs to "close quote" or to the end of the line.**
 - **Block lines get their colon:** `if`, `elif`, `else`, `for`, `while`, `try`,
-  `except`, `with`, `def`, `class`.
+  `except`, `with`, `def`, `class`, `match`, `case`. "case if mark less than
+  50" is `case _ if mark < 50:`, the only valid reading.
 - **Words that are not Python join into one name.** "my list" is `my_list`,
   and after `class` they become `CapWords`.
+- **Say "less than" for `<`; sixty and seventy often come back as 16 and 17.**
+  Say "six zero" when it matters.
 - **Operators are spoken:**
   - comparisons: "double equals", "not equals", "greater than or equal to";
   - arithmetic and assignment: "plus equals", "divided by", "to the power of";
