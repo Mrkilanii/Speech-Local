@@ -1,6 +1,6 @@
 import Foundation
 
-/// The two dictation modes, bound to two separate hotkeys.
+/// The dictation modes, each bound to its own hotkey.
 public enum CleanupMode: String, Codable, Sendable, CaseIterable {
     /// Punctuation, capitalization, disfluency removal. Content is preserved
     /// exactly. Streams to the target app sentence by sentence.
@@ -10,6 +10,11 @@ public enum CleanupMode: String, Codable, Sendable, CaseIterable {
     /// whole and inserted once — streaming would be incoherent.
     case fullRewrite
 
+    /// Spoken Python, written as Python (`PythonDictation`). Rules, like
+    /// light-touch: one press is one line, and a wrong guess is a bug to fix
+    /// in a table, not a model to argue with.
+    case code
+
     /// Whether output may be streamed into the target app as it generates.
     ///
     /// Only light-touch qualifies: its output order tracks input order, so a
@@ -17,7 +22,7 @@ public enum CleanupMode: String, Codable, Sendable, CaseIterable {
     /// already inserted, which cannot be undone in someone else's document.
     public var supportsStreaming: Bool {
         switch self {
-        case .lightTouch: return true
+        case .lightTouch, .code: return true
         case .fullRewrite: return false
         }
     }
@@ -31,7 +36,7 @@ public enum CleanupMode: String, Codable, Sendable, CaseIterable {
     /// a hang, not to enforce the latency target.
     public var timeout: Duration {
         switch self {
-        case .lightTouch: return .seconds(8)
+        case .lightTouch, .code: return .seconds(8)
         case .fullRewrite: return .seconds(45)
         }
     }

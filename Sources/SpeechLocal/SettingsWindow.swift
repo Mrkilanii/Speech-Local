@@ -182,6 +182,14 @@ final class SettingsModel: ObservableObject {
         onHotkeysChanged?(settings)
     }
 
+    func setCodeKey(_ key: HotkeyChoice) {
+        var next = settings
+        next.codeKey = key
+        next = next.resolvingConflicts(changed: \.codeKey)
+        settings = store.update { $0 = next }
+        onHotkeysChanged?(settings)
+    }
+
     func addAlias() {
         let spoken = newSpoken.trimmingCharacters(in: .whitespaces).lowercased()
         let written = newWritten.trimmingCharacters(in: .whitespaces)
@@ -253,6 +261,14 @@ private struct SettingsView: View {
                 Picker("Full rewrite", selection: Binding(
                     get: { model.settings.fullRewriteKey },
                     set: { model.setFullRewriteKey($0) }
+                )) {
+                    ForEach(HotkeyChoice.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
+                }
+                Picker("Code (Python)", selection: Binding(
+                    get: { model.settings.codeKey },
+                    set: { model.setCodeKey($0) }
                 )) {
                     ForEach(HotkeyChoice.allCases, id: \.self) {
                         Text($0.displayName).tag($0)
@@ -448,6 +464,9 @@ private struct SettingsView: View {
                             }
                             if entry.mode == .fullRewrite {
                                 Text("rewrite").font(.caption2).foregroundStyle(.purple)
+                            }
+                            if entry.mode == .code {
+                                Text("code").font(.caption2).foregroundStyle(.green)
                             }
                             Spacer()
                             Button {

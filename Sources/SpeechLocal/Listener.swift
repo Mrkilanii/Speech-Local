@@ -106,7 +106,8 @@ final class Listener: @unchecked Sendable {
                 let settings = self.settingsStore.current
                 let rebuilt = HotkeyManager(
                     lightTouch: Self.key(for: settings.lightTouchKey),
-                    fullRewrite: Self.key(for: settings.fullRewriteKey))
+                    fullRewrite: Self.key(for: settings.fullRewriteKey),
+                    code: Self.key(for: settings.codeKey))
                 rebuilt.onSignal = { [weak self] signal in self?.handle(signal) }
                 try? rebuilt.start()
                 self.hotkeys = rebuilt
@@ -145,7 +146,8 @@ final class Listener: @unchecked Sendable {
         let configured = settingsStore.current
         let hotkeys = HotkeyManager(
             lightTouch: Self.key(for: configured.lightTouchKey),
-            fullRewrite: Self.key(for: configured.fullRewriteKey))
+            fullRewrite: Self.key(for: configured.fullRewriteKey),
+            code: Self.key(for: configured.codeKey))
         hotkeys.onSignal = { [self] signal in handle(signal) }
         do {
             try hotkeys.start()
@@ -247,6 +249,15 @@ final class Listener: @unchecked Sendable {
     /// result is logged and shown in the menu rather than typed anywhere yet.
     private func transcribe(samples: [Float], mode: CleanupMode) async {
         guard let rate = capture?.buffer.sampleRate else { return }
+        // A one-word line — "else", "try" — came back EMPTY from the
+        // recognizer until half a second of silence was added either side
+        // (decision 10). Code is full of those; prose is not, so only code
+        // pays for it.
+        var samples = samples
+        if mode == .code {
+            let pad = [Float](repeating: 0, count: Int(rate * 0.5))
+            samples = pad + samples + pad
+        }
         let t0 = Date()
         do {
             // Before biasing, so a fix made since the last dictation counts
@@ -302,11 +313,16 @@ final class Listener: @unchecked Sendable {
             // The caret is often mid-sentence, where cleanup's opening capital
             // is wrong. The target's own text is the only thing that knows.
             let preceding = await inserter.textBeforeCaret()
-            let opened = SentenceOpening.adjust(cleaned, following: preceding, raw: raw)
+            // Code has no sentences to open.
+            let opened = mode == .code
+                ? cleaned : SentenceOpening.adjust(cleaned, following: preceding, raw: raw)
             if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
             cleaned = opened
             do {
                 let method = try await inserter.insert(cleaned)
+                // Editing a line of code afterwards is programming, not
+                // correcting a mishearing — nothing there to learn from.
+                if mode == .code { await inserter.forgetInsertion() }
                 log("  INSERT via \(method.rawValue)")
                 await MainActor.run {
                     self.status?.apply(.idle)
@@ -381,12 +397,13 @@ final class Listener: @unchecked Sendable {
                 self.hotkeys?.stop()
                 let rebuilt = HotkeyManager(
                     lightTouch: Self.key(for: settings.lightTouchKey),
-                    fullRewrite: Self.key(for: settings.fullRewriteKey))
+                    fullRewrite: Self.key(for: settings.fullRewriteKey),
+                    code: Self.key(for: settings.codeKey))
                 rebuilt.onSignal = { [weak self] signal in self?.handle(signal) }
                 try? rebuilt.start()
                 self.hotkeys = rebuilt
                 log("hotkeys rebound: \(settings.lightTouchKey.displayName) / "
-                    + "\(settings.fullRewriteKey.displayName)")
+                    + "\(settings.fullRewriteKey.displayName) / \(settings.codeKey.displayName)")
             }
             settingsWindow = window
         }
@@ -538,7 +555,11 @@ final class Listener: @unchecked Sendable {
     }
 
     private func label(_ mode: CleanupMode) -> String {
-        mode == .lightTouch ? "light" : "rewrite"
+        switch mode {
+        case .lightTouch: return "light"
+        case .fullRewrite: return "rewrite"
+        case .code: return "code"
+        }
     }
 
     private func rootMeanSquare(_ samples: [Float]) -> Double {

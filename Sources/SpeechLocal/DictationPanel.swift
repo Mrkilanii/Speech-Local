@@ -316,7 +316,9 @@ private struct PanelView: View {
                 CircleButton(system: "xmark", background: .white.opacity(0.16),
                              foreground: .white.opacity(0.85)) { model.onCancel?() }
                 Waveform(level: model.level,
-                         tint: mode == .lightTouch ? .white : Color(red: 0.75, green: 0.6, blue: 1.0))
+                         tint: mode == .lightTouch ? .white
+                            : mode == .code ? Color(red: 0.45, green: 0.85, blue: 0.55)
+                            : Color(red: 0.75, green: 0.6, blue: 1.0))
                     .frame(maxWidth: .infinity)
                 CircleButton(system: "checkmark", background: .white,
                              foreground: .black) { model.onConfirm?() }

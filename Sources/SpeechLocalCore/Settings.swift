@@ -44,6 +44,8 @@ public enum CommaChoice: String, Codable, Sendable, CaseIterable, Equatable {
 public struct Settings: Codable, Sendable, Equatable {
     public var lightTouchKey: HotkeyChoice
     public var fullRewriteKey: HotkeyChoice
+    /// Dictates Python instead of prose.
+    public var codeKey: HotkeyChoice
     public var commaPolicy: CommaChoice
     /// Spoken form (lowercased) → written form.
     public var aliases: [String: String]
@@ -72,6 +74,7 @@ public struct Settings: Codable, Sendable, Equatable {
     public static let `default` = Settings(
         lightTouchKey: .rightOption,
         fullRewriteKey: .rightCommand,
+        codeKey: .rightControl,
         commaPolicy: .sparse,
         aliases: [:],
         launchAtLogin: false,
@@ -88,6 +91,7 @@ public struct Settings: Codable, Sendable, Equatable {
     public init(
         lightTouchKey: HotkeyChoice,
         fullRewriteKey: HotkeyChoice,
+        codeKey: HotkeyChoice,
         commaPolicy: CommaChoice,
         aliases: [String: String],
         launchAtLogin: Bool,
@@ -102,6 +106,7 @@ public struct Settings: Codable, Sendable, Equatable {
     ) {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
+        self.codeKey = codeKey
         self.commaPolicy = commaPolicy
         self.aliases = aliases
         self.launchAtLogin = launchAtLogin
@@ -124,6 +129,8 @@ public struct Settings: Codable, Sendable, Equatable {
             HotkeyChoice.self, forKey: .lightTouchKey) ?? fallback.lightTouchKey
         fullRewriteKey = try container.decodeIfPresent(
             HotkeyChoice.self, forKey: .fullRewriteKey) ?? fallback.fullRewriteKey
+        codeKey = try container.decodeIfPresent(
+            HotkeyChoice.self, forKey: .codeKey) ?? fallback.codeKey
         commaPolicy = try container.decodeIfPresent(
             CommaChoice.self, forKey: .commaPolicy) ?? fallback.commaPolicy
         aliases = try container.decodeIfPresent(
@@ -148,18 +155,26 @@ public struct Settings: Codable, Sendable, Equatable {
             Double.self, forKey: .playbackRate) ?? fallback.playbackRate
     }
 
-    /// The two hotkeys must differ, or one gesture becomes unreachable.
-    public var isValid: Bool { lightTouchKey != fullRewriteKey }
+    /// The hotkeys must differ, or one gesture becomes unreachable.
+    public var isValid: Bool {
+        Set([lightTouchKey, fullRewriteKey, codeKey]).count == 3
+    }
+
+    /// A computed property, not a stored static: key paths are not `Sendable`.
+    private static var hotkeyPaths: [WritableKeyPath<Settings, HotkeyChoice>] {
+        [\.lightTouchKey, \.fullRewriteKey, \.codeKey]
+    }
 
     /// Returns a valid copy, moving the conflicting binding rather than
     /// rejecting the change — the user's most recent intent wins.
     public func resolvingConflicts(changed: WritableKeyPath<Settings, HotkeyChoice>) -> Settings {
         guard !isValid else { return self }
         var copy = self
-        let taken = copy[keyPath: changed]
-        let other: WritableKeyPath<Settings, HotkeyChoice> =
-            changed == \.lightTouchKey ? \.fullRewriteKey : \.lightTouchKey
-        copy[keyPath: other] = HotkeyChoice.allCases.first { $0 != taken } ?? .fn
+        for other in Self.hotkeyPaths
+        where other != changed && copy[keyPath: other] == copy[keyPath: changed] {
+            let taken = Set(Self.hotkeyPaths.map { copy[keyPath: $0] })
+            copy[keyPath: other] = HotkeyChoice.allCases.first { !taken.contains($0) } ?? .fn
+        }
         return copy
     }
 

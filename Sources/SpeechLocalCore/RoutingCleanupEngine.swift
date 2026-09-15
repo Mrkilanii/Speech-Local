@@ -38,6 +38,15 @@ public struct RoutingCleanupEngine: CleanupEngine {
                 continuation.finish()
             }
 
+        case .code:
+            // No vocabulary aliases: they are written for prose, and "what is"
+            // rewritten inside an identifier breaks the program.
+            let code = PythonDictation.apply(to: transcript)
+            return AsyncThrowingStream { continuation in
+                continuation.yield(code)
+                continuation.finish()
+            }
+
         case .fullRewrite:
             return guarded(
                 llm.stream(transcript: transcript, mode: mode, vocabulary: vocabulary),

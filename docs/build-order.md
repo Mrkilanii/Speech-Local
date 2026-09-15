@@ -29,6 +29,7 @@ if this file and `git log` disagree, `git log` wins.
 | 12 | **Repo structure.** `CLAUDE.md` router, `docs/`, traps, decisions | 30 Aug | `f3ed8b5` | Nothing to run |
 | 13 | **Long meetings.** Pause, hierarchical fold, re-summarise, reading while recording, note length bounded in code | 31 Aug – 15 Sep | `6e3700d`…`df363f7` | Fold and fallback seen live; **reading while recording and `fitToBudget` are unit tests only** (decision 08) |
 | 14 | **Onset and updating.** Dictation starts at the press; README section on updating | 15 Sep | `2b03961`, `f1d38ea` | **Onset clipping not measured** (decision 09) |
+| 15 | **Python dictation.** Spike (recognizer output, bias, padding, custom LM); grammar; third hotkey; name table from 7 libraries | 15 Sep | this commit | 364 tests; spike table in decision 10. **Not yet dictated live by a person** |
 
 ---
 
@@ -49,10 +50,10 @@ alongside the others, because it costs recording time, not build time.
 
 | # | Stage | Done when |
 |---|---|---|
-| C0 | **Spike, before any grammar.** (a) What the recognizer writes for ~30 dictated Python lines: casing, periods, "underscore", "equals", library names. (b) What insertion does in VS Code, the Terminal REPL, and Jupyter: whether auto-close brackets and auto-indent fire on AX insert, on paste, and on a synthesized Return | Decision 10 records both, with the recordings |
-| C1 | **Python grammar in `SpeechLocalCore`.** Recognizer casing and punctuation stripped outside strings; operators; keywords; a string runs to the end of the utterance; open brackets closed at the end; a colon after block keywords; adjacent identifiers joined as snake_case; digits | A spoken→code corpus in the style of `LightTouchInvariants`, all passing |
-| C2 | **Wiring.** Entry method, per decision; one press is one line; indentation per C0's findings; insertion | Dictate a 15-line script into VS Code; it runs unedited |
-| C3 | **Library names.** A name list generated at dev time from the libraries themselves: builtins, stdlib, numpy, pandas, matplotlib (np/pd/plt). It rejoins split words and feeds bias terms | Dictate a fixed 30-line data script; count character errors before and after |
+| C0 | **Spike, before any grammar.** (a) What the recognizer writes for ~30 dictated Python lines. (b) What insertion does in VS Code, the Terminal REPL and Jupyter | (a) **done, stage 15** (decision 10). (b) **not done**: one press is one line and the editor indents, so (b) folds into C2's live check |
+| C1 | **Python grammar in `SpeechLocalCore`.** Recognizer casing and punctuation stripped outside strings; operators; keywords; strings to end of line; brackets closed at the end; block colons; identifiers joined | **Done, stage 15**: `PythonDictationTests`, 21 cases taken from real recognizer output |
+| C2 | **Wiring.** Third hotkey (right Option for Omar, Right Control by default); one press is one line; 0.5 s silence padding | **Built, stage 15.** Done when a 15-line script is dictated into VS Code and runs unedited |
+| C3 | **Library names.** 5,965 names generated from the libraries (`scripts/python_names.py`), with owner-scoped fuzzy matching | **Built, stage 15.** Bias terms dropped: no measured effect. Done when a fixed 30-line data script dictated by a person is scored |
 | C4 | **Cambridge pseudocode.** The same engine with a different table: upper-case keywords, `←`, `ENDIF`, `OUTPUT`/`INPUT` | Corpus plus a live script |
 | C5 | **SQL** | Corpus plus live |
 | C6 | **TypeScript.** Braces, semicolons, camelCase: the identifier join rule changes | Corpus plus live |

@@ -14,6 +14,7 @@ job but sends your audio to the cloud and charges monthly.
 |---|---|
 | **Hold Right Option**, speak, release | Light-touch cleanup, inserted at your cursor |
 | **Hold Right Command**, speak, release | Full rewrite into structured prose |
+| **Hold Right Control**, speak, release | Python, written as code |
 | **Double-tap** either key | Hands-free — speak, then tap once to stop |
 
 A small capsule sits at the bottom of the screen with a live waveform while
@@ -56,6 +57,54 @@ brackets") is read as the same command.
 **To get the word instead of the symbol, spell it.** "O-N-E" is `one` and
 "C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
 the reason each one can afford to be decisive.
+
+### It writes Python
+
+Hold the code key (Right Control by default) and say one line of Python.
+
+| You say | You get |
+|---|---|
+| "car underscore two equals input quote what is your name" | `car_2 = input("what is your name")` |
+| "for i in range len numbers" | `for i in range(len(numbers)):` |
+| "d f equals p d dot read csv quote data dot csv" | `df = pd.read_csv("data.csv")` |
+| "model equals linear regression" | `model = LinearRegression()` |
+| "plt dot show" | `plt.show()` |
+
+- **One press is one line.** Press Return yourself, and let the editor indent
+  after a colon. SpeechLocal never types a newline.
+- **Brackets close themselves at the end of the line.** A function followed by
+  a value is called, so "print len x" is `print(len(x))`. Say **close** to end
+  one early: "print len x close plus one" is `print(len(x) + 1)`.
+- **A string runs to "close quote" or to the end of the line.**
+- **Block lines get their colon:** `if`, `elif`, `else`, `for`, `while`, `try`,
+  `except`, `with`, `def`, `class`.
+- **Words that are not Python join into one name.** "my list" is `my_list`,
+  and after `class` they become `CapWords`.
+- **Operators are spoken:**
+  - comparisons: "double equals", "not equals", "greater than or equal to";
+  - arithmetic and assignment: "plus equals", "divided by", "to the power of";
+  - brackets: "open square" … "close square".
+
+**Library names come from the libraries themselves.** It knows names from:
+
+- Python's builtins and the standard library a data script uses (`csv`,
+  `json`, `math`, `os`, `pathlib`, …);
+- numpy, pandas, matplotlib, seaborn, scipy.stats, scikit-learn and PyTorch.
+
+That is about 6,000 names, and each is marked as a function, a class or an
+attribute. That is how `plt.show` gets its brackets and `df.shape` does not.
+After a name it recognises (`np.`, `pd.`, `plt.`, `df.`, `model.`), one
+misheard letter is forgiven: "np dot lenspace" is `np.linspace`.
+
+**Be realistic about the recognizer.** Apple's speech model was built for
+prose, and it mishears short keywords:
+
+- "if x" can come out as "effect";
+- "elif" as "lifex";
+- "import numpy" as "important appeal".
+
+Nothing downstream can recover those. Longer variable names survive far better
+than `x` and `i`. See `docs/decisions/10_…` for the measurements.
 
 ### It takes meeting notes
 
@@ -170,7 +219,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `357 tests ... passed`.
+You should see `364 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds
@@ -365,6 +414,10 @@ Known and deliberate, not bugs to report:
 - **A capital after a real full stop is left alone**, even if you only paused. A
   genuine sentence break is indistinguishable from a pause-induced one, and
   deleting a real boundary is worse than keeping a stray capital.
+- **Python dictation mishears short keywords and single-letter names.** It is a
+  prose recognizer underneath: bias hints had no measurable effect, and
+  Apple's custom language model gained 2 lines in 30 at the cost of a 7-second
+  setup on every launch.
 - **In apps with no accessibility state**, clicking off the input still pastes
   into it — there is no state exposed to tell the two apart.
 

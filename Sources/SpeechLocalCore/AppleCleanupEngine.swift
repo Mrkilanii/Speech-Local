@@ -128,7 +128,7 @@ public struct AppleCleanupEngine: CleanupEngine {
     /// dropped hedges like "I think" and once inserted a word never spoken.
     static func prompt(for mode: CleanupMode) -> String {
         switch mode {
-        case .lightTouch:
+        case .lightTouch, .code:
             return """
             Add punctuation and capitalization to dictated speech. Remove only \
             filler words (um, uh, er, ah) and immediate word repetitions \

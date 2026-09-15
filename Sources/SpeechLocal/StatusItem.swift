@@ -20,6 +20,7 @@ final class StatusItem {
             case .idle:                    return "mic"
             case .recording(.lightTouch):  return "mic.fill"
             case .recording(.fullRewrite): return "wand.and.stars"
+            case .recording(.code):        return "chevron.left.forwardslash.chevron.right"
             case .processing:              return "ellipsis.circle"
             case .error:                   return "exclamationmark.triangle"
             }
@@ -30,6 +31,7 @@ final class StatusItem {
             case .idle:                    return "SpeechLocal — ready"
             case .recording(.lightTouch):  return "Recording (light-touch)"
             case .recording(.fullRewrite): return "Recording (full rewrite)"
+            case .recording(.code):        return "Recording (Python)"
             case .processing:              return "Processing…"
             case .error(let why):          return "SpeechLocal — \(why)"
             }

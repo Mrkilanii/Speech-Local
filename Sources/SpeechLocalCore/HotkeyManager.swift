@@ -47,11 +47,15 @@ public final class HotkeyManager: @unchecked Sendable {
     public static let syntheticEventTag: Int64 = 0x464C4F57  // "FLOW"
     private static let syntheticEventField = CGEventField.eventSourceUserData
 
-    public init(lightTouch: Key = .rightOption, fullRewrite: Key = .rightCommand) {
+    public init(lightTouch: Key = .rightOption, fullRewrite: Key = .rightCommand, code: Key? = nil) {
         bindings[lightTouch.keyCode] = .lightTouch
         bindings[fullRewrite.keyCode] = .fullRewrite
         gestures[.lightTouch] = HotkeyGesture()
         gestures[.fullRewrite] = HotkeyGesture()
+        if let code {
+            bindings[code.keyCode] = .code
+            gestures[.code] = HotkeyGesture()
+        }
     }
 
     // MARK: - Lifecycle
