@@ -835,7 +835,9 @@ public enum PythonDictation {
                 // The block's colon closes what the line left open — unless
                 // the speaker opened a bracket themselves, where a colon is a
                 // slice or a dict.
-                if isBlock, stack.allSatisfy(\.automatic) { closeAll() }
+                // At the end of the line it is the block's colon whoever opened
+                // the bracket: "def f taking data colon" is `def f(data):`.
+                if isBlock, stack.allSatisfy(\.automatic) || index == units.count - 1 { closeAll() }
                 out.append(.colon)
 
             case .dot:

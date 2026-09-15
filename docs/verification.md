@@ -49,3 +49,24 @@ model's failures are fluent rather than obvious — it invented a person, a
 company and a definition from one garbled transcript while following every
 instruction it was given about not inventing. Read the output against a source
 you know.
+
+## Code dictation: the C3 script
+
+Proves the library-name path against a real voice. `PythonScriptC3Tests`
+already shows the rules produce this code when every word is heard, so every
+difference in a live run is the recognizer's, and each one is a candidate for
+the confusion tables.
+
+1. Open an empty Python editor (Trace Table's Editor tab, or a `.py` file in
+   VS Code). Hold the code key once per press below; wait for each to land.
+2. Copy the result and diff it against the expected code in the test.
+3. Read the `ASR` lines in `doctor.log` for every line that differs.
+
+| Press | Say |
+|---|---|
+| 1 | import pandas as p d · next line · import numpy as n p · next line · import matplotlib dot pyplot as p l t |
+| 2 | d f equals p d dot read csv quote sales dot csv · next line · d f equals d f dot drop n a · next line · print d f dot head · next line · print d f dot shape |
+| 3 | total equals d f open square quote price close quote close square dot sum · next line · average equals n p dot mean d f open square quote price close quote close square · next line · print f string capital average price colon curly average close curly |
+| 4 | by region equals d f dot group by quote region close quote close open square quote price close quote close square dot mean · next line · by region dot plot kind equals quote bar · next line · p l t dot title quote capital average price by region · next line · p l t dot x label quote capital region · next line · p l t dot show |
+| 5 | high equals d f open square d f open square quote price close quote close square greater than 100 close square · next line · print len high · next line · for region in d f open square quote region close quote close square dot unique colon · next line · print region |
+| 6 | (on a new, unindented line) def summarise taking data colon · next line · return data dot describe · next line · dedent print summarise open paren d f |
