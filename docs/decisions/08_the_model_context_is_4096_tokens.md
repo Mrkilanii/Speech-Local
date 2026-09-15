@@ -38,3 +38,21 @@ call succeeding.
 running-time decision as much as a quality one: 1,800 words puts a 99-minute
 recording at 11 windows instead of 17. The ceiling on window size is the
 context, minus room for the instructions and the answer.
+
+## 2026-09-15 — ask less, guarantee instead
+
+A 70-minute recording (12,838 words) reached the final write at **5,123
+tokens** and was refused. Its map notes were 297 bullets, 3,418 words — **26% of
+the transcript** — from a prompt asking for "terse" notes. Every safeguard to
+that point asked the model to be shorter; decision 07 had already shown that
+does not hold.
+
+So the length is now bounded in code before the call. The map and fold prompts
+carry hard ceilings (8 bullets per window, 25 per fold), and `fitToBudget` keeps
+an evenly spaced subset of note lines if the notes are still over budget, so the
+write cannot be handed more than it can read and the note still spans the whole
+recording.
+
+**Not yet measured:** whether the ceilings hold on a real recording, and how much
+the even sampling costs the note. That recording predates the incremental
+reading from 12 Sep, which has not yet run against a meeting either.

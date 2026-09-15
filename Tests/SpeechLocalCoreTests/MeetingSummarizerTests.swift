@@ -252,3 +252,59 @@ private func digests(count: Int, wordsEach: Int) -> [String] {
     // not eleven windows of reading.
     #expect(windows - (windows - 1) == 1)
 }
+
+// MARK: - Guaranteeing the final write fits
+
+/// Bullet notes shaped like real ones: "- p<index>w<word> …".
+private func bulletNotes(_ count: Int, wordsEach: Int) -> [String] {
+    [(0..<count).map { i in
+        "- " + (0..<wordsEach).map { "p\(i)w\($0)" }.joined(separator: " ")
+    }.joined(separator: "\n")]
+}
+
+private func bulletIndices(_ notes: [String]) -> [Int] {
+    notes.flatMap { $0.split(separator: "\n") }
+        .compactMap { Int($0.dropFirst(3).prefix(while: \.isNumber)) }
+}
+
+@Test func notesUnderBudgetPassThroughUntouched() {
+    let notes = bulletNotes(10, wordsEach: 10)
+    #expect(MeetingSummarizer.fitToBudget(notes, budget: 1_400) == notes)
+}
+
+@Test func theMeasuredOverflowIsBroughtUnderBudget() {
+    // The 70-minute recording: 297 bullets, 3,418 words, and a write refused
+    // at 5,123 tokens after every request to be shorter had been ignored.
+    let fitted = MeetingSummarizer.fitToBudget(
+        bulletNotes(297, wordsEach: 11), budget: MeetingSummarizer.mergeBudgetWords)
+    #expect(MeetingSummarizer.words(fitted) <= MeetingSummarizer.mergeBudgetWords)
+}
+
+@Test func condensingCoversTheWholeRecordingNotItsOpening() {
+    let kept = bulletIndices(MeetingSummarizer.fitToBudget(
+        bulletNotes(297, wordsEach: 11), budget: 1_400))
+    #expect(kept.first == 0, "keeps the start")
+    #expect((kept.last ?? 0) > 250, "reaches the end, got bullet \(kept.last ?? -1)")
+}
+
+@Test func condensingKeepsOrderAndNeverRepeats() {
+    let kept = bulletIndices(MeetingSummarizer.fitToBudget(
+        bulletNotes(297, wordsEach: 11), budget: 1_400))
+    #expect(kept == kept.sorted())
+    #expect(Set(kept).count == kept.count, "no bullet picked twice")
+}
+
+@Test func theMapAndFoldHaveCeilingsNotRequests() {
+    // Decision 07: this model follows structure far better than a request to
+    // be terse. The map was asked for "terse" notes and returned 26% of the
+    // transcript.
+    #expect(MeetingSummarizer.mapPrompt.contains("at most 8 bullets"))
+    #expect(MeetingSummarizer.mapPrompt.contains("never quote"))
+    #expect(MeetingSummarizer.foldPrompt.contains("at most 25 bullets"))
+}
+
+@Test func aTalksReportedResultsAreWrittenAsClaims() {
+    // A sales webinar's testimonials came through as facts: "Jonathan earned
+    // $4.8 million". A study note must not launder a pitch.
+    #expect(MeetingSummarizer.talkPrompt.contains("are claims"))
+}

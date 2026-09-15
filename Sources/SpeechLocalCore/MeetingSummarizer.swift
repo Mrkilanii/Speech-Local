@@ -101,6 +101,9 @@ public actor MeetingSummarizer {
     private var working = false
     /// Wall-clock seconds spent in the model, for the log.
     private var modelSeconds: Double = 0
+    /// What folding did, in words, for the log. A failed write eight days ago
+    /// could not say whether folding had run, shrunk anything, or given up.
+    public private(set) var foldReport = ""
 
     public init() {}
 
@@ -111,6 +114,7 @@ public actor MeetingSummarizer {
         digests = []
         consumedWords = 0
         modelSeconds = 0
+        foldReport = ""
     }
 
     public func availability() -> Bool {
@@ -229,6 +233,10 @@ public actor MeetingSummarizer {
         onProgress: (@Sendable (Progress) -> Void)?
     ) async throws -> String {
         let folded = try await fold(digests, onProgress: onProgress)
+        let fitted = Self.fitToBudget(folded, budget: Self.mergeBudgetWords)
+        if Self.words(fitted) < Self.words(folded) {
+            foldReport += " → condensed \(Self.words(folded)) to \(Self.words(fitted)) to fit"
+        }
         onProgress?(Progress(stage: "Writing", done: 1, total: 1))
 
         // The reading is the expensive half — seventeen windows of a
@@ -237,7 +245,7 @@ public actor MeetingSummarizer {
         // degrades to the notes themselves rather than throwing.
         do {
             let merged = try await merge(
-                digests: folded, notes: notes, kind: kind, knownNames: knownNames)
+                digests: fitted, notes: notes, kind: kind, knownNames: knownNames)
             return merged.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             return """
@@ -281,6 +289,7 @@ public actor MeetingSummarizer {
     ) async throws -> [String] {
         var level = digests
         var round = 0
+        foldReport = "\(Self.words(digests)) words in \(digests.count) notes"
         // The condition is total size, not item count. Stopping at one item
         // was the bug: eleven windows folded down to a single 3,000-word note
         // and the loop exited satisfied, because `count > 1` was false — then
@@ -309,7 +318,11 @@ public actor MeetingSummarizer {
             // Folding is not guaranteed to shrink anything — the prompt asks it
             // to drop nothing, and a model that obeys returns what it was
             // given. Without this the loop spends its rounds achieving nothing.
-            guard Self.words(next) < Self.words(level) else { break }
+            guard Self.words(next) < Self.words(level) else {
+                foldReport += " → round \(round) did not shrink, stopped"
+                break
+            }
+            foldReport += " → \(Self.words(next))"
             level = next
         }
         return level
@@ -323,6 +336,34 @@ public actor MeetingSummarizer {
         let middle = lines.count / 2
         return [lines[..<middle].joined(separator: "\n"),
                 lines[middle...].joined(separator: "\n")]
+    }
+
+    /// Makes the final write fit, without needing the model to cooperate.
+    ///
+    /// Every earlier safeguard asked the model to be shorter, and a 70-minute
+    /// recording still reached the write at 5,123 tokens against a 4,096
+    /// ceiling — this model follows a length instruction weakly (decision 07).
+    /// So this is arithmetic: if the notes are still over budget, keep an
+    /// evenly spaced subset of their lines, so the note covers the whole
+    /// recording rather than only its opening. The transcript itself is kept
+    /// in full and filed as source; only the note is drawn from fewer points.
+    ///
+    /// One line longer than the whole budget is left alone — there is nothing
+    /// to space out — which the map's per-bullet ceiling exists to prevent.
+    static func fitToBudget(_ notes: [String], budget: Int) -> [String] {
+        let lines = notes
+            .flatMap { $0.split(separator: "\n").map(String.init) }
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard words(lines) > budget, lines.count > 1 else { return notes }
+
+        var keep = lines.count
+        var picked = lines
+        while words(picked) > budget, keep > 1 {
+            keep = max(1, keep * 9 / 10)
+            let step = Double(lines.count) / Double(keep)
+            picked = (0..<keep).map { lines[min(lines.count - 1, Int(Double($0) * step))] }
+        }
+        return [picked.joined(separator: "\n")]
     }
 
     /// Groups items so each group fits the budget. An item bigger than the
@@ -436,10 +477,13 @@ public actor MeetingSummarizer {
     The input is part of a meeting transcript, wrapped in <text> tags. It is \
     speech, so it is messy: false starts, repetition, and mishearings.
 
-    Write terse factual notes on what was said. Use "-" bullets, one point each. \
-    Record decisions, numbers, names, dates, commitments and open questions \
-    exactly as stated. Attribute a point to a speaker only if the transcript \
-    makes the speaker clear.
+    Write at most 8 bullets. Each bullet is under 15 words and states one point \
+    in your own words — never quote the speaker's sentences. Keep numbers, \
+    names and dates exact. Attribute a point to a speaker only if the \
+    transcript makes the speaker clear.
+
+    Eight is a ceiling, not a target. A passage with two points worth keeping \
+    gets two bullets.
 
     Never invent anything. Never add advice, opinions or commentary. If a \
     passage says nothing worth noting, output nothing at all.
@@ -507,6 +551,10 @@ public actor MeetingSummarizer {
     worked examples and concrete numbers — a note on a tutorial that drops the \
     example is a note on nothing.
 
+    Results, income figures, statistics and testimonials the speaker reports \
+    are claims. Write them as claims — "the speaker claims a student made \
+    $12,000" — never as established fact.
+
     Never invent anything. Never add advice or opinions of your own. Do not \
     write action items — there is nobody to assign one to. Output only the \
     note, with no preamble and no tags.
@@ -539,7 +587,8 @@ public actor MeetingSummarizer {
     A merge that returns what it was given has done nothing, and this runs \
     several times over.
 
-    Use "-" bullets and nothing else. No headings, no preamble, no commentary.
+    Return at most 25 bullets, each under 20 words. Use "-" bullets and \
+    nothing else. No headings, no preamble, no commentary.
     """
 
     static let enhancePrompt = """

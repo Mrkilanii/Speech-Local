@@ -311,7 +311,7 @@ final class NotesModel: ObservableObject {
                     Task { @MainActor in self?.progress = update }
                 })
             log("  MEETING model time \(Int(await summariser.secondsInModel))s total, "
-                + "\(await summariser.windowsRead) windows")
+                + "\(await summariser.windowsRead) windows — fold: \(await summariser.foldReport)")
             summary = written
             var saved = meeting
             saved.summary = written
