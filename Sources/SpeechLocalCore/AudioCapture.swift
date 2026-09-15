@@ -3,11 +3,10 @@ import AVFoundation
 
 /// Continuous microphone capture into an `AudioRingBuffer`.
 ///
-/// Runs from app launch, not from hotkey press. That is deliberate: the first
-/// key-down cannot be classified as hold-vs-double-tap until the gesture
-/// resolves, so audio must already exist for the moment *before* the press was
-/// recognized. Starting capture on press would clip every utterance's opening
-/// syllable.
+/// Runs from app launch, not from hotkey press. Starting the audio engine takes
+/// long enough that starting it on the press would clip every utterance's
+/// opening syllable; with capture already running, audio from the press onward
+/// is in the ring the moment the key goes down.
 ///
 /// The tap callback runs on Core Audio's real-time thread. It must not
 /// allocate, lock, or log — everything it needs is preallocated in `init`.

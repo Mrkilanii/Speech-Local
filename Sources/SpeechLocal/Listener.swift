@@ -178,12 +178,14 @@ final class Listener: @unchecked Sendable {
             switch action {
             case .beginRecording(let kind):
                 lock.lock(); defer { lock.unlock() }
-                // Rewind slightly: the press is recognized after speech may have
-                // begun, which is exactly what the preroll buffer exists for.
-                let preroll = 0.4
-                let back = UInt64(preroll * capture.buffer.sampleRate)
-                let now = capture.buffer.writeCursor
-                cursors[mode] = now > back ? now - back : 0
+                // Recording starts at the press, not before it. This used to
+                // rewind 0.4 s — a number nothing ever measured — and it caught
+                // the tail of whatever was said just before pressing, which then
+                // turned up in the transcript. The press is seen on key-down
+                // within milliseconds, so there is no detection lag to cover.
+                // If opening syllables start getting clipped, the answer is a
+                // small measured rewind, not the old guess.
+                cursors[mode] = capture.buffer.writeCursor
                 sessionSamples[mode] = []
                 Task { @MainActor in self.startDraining() }
                 log("[\(label(mode))] begin (\(kind))")
