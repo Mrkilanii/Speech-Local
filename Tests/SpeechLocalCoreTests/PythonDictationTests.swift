@@ -175,6 +175,7 @@ func realVoice(spoken: String, code: String) {
     ])
     #expect(lines.map(\.dedent) == [0, 0, 1, 0, 1, 0, 1, 0, 1, 0],
             "elif and else step out of the body on their own")
+    #expect(PythonDictation.block(lines, caretLine: nil).contains("\nelse:\n    print(\"F\")"))
 }
 
 @Test(arguments: [
@@ -190,4 +191,28 @@ func realVoice(spoken: String, code: String) {
 ])
 func openingKeywordsAndCapitals(spoken: String, code: String) {
     #expect(py(spoken) == code)
+}
+
+// MARK: - Indentation is written, not keyed
+
+@Test func theGradeBlockIsIndentedAsText() {
+    let lines = PythonDictation.lines(of: "If mark less than 0 or mark greater than 100 colon, next line print, quotation marks, invalid mark. Next line, LF, mark greater than equal to 70 colon, next line, print quotation marks capital A. Next line, else, colon, next line, print, quotation marks, capital F.")
+    #expect(PythonDictation.block(lines, caretLine: "") == """
+        if mark < 0 or mark > 100:
+            print("invalid mark")
+        elif mark >= 70:
+            print("A")
+        else:
+            print("F")
+        """)
+}
+
+@Test func theCaretLineSetsTheStartingIndent() {
+    let lines = PythonDictation.lines(of: "next line print quote hi next line dedent return")
+    // Caret at the end of a header inside a method.
+    #expect(PythonDictation.block(lines, caretLine: "class A:\n    def f(self):")
+            == "\n        print(\"hi\")\n    return")
+    // Nothing published about the caret: start from column 0.
+    #expect(PythonDictation.block(PythonDictation.lines(of: "if x colon next line pass"),
+                                  caretLine: nil) == "if x:\n    pass")
 }

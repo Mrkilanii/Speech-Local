@@ -33,13 +33,12 @@ import Foundation
 ///   two names side by side are never valid Python: "my list" is `my_list`.
 ///   After `class` they run together as `CapWords`.
 public enum PythonDictation {
-    /// One line of code, and what to press before typing it.
+    /// One line of code, and how it sits relative to the line before.
     public struct Line: Equatable, Sendable {
         public let text: String
-        /// Return first. Only ever true because the speaker said "next line".
+        /// Starts a new line. Only ever true because the speaker said "next line".
         public let breakBefore: Bool
-        /// Backspaces after that Return, each undoing one level of the
-        /// editor's auto-indent.
+        /// Levels to step out from where the line above left the indent.
         public let dedent: Int
 
         public init(text: String, breakBefore: Bool, dedent: Int) {
@@ -63,12 +62,8 @@ public enum PythonDictation {
     static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent"]
 
     /// Several lines in one press, split where the speaker said "next line".
-    ///
-    /// Indentation is left to the editor: it indents after a colon on Return
-    /// better than anything here could guess, and knows its own tab width.
-    /// "dedent" is a Backspace on the fresh line, which steps back one level
-    /// in VS Code and CodeMirror alike. A dedent with no Return before it is
-    /// dropped — Backspace mid-line would delete a character.
+    /// A dedent with no line break before it is dropped: there is no fresh
+    /// line for it to apply to.
     public static func lines(of transcript: String) -> [Line] {
         let tokens = Token.split(transcript).filter { !fillers.contains(Token.word($0)) }
         var groups: [(tokens: [String], breakBefore: Bool, dedent: Int)] = [([], false, 0)]
@@ -107,6 +102,37 @@ public enum PythonDictation {
             if group.breakBefore, closesBlock(text) { dedent = max(dedent, 1) }
             return Line(text: text, breakBefore: group.breakBefore, dedent: dedent)
         }.filter { !$0.text.isEmpty || $0.breakBefore }
+    }
+
+    /// The lines as one piece of text, indented here.
+    ///
+    /// The first version pressed Return and Backspace and let the editor
+    /// indent. In Trace Table (CodeMirror, in Arc) the Return landed without
+    /// an indent, so each Backspace meant for `elif` deleted the line break
+    /// instead, and every `elif` ended up glued to the `print` above it. What
+    /// an editor does with synthetic keys is not something to depend on; a
+    /// paste is inserted as written everywhere that matters.
+    ///
+    /// Four spaces a level, from the indentation of the line the caret is on
+    /// when the app publishes it (`caretLine`), and from column 0 when not.
+    public static func block(_ lines: [Line], caretLine: String?) -> String {
+        let current = caretLine?.split(separator: "\n", omittingEmptySubsequences: false)
+            .last.map(String.init) ?? ""
+        let leading = current.prefix { $0 == " " || $0 == "\t" }
+        var level = leading.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) } / 4
+        var text = ""
+        for (index, line) in lines.enumerated() {
+            if line.breakBefore {
+                if index == 0, current.trimmingCharacters(in: .whitespaces).hasSuffix(":") {
+                    level += 1
+                }
+                level = max(0, level - line.dedent)
+                text += "\n" + (line.text.isEmpty ? "" : String(repeating: "    ", count: level))
+            }
+            text += line.text
+            if line.text.hasSuffix(":") { level += 1 }
+        }
+        return text
     }
 
     private static func closesBlock(_ text: String) -> Bool {

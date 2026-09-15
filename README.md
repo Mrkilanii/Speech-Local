@@ -70,12 +70,12 @@ Hold the code key (Right Control by default) and say one line of Python.
 | "model equals linear regression" | `model = LinearRegression()` |
 | "plt dot show" | `plt.show()` |
 
-- **Say "next line" to go down a line** — several lines fit in one press. It
-  presses Return, so the editor indents after a colon the way it would for
-  you. `elif`, `else`, `except` and `finally` step back
-  one level by themselves; say **"dedent"** after "next line" for anything
-  else (it presses Backspace on the fresh line, never mid-line). This is the only place
-  SpeechLocal presses Return, and only when you say so.
+- **Say "next line" to go down a line** — a whole block fits in one press.
+  The lines are pasted as one piece with four-space indentation worked out
+  here: one level in after a colon, one level out for `elif`, `else`,
+  `except` and `finally`, and one more for each **"dedent"**. It starts from
+  the indentation of the line your caret is on where the app reports it, and
+  from column 0 where it does not (browsers, terminals). No key is pressed.
 - **Brackets close themselves at the end of the line.** A function followed by
   a value is called, so "print len x" is `print(len(x))`. Say **close** to end
   one early: "print len x close plus one" is `print(len(x) + 1)`.

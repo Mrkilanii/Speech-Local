@@ -126,3 +126,24 @@ shown:
 - **"next line" once arrived as "next time"**, now a line break.
 - **"capital A" inside a string was kept as the words.** "capital" and
   "all caps" now apply inside strings.
+
+### Third run: indentation is text, not keystrokes
+
+The "next line" design pressed Return and Backspace and left indentation to
+the editor. In Trace Table (CodeMirror in Arc, paste insertion) Return landed
+with no indent, so the Backspace meant to step out for `elif` deleted the line
+break instead: every `elif` came out glued to the `print` above it
+(`print("A")elif mark >= 60:`). Why the editor did not indent was not
+established — keystroke timing against an asynchronous paste, or modifier
+state on the synthetic event, are both plausible and neither was measured.
+
+**Rejected: keystrokes.** Their effect depends on each editor's handlers and
+on timing, and cannot be observed from here. **Adopted:** `PythonDictation.block`
+writes the line breaks and four-space indentation into one paste, starting
+from the caret line's indentation when accessibility publishes it. This also
+restores "never synthesize Return" without exception.
+
+**Not verified:** that CodeMirror and VS Code leave a multi-line paste's
+indentation alone (neither re-indents on paste by default, per their
+settings; not run). Where the caret line is not published, a block started
+inside an indented body is placed from column 0 on its later lines.

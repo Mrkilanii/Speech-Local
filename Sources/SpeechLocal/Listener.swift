@@ -320,7 +320,9 @@ final class Listener: @unchecked Sendable {
             cleaned = opened
             do {
                 let method = mode == .code
-                    ? try await inserter.insert(lines: PythonDictation.lines(of: raw))
+                    ? try await inserter.insert(
+                        PythonDictation.block(PythonDictation.lines(of: raw), caretLine: preceding),
+                        multiline: true)
                     : try await inserter.insert(cleaned)
                 // Editing a line of code afterwards is programming, not
                 // correcting a mishearing — nothing there to learn from.
