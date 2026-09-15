@@ -232,6 +232,35 @@ menu bar. Hold **Right Option** and speak.
 
 To have it start automatically: **Settings → General → Launch at login**.
 
+### Updating
+
+There is no auto-update: nothing here checks the network. To update, pull the
+source and rebuild in the same folder you installed from:
+
+```bash
+cd Speech-Local
+git pull
+make test
+make sign
+killall SpeechLocal; open dist/SpeechLocal.app --args --listen
+```
+
+Three things decide whether that goes smoothly:
+
+- **Quit the old copy first.** The `killall` does that. `open` on an app that is
+  already running just brings the old binary to the front and ignores
+  `--args`, so the update appears to do nothing.
+- **Your permissions carry over only if you did step 2.** macOS ties
+  Accessibility and Microphone to the signing identity. With the `SpeechLocal
+  Dev` certificate every rebuild is the same app. Without it, each update looks
+  like a new app, the grants are silently dropped, and SpeechLocal runs but does
+  nothing. If that happens, run `make cert`, then `make sign`, and grant the
+  permissions again.
+- **Your data is not in the repo.** Settings, vocabulary, learned corrections,
+  history and meetings live in `~/Library/Application Support/SpeechLocal/`, so
+  pulling and rebuilding does not touch them. If `git pull` refuses because you
+  changed a file yourself, run `git stash` first.
+
 ---
 
 ## Settings
