@@ -113,3 +113,16 @@ shown:
   `50,:`). A comma is now hard only between two figures.
 - Several presses used Fn (light-touch) instead of the code key, producing
   "Print F." — not a bug, but the pill colour is the only cue.
+
+### Second run, same evening
+
+- **`elif` → "LF" in 6 of 7 dictations, "L if" in 1; `else` → "L" and "LS".**
+  Consistent enough for a line-start table (`openingKeyword`). A bare "L" is
+  `else` only when a colon or nothing follows, so `l = 5` survives. "else if"
+  and "otherwise" are accepted as reliably-heard alternatives.
+- **`elif`/`else`/`except`/`finally` after "next line" dedent by one on their
+  own.** Every one of them sits one level out from the line above, whether
+  that line was the header or its body; a deeper step-out is still spoken.
+- **"next line" once arrived as "next time"**, now a line break.
+- **"capital A" inside a string was kept as the words.** "capital" and
+  "all caps" now apply inside strings.

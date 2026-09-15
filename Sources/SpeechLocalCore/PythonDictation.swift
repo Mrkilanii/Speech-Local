@@ -56,7 +56,10 @@ public enum PythonDictation {
             + lines.map(\.text).joined(separator: "\n")
     }
 
-    static let lineBreaks: Set<String> = ["next line", "new line", "newline", "line break"]
+    // "next time" is how the recognizer heard "next line" once in a real
+    // dictation, and `next(time)` is never what anyone dictating meant.
+    static let lineBreaks: Set<String> = ["next line", "new line", "newline", "line break",
+                                          "next time", "next lines"]
     static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent"]
 
     /// Several lines in one press, split where the speaker said "next line".
@@ -94,12 +97,42 @@ public enum PythonDictation {
         if groups.count > 1, groups[0].tokens.isEmpty { groups.removeFirst() }
 
         return groups.map { group in
-            var words = group.tokens.flatMap(unglueQuote)
+            var words = openingKeyword(group.tokens.flatMap(unglueQuote))
             if let first = words.first { words = unglueMatch(first) + words.dropFirst() }
             let text = words.isEmpty ? "" : render(structure(shape(lex(words))))
-            return Line(text: text, breakBefore: group.breakBefore,
-                        dedent: group.breakBefore ? group.dedent : 0)
+            var dedent = group.breakBefore ? group.dedent : 0
+            // `elif`, `else`, `except` and `finally` always sit one level out
+            // from the line above — whether that was the `if` itself or its
+            // body — so the Backspace is implied. More is only said aloud.
+            if group.breakBefore, closesBlock(text) { dedent = max(dedent, 1) }
+            return Line(text: text, breakBefore: group.breakBefore, dedent: dedent)
         }.filter { !$0.text.isEmpty || $0.breakBefore }
+    }
+
+    private static func closesBlock(_ text: String) -> Bool {
+        text.hasPrefix("elif ") || text == "else:" || text.hasPrefix("except")
+            || text == "finally:"
+    }
+
+    /// What the recognizer makes of the keywords that open a line, measured
+    /// on Omar's voice: `elif` came back as "LF" six times out of seven and
+    /// "L if" once; `else` as "L" and "LS". Only at the start of a line, and a
+    /// bare "L" only when nothing but a colon follows it — `l = 5` is a name.
+    ///
+    /// "else if" and "otherwise" are here too: ordinary English the recognizer
+    /// hears reliably, for when the keyword itself will not come through.
+    static func openingKeyword(_ tokens: [String]) -> [String] {
+        guard let first = tokens.first else { return tokens }
+        let word = Token.word(first)
+        let second = tokens.dropFirst().first.map(Token.word)
+        let restAfter = { (count: Int) in Array(tokens.dropFirst(count)) }
+        let onlyColonFollows = second == nil || second == "colon"
+
+        if ["lf", "elf", "elif"].contains(word) { return ["elif"] + restAfter(1) }
+        if ["l", "else", "otherwise"].contains(word), second == "if" { return ["elif"] + restAfter(2) }
+        if ["ls", "els", "else", "otherwise"].contains(word) { return ["else"] + restAfter(1) }
+        if word == "l", onlyColonFollows { return ["else"] + restAfter(1) }
+        return tokens
     }
 
     /// "Matchmark" — the recognizer ran the keyword into the subject.
@@ -385,7 +418,7 @@ public enum PythonDictation {
 
     /// A string literal from the words spoken inside it.
     static func literal(_ words: [String], opener: String, closed: Bool) -> String {
-        var body = SpokenPunctuation.apply(to: words)
+        var body = SpokenPunctuation.apply(to: capitals(words))
         if opener.hasPrefix("f") { body = interpolate(body) }
         var text = body.joined(separator: " ")
         // The pause around the spoken "quote" gets a comma or a full stop.
@@ -401,6 +434,30 @@ public enum PythonDictation {
         return opener
             + text.replacingOccurrences(of: String(quote), with: "\\\(quote)")
             + String(quote)
+    }
+
+    /// "capital a" is `A`; "all caps hello" is `HELLO`. Inside a string the
+    /// recognizer's own capitals are kept, but it writes a lone letter
+    /// however it likes, so saying which case is the only reliable way.
+    static func capitals(_ words: [String]) -> [String] {
+        var out: [String] = []
+        var index = 0
+        while index < words.count {
+            let word = Token.word(words[index])
+            let length = word == "all" && Token.word(words[safe: index + 1] ?? "") == "caps" ? 2
+                : word == "capital" ? 1 : 0
+            guard length > 0, let target = words[safe: index + length] else {
+                out.append(words[index])
+                index += 1
+                continue
+            }
+            let parts = Token.parts(of: target)
+            let core = length == 2 ? parts.core.uppercased()
+                : parts.core.prefix(1).uppercased() + parts.core.dropFirst()
+            out.append(parts.leading + core + parts.trailing)
+            index += length + 1
+        }
+        return out
     }
 
     /// "curly name close curly" inside an f-string is `{name}`.

@@ -72,8 +72,9 @@ Hold the code key (Right Control by default) and say one line of Python.
 
 - **Say "next line" to go down a line** — several lines fit in one press. It
   presses Return, so the editor indents after a colon the way it would for
-  you. Say **"dedent"** after "next line" to step back one level (it presses
-  Backspace on the fresh line, never mid-line). This is the only place
+  you. `elif`, `else`, `except` and `finally` step back
+  one level by themselves; say **"dedent"** after "next line" for anything
+  else (it presses Backspace on the fresh line, never mid-line). This is the only place
   SpeechLocal presses Return, and only when you say so.
 - **Brackets close themselves at the end of the line.** A function followed by
   a value is called, so "print len x" is `print(len(x))`. Say **close** to end
@@ -84,6 +85,11 @@ Hold the code key (Right Control by default) and say one line of Python.
   50" is `case _ if mark < 50:`, the only valid reading.
 - **Words that are not Python join into one name.** "my list" is `my_list`,
   and after `class` they become `CapWords`.
+- **`elif` and `else` are the words it mishears most** — "LF", "L if", "LS".
+  Those exact mishearings are corrected at the start of a line; **"else if"**
+  and **"otherwise"** also work and are heard reliably.
+- **Say "capital" for a capital inside a string:** "print quote capital a" is
+  `print("A")`. Without a quote, `a` is a variable.
 - **Say "less than" for `<`; sixty and seventy often come back as 16 and 17.**
   Say "six zero" when it matters.
 - **Operators are spoken:**

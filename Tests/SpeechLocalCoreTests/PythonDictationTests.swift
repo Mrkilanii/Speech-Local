@@ -155,3 +155,39 @@ func realVoice(spoken: String, code: String) {
 @Test func matchAndCaseAreNamesMidLine() {
     #expect(py("x equals case plus 1") == "x = case + 1")
 }
+
+// MARK: - Omar's own voice, second run: elif, else, capitals
+
+@Test func gradeFromAMarkAsDictated() {
+    // Verbatim recognizer output from doctor.log, one press of the code key.
+    let lines = PythonDictation.lines(of: "If mark less than 0 or mark greater than 100 colon, next line print, quotation marks, invalid mark. Next line, LF, mark greater than equal to 70 colon, next line, print quotation marks capital A. Next line, L if more greater than are equal to 60 colon, next line, print, quotation marks, capital B. Next line, LF mark, greater than or equal to 50 colon, next time, print, quotation marks, capital C, next line, LS colon, next line, print, quotation marks, capital F.")
+    #expect(lines.map(\.text) == [
+        "if mark < 0 or mark > 100:",
+        #"print("invalid mark")"#,
+        "elif mark >= 70:",
+        #"print("A")"#,
+        "elif more >= 60:",          // "mark" heard as "more": not recoverable
+        #"print("B")"#,
+        "elif mark >= 50:",
+        #"print("C")"#,
+        "else:",
+        #"print("F")"#,
+    ])
+    #expect(lines.map(\.dedent) == [0, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            "elif and else step out of the body on their own")
+}
+
+@Test(arguments: [
+    ("LF mark greater than 5", "elif mark > 5:"),
+    ("L if x less than 2", "elif x < 2:"),
+    ("else if x less than 2", "elif x < 2:"),
+    ("L colon", "else:"),
+    ("LS", "else:"),
+    ("otherwise", "else:"),
+    ("l equals 5", "l = 5"),
+    ("print quote capital a", #"print("A")"#),
+    ("print quote all caps game over", #"print("GAME over")"#),
+])
+func openingKeywordsAndCapitals(spoken: String, code: String) {
+    #expect(py(spoken) == code)
+}
