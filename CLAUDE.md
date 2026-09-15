@@ -13,6 +13,7 @@ tested) and `SpeechLocal` (AppKit/SwiftUI app).
 |---|---|
 | How a change gets made and verified here | `docs/CONTEXT.md` |
 | Why something is built the way it is | `docs/decisions/` |
+| What was built in what order, and what is next | `docs/build-order.md` |
 | Environment traps that have cost hours | `docs/traps.md` |
 | How to prove a subsystem works | `docs/verification.md` |
 | What the app does, for a user | `README.md` |
