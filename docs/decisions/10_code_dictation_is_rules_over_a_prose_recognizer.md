@@ -148,3 +148,20 @@ into Trace Table's editor (live site, in the Claude browser pane, not Arc)
 left the document byte-for-byte as pasted, indentation included. **Not
 verified in VS Code**, which does not re-indent on paste by default. Where the caret line is not published, a block started
 inside an indented body is placed from column 0 on its later lines.
+
+### C3, first run: people do not say the script
+
+Omar dictated the 22-line C3 script in one press and in his own words, not the
+script's: "square brackets", "squiggly brackets", "outside of brackets", and
+quotes never closed ("quotation marks, price.sum"). Rules produced 10 of 22
+lines exactly. The lesson is the opposite of training the speaker: **accept the
+phrasing people reach for.** Now accepted: those bracket phrases; "outside of
+brackets" also closing a string; an unclosed string ending at a known method
+glued on by the recognizer; "f quotation marks"; a pause comma before
+"square brackets" dropped; "deaf" → `def`; "4 … in" → `for`; "nump" → `numpy`
+(unique module prefix).
+
+Left to the recognizer or the speaker, not fixable in rules: "printed the F"
+for "print df", "buy region" for "by region", a spoken "title" that never
+arrived, and "summarize data" / "summarize, DF" where no bracket was said.
+His verbatim run is `theC3ScriptAsOmarActuallySaidIt`.

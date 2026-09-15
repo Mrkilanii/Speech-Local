@@ -160,6 +160,13 @@ public enum PythonDictation {
         let onlyColonFollows = second == nil || second == "colon"
 
         if ["lf", "elf", "elif"].contains(word) { return ["elif"] + restAfter(1) }
+        if ["deaf", "death", "def"].contains(word) { return ["def"] + restAfter(1) }
+        // "4 region in df" — "for" heard as the number. Only with an `in` close
+        // behind it, which a line starting with a figure never has.
+        if ["4", "four", "fore"].contains(word),
+           tokens.dropFirst().prefix(4).map(Token.word).contains("in") {
+            return ["for"] + restAfter(1)
+        }
         if ["l", "else", "otherwise"].contains(word), second == "if" { return ["elif"] + restAfter(2) }
         if ["ls", "els", "else", "otherwise"].contains(word) { return ["else"] + restAfter(1) }
         if word == "l", onlyColonFollows { return ["else"] + restAfter(1) }
@@ -219,6 +226,14 @@ public enum PythonDictation {
         add(.close("]"), "close square", "closed square", "close square bracket")
         add(.open("{"), "open curly", "open brace", "open curly brace", "left curly")
         add(.close("}"), "close curly", "closed curly", "close brace", "close curly brace")
+        // How brackets are said without being taught, from Omar's first
+        // unscripted dictation: "square brackets" to open one, "outside of
+        // brackets" to leave it.
+        add(.open("["), "square brackets", "square bracket")
+        add(.open("{"), "squiggly brackets", "squiggly bracket", "curly brackets", "curly bracket")
+        add(.close(""), "outside of brackets", "outside the brackets", "outside of the brackets",
+            "outside brackets", "outside of bracket", "outside of the inner brackets",
+            "outside the inner brackets")
         add(.close(""), "close", "closed")
         add(.comma(hard: true), "comma")
         add(.colon, "colon")
@@ -268,11 +283,16 @@ public enum PythonDictation {
         "quote": "\"", "quotes": "\"", "quotation mark": "\"", "quotation marks": "\"",
         "double quote": "\"", "single quote": "'",
         "f string": "f\"", "f quote": "f\"",
+        "f quotation marks": "f\"", "f quotation mark": "f\"",
     ]
 
     static let stringClosers: Set<String> = [
         "close quote", "closed quote", "end quote", "unquote",
         "quote", "quotes", "quotation mark", "quotation marks",
+        // Leaving the brackets leaves the string inside them too.
+        "outside of brackets", "outside the brackets", "outside of the brackets",
+        "outside brackets", "outside of bracket", "outside of the inner brackets",
+        "outside the inner brackets",
     ]
 
     /// Mishearings measured in the spike, where the words around them make the
@@ -282,6 +302,18 @@ public enum PythonDictation {
         (["for", "iron"], ["for", "i", "in"]),
         (["range", "lens"], ["range", "len"]),
     ]
+
+    /// "price.sum" -> ("price", "sum") when what follows the dot is a method
+    /// something can be called with. "sales.csv" and "file.name" stay whole.
+    static func methodSplit(_ token: String) -> (head: String, method: String)? {
+        let parts = Token.parts(of: token)
+        let pieces = parts.core.split(separator: ".", omittingEmptySubsequences: false)
+        guard pieces.count == 2, !pieces[0].isEmpty, !pieces[1].isEmpty,
+              let (entry, _) = PythonNameIndex.shared.member(of: nil, words: [String(pieces[1])]),
+              entry.kind == .callable
+        else { return nil }
+        return (parts.leading + pieces[0], String(pieces[1]))
+    }
 
     /// "quotedata.csv" — the recognizer ran the command into the next word.
     static func unglueQuote(_ token: String) -> [String] {
@@ -338,7 +370,7 @@ public enum PythonDictation {
                 index += 2
                 continue
             }
-            guard let (opener, length) = phrase(tokens, at: index, in: openers, longest: 2) else {
+            guard let (opener, length) = phrase(tokens, at: index, in: openers, longest: 3) else {
                 code.append(tokens[index])
                 index += 1
                 continue
@@ -347,9 +379,22 @@ public enum PythonDictation {
             var cursor = index + length
             var content: [String] = []
             var closed = false
+            var leavesBracket = false
+            var method: (name: String, token: String)?
             while cursor < tokens.count {
-                if let (_, closer) = phrase(tokens, at: cursor, in: stringClosers, longest: 2) {
-                    cursor += closer
+                if let (closer, length) = phrase(tokens, at: cursor, in: stringClosers, longest: 5) {
+                    cursor += length
+                    closed = true
+                    leavesBracket = closer.hasPrefix("outside")
+                    break
+                }
+                // "quotation marks price.sum": nobody says "close quote" before
+                // a method, and the recognizer glues the dot on. A known method
+                // after the dot ends the string there.
+                if let (head, name) = methodSplit(tokens[cursor]) {
+                    content.append(head)
+                    method = (name, tokens[cursor])
+                    cursor += 1
                     closed = true
                     break
                 }
@@ -357,7 +402,13 @@ public enum PythonDictation {
                 cursor += 1
             }
             units.append(.text(literal(content, opener: stringOpeners[opener]!, closed: closed)))
-            if closed {
+            if leavesBracket { units.append(.close("")) }
+            if let method {
+                units.append(.dot)
+                units.append(.word(method.name.lowercased(), .unknown))
+                units.append(contentsOf: trailingUnits(
+                    method.token, next: tokens[safe: cursor], afterCommand: true))
+            } else if closed {
                 units.append(contentsOf: trailingUnits(
                     tokens[cursor - 1], next: tokens[safe: cursor], afterCommand: true))
             }
@@ -440,7 +491,8 @@ public enum PythonDictation {
             case ":": units.append(.colon)
             case ")", "]", "}": units.append(.close(String(character)))
             case ".":
-                if !afterCommand, parts.trailing == ".", next?.first?.isLowercase == true {
+                // After a command too: "outside of brackets. mean" is `.mean`.
+                if parts.trailing == ".", next?.first?.isLowercase == true {
                     units.append(.dot)
                 }
             default: break
@@ -451,18 +503,25 @@ public enum PythonDictation {
 
     /// A string literal from the words spoken inside it.
     static func literal(_ words: [String], opener: String, closed: Bool) -> String {
-        var body = SpokenPunctuation.apply(to: capitals(words))
+        var body = capitals(words)
         if opener.hasPrefix("f") { body = interpolate(body) }
+        // "price colon, squiggly brackets" — a pause after a spoken mark is
+        // not part of the string, and it stops the mark being read.
+        body = body.map { word in
+            SpokenPunctuation.isCommandWord(Token.word(word)) && word.hasSuffix(",")
+                ? String(word.dropLast()) : word
+        }
+        body = SpokenPunctuation.apply(to: body)
         var text = body.joined(separator: " ")
         // The pause around the spoken "quote" gets a comma or a full stop.
         while let first = text.first, ",.".contains(first) {
             text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
         }
         while text.last == "," { text.removeLast() }
-        // Running to the end of the line, a final full stop is the
-        // recognizer ending its sentence. A question mark is kept: it is far
-        // more often part of a prompt than an accident.
-        if !closed, text.hasSuffix("."), !text.hasSuffix("..") { text.removeLast() }
+        // A final full stop is the recognizer ending a sentence, closed or
+        // not ("quotation marks price. Outside of the brackets"). A question
+        // mark is kept: it is far more often part of a prompt than an accident.
+        if text.hasSuffix("."), !text.hasSuffix("..") { text.removeLast() }
         let quote = opener.last!
         return opener
             + text.replacingOccurrences(of: String(quote), with: "\\\(quote)")
@@ -493,24 +552,27 @@ public enum PythonDictation {
         return out
     }
 
-    /// "curly name close curly" inside an f-string is `{name}`.
+    /// "curly name close curly" inside an f-string is `{name}`, and so is
+    /// "squiggly brackets name" — which runs to "outside of brackets" or to
+    /// the end of the string, since that is how it was actually said.
     private static func interpolate(_ words: [String]) -> [String] {
+        let openers: Set<String> = ["curly", "open curly", "squiggly brackets", "squiggly bracket",
+                                    "curly brackets", "curly bracket", "squiggly"]
+        let closers: Set<String> = ["close curly", "closed curly", "outside of brackets",
+                                    "outside the brackets", "outside of the brackets", "outside brackets"]
         var out: [String] = []
         var index = 0
         while index < words.count {
-            let word = Token.word(words[index])
-            let opensWithOpen = word == "open" && Token.word(words[safe: index + 1] ?? "") == "curly"
-            guard word == "curly" || opensWithOpen else {
+            guard let (_, length) = phrase(words, at: index, in: openers, longest: 2) else {
                 out.append(words[index])
                 index += 1
                 continue
             }
-            var cursor = index + (opensWithOpen ? 2 : 1)
+            var cursor = index + length
             var inner: [String] = []
             while cursor < words.count {
-                if ["close", "closed"].contains(Token.word(words[cursor])),
-                   Token.word(words[safe: cursor + 1] ?? "") == "curly" {
-                    cursor += 2
+                if let (_, closer) = phrase(words, at: cursor, in: closers, longest: 4) {
+                    cursor += closer
                     break
                 }
                 inner.append(words[cursor])
@@ -827,7 +889,10 @@ public enum PythonDictation {
                 }
 
             case .comma(let hard):
-                if hard || (isValue(out.last) && startsValue(units[safe: index + 1])) {
+                // A pause before "square brackets" is indexing, never a second
+                // argument: "df, square brackets" is `df[`.
+                let next = units[safe: index + 1]
+                if hard || (isValue(out.last) && startsValue(next) && next != .open("[")) {
                     out.append(.comma(hard: true))
                 }
 
@@ -843,7 +908,8 @@ public enum PythonDictation {
             case .dot:
                 // `df.groupby("region").mean()`: a dot straight after a string
                 // argument is almost always a method on the call's result.
-                if case .text? = out.last, stack.last?.automatic == true {
+                if case .text? = out.last, let innermost = stack.last,
+                   innermost.automatic || innermost.mark == "[" {
                     out.append(.close(stack.removeLast().closer))
                 }
                 out.append(unit)
@@ -1010,7 +1076,12 @@ struct PythonNameIndex: Sendable {
     /// A module name, forgiving one misheard letter: "sklern", "matplotlip".
     func module(_ word: String) -> Entry? {
         guard let modules = owners["module"] else { return nil }
-        return Self.lookup(Self.squash(word), in: modules, fuzzy: true)
+        let key = Self.squash(word)
+        if let entry = Self.lookup(key, in: modules, fuzzy: true) { return entry }
+        // A clipped ending: "import nump". Only when one module starts that way.
+        guard key.count >= 4 else { return nil }
+        let starts = modules.filter { $0.key.hasPrefix(key) }
+        return starts.count == 1 ? starts.first?.value : nil
     }
 
     /// What people conventionally call these objects, mapped to the table's

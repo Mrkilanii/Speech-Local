@@ -89,6 +89,11 @@ Hold the code key (Right Control by default) and say one line of Python.
 - **`elif` and `else` are the words it mishears most** — "LF", "L if", "LS".
   Those exact mishearings are corrected at the start of a line; **"else if"**
   and **"otherwise"** also work and are heard reliably.
+- **Say brackets the way you would anyway.** "square brackets" opens `[`,
+  "squiggly brackets" opens `{` (a `{name}` inside an f-string), and "outside
+  of brackets" leaves the innermost one — and the string inside it. A quote
+  you never close ends at a method: "quotation marks price dot sum" is
+  `"price".sum()`… inside `df[...]` it is `df["price"].sum()`.
 - **Say "capital" for a capital inside a string:** "print quote capital a" is
   `print("A")`. Without a quote, `a` is a variable.
 - **Say "less than" for `<`; sixty and seventy often come back as 16 and 17.**
