@@ -240,3 +240,14 @@ func openingKeywordsAndCapitals(spoken: String, code: String) {
             print("B")
         """)
 }
+
+@Test(arguments: [
+    ("Mark equals in input.", "mark = int(input())"),   // verbatim, twice in doctor.log
+    ("mark equals int input", "mark = int(input())"),
+    ("print input", "print(input())"),
+    ("for x in items", "for x in items:"),
+    ("if x in numbers", "if x in numbers:"),
+])
+func intHeardAsIn(spoken: String, code: String) {
+    #expect(py(spoken) == code)
+}

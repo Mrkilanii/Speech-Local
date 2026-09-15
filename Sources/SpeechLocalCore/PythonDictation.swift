@@ -612,6 +612,16 @@ public enum PythonDictation {
                 index += 1
                 continue
             }
+            // "int" is heard as "in" — twice out of twice in "mark equals int
+            // input". The keyword `in` can never follow `=`, `(` or a comma, so
+            // there it can only be `int`.
+            if word == "in", let last = out.last,
+               isAssignment(last) || last == .open("(") || last == .comma(hard: true),
+               let entry = names.builtin("int") {
+                out.append(.word(entry.name, kind(of: entry)))
+                index += 1
+                continue
+            }
             if names.isKeyword(word) || (out.isEmpty && softKeywords.contains(word)) {
                 out.append(.word(names.keywordSpelling(word), .keyword))
                 index += 1
@@ -779,6 +789,8 @@ public enum PythonDictation {
             switch unit {
             case .word(let word, let kind):
                 if word == "as" { closeAll() }
+                // Opened for this word's caller: `int(input` wants `input()`.
+                let argumentOfCall = out.last == .open("(") && stack.last?.automatic == true
                 out.append(unit)
                 guard !noCalls, [.callable, .type, .indexer].contains(kind) else { continue }
                 if case .word(let keyword, .keyword)? = previous,
@@ -794,7 +806,8 @@ public enum PythonDictation {
                 } else if kind != .indexer, next == nil || isTerminator(next) {
                     // `plt.show()`, `LinearRegression()`: nothing to pass, but
                     // a bare method would be a reference, not a call.
-                    if previous == .dot || (kind == .type && previous == .op("=")) {
+                    if previous == .dot || (kind == .type && previous == .op("="))
+                        || (kind == .callable && argumentOfCall) {
                         out.append(.open("("))
                         out.append(.close(")"))
                     }
