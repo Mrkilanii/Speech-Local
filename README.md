@@ -73,7 +73,8 @@ Hold the code key (Right Control by default) and say one line of Python.
 - **Say "next line" to go down a line** — a whole block fits in one press.
   The lines are pasted as one piece with four-space indentation worked out
   here: one level in after a colon, one level out for `elif`, `else`,
-  `except` and `finally`, and one more for each **"dedent"**. It starts from
+  `except` and `finally`, and one more for each **"dedent"** (the recognizer
+  writes it "D dent" — that works — or say **"step out"**). It starts from
   the indentation of the line your caret is on where the app reports it, and
   from column 0 where it does not (browsers, terminals). No key is pressed.
 - **Brackets close themselves at the end of the line.** A function followed by

@@ -59,7 +59,11 @@ public enum PythonDictation {
     // dictation, and `next(time)` is never what anyone dictating meant.
     static let lineBreaks: Set<String> = ["next line", "new line", "newline", "line break",
                                           "next time", "next lines"]
-    static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent"]
+    // The recognizer does not know "dedent": Omar's came back as "D dent",
+    // and "the dent" when said in a sentence. "step out" is plain English it
+    // hears reliably.
+    static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent",
+                                       "d dent", "the dent", "de dent", "dee dent", "step out"]
 
     /// Several lines in one press, split where the speaker said "next line".
     /// A dedent with no line break before it is dropped: there is no fresh

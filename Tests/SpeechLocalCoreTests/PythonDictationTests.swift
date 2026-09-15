@@ -216,3 +216,16 @@ func openingKeywordsAndCapitals(spoken: String, code: String) {
     #expect(PythonDictation.block(PythonDictation.lines(of: "if x colon next line pass"),
                                   caretLine: nil) == "if x:\n    pass")
 }
+
+@Test func dedentAsTheRecognizerWritesIt() {
+    // Verbatim from doctor.log. It came out as `d_dent elif mark >= 60`.
+    let lines = PythonDictation.lines(of: "elif, mark, greater than or equal to 70, next line, print, quotation marks capital A, next line, D dent, elif, mark, greater than or equal to 60, next line, print, quotation marks capital B.")
+    #expect(PythonDictation.block(lines, caretLine: nil) == """
+        elif mark >= 70:
+            print("A")
+        elif mark >= 60:
+            print("B")
+        """)
+    let nested = PythonDictation.lines(of: "for x in items colon next line if x colon next line print x next line the dent step out print quote done")
+    #expect(PythonDictation.block(nested, caretLine: nil) == "for x in items:\n    if x:\n        print(x)\nprint(\"done\")")
+}
