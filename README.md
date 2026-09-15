@@ -70,10 +70,11 @@ transcript filling in the detail you missed, the number you half-caught, the
 decision that followed.
 
 Pick what you are recording, because the two want different notes. A
-**conversation** gets Decisions and Action items. A **talk or course** gets
-Definitions, Examples and "Worth looking up" — and is told to keep the worked
-example, since a note on a tutorial that drops the example is a note on
-nothing. Asking a lecture for action items only makes the model invent some.
+**conversation** gets Decisions and Action items. A **talk or course** gets a
+summary, key points and worked examples — the example is kept because a note on
+a tutorial that drops it is a note on nothing — and a speaker's reported results
+are written as claims, not facts. Asking a lecture for action items only makes
+the model invent some.
 
 **If you watch at 2×, tell it so.** There is a speed control next to the record
 button. Sped-up playback is slowed back to normal before the recogniser hears
