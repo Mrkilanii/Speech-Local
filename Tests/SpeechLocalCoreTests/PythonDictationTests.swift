@@ -229,3 +229,14 @@ func openingKeywordsAndCapitals(spoken: String, code: String) {
     let nested = PythonDictation.lines(of: "for x in items colon next line if x colon next line print x next line the dent step out print quote done")
     #expect(PythonDictation.block(nested, caretLine: nil) == "for x in items:\n    if x:\n        print(x)\nprint(\"done\")")
 }
+
+@Test func orHeardAsYour() {
+    // Verbatim from doctor.log; it came out as `elif mark > your == 60:`.
+    let lines = PythonDictation.lines(of: "elif mark, greater than or equal to 70 colon, next line print, quotation marks capital A. Next line, elif mark, greater than your equal to 60. Colon, next line, print quotation marks capital B.")
+    #expect(PythonDictation.block(lines, caretLine: nil) == """
+        elif mark >= 70:
+            print("A")
+        elif mark >= 60:
+            print("B")
+        """)
+}

@@ -63,7 +63,8 @@ public enum PythonDictation {
     // and "the dent" when said in a sentence. "step out" is plain English it
     // hears reliably.
     static let dedents: Set<String> = ["dedent", "unindent", "outdent", "out dent",
-                                       "d dent", "the dent", "de dent", "dee dent", "step out"]
+                                       "d dent", "the dent", "de dent", "dee dent", "step out",
+                                       "step back"]
 
     /// Several lines in one press, split where the speaker said "next line".
     /// A dedent with no line break before it is dropped: there is no fresh
@@ -232,14 +233,16 @@ public enum PythonDictation {
         add(.op("-="), "minus equals")
         add(.op("*="), "times equals")
         add(.op("/="), "divide equals", "divided equals")
-        // "or" is heard as "are", or dropped: "greater than are equal to" and
-        // "greater than equal to" both came from a real voice. "is greater
+        // "or" is heard as "are", "your", or dropped: "greater than are equal
+        // to", "greater than your equal to" and "greater than equal to" all
+        // came from a real voice. "is greater
         // than" is English wrapped round the operator.
         for (words, mark) in [("greater than", ">"), ("less than", "<"), ("more than", ">")] {
             for lead in ["", "is "] {
                 add(.op(mark), lead + words)
                 for tail in [" or equal to", " or equals", " or equal", " are equal to",
-                             " are equal", " equal to", " equals"] {
+                             " are equal", " your equal to", " you're equal to",
+                             " equal to", " equals"] {
                     add(.op(mark + "="), lead + words + tail)
                 }
             }
