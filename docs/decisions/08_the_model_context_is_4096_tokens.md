@@ -56,3 +56,10 @@ recording.
 **Not yet measured:** whether the ceilings hold on a real recording, and how much
 the even sampling costs the note. That recording predates the incremental
 reading from 12 Sep, which has not yet run against a meeting either.
+
+## 2026-09-27 — the limit is readable now, and labels fit
+
+`SystemLanguageModel.default.contextSize` reports **4,096** on macOS 26.6, and
+`tokenCount(for:)` counts a prompt without running it. Speaker labels
+(decision 12) put a worst-case 1,800-word window at 2,909 tokens and the map
+call at ≈ 3,440; the table is in decision 12.

@@ -174,36 +174,152 @@ private func until(
     #expect(await session.didLoseAudio, "an overrun must be reported")
 }
 
-// MARK: - Mixing the two sources
+// MARK: - Two sides, two recognizers
 
-@Test func mixingSumsBothSides() {
-    let mixed = MeetingSession.mix([0.1, 0.2, 0.3], [0.4, 0.4, 0.4])
-    #expect(mixed.count == 3)
-    #expect(abs(mixed[0] - 0.5) < 0.0001)
-    #expect(abs(mixed[2] - 0.7) < 0.0001)
+/// A recognizer that knows when things were said: one segment per chunk, timed
+/// on its own clock (seconds of audio handed to it), named after the side the
+/// chunk came from — the tests write the microphone at 0.2 and the call at 0.7.
+private actor TimedASR: ASREngine {
+    private(set) var sessionsStarted = 0
+    private let failOnSystem: Bool
+
+    init(failOnSystem: Bool = false) { self.failOnSystem = failOnSystem }
+
+    func availability(locale: String) async -> ASRAvailability { .available }
+
+    nonisolated func transcribe(
+        audio: AsyncStream<AudioChunk>, locale: String, biasTerms: [String]
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+
+    nonisolated func transcribeSegments(
+        audio: AsyncStream<AudioChunk>, locale: String, biasTerms: [String]
+    ) -> AsyncThrowingStream<[TimedSegment], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                await self.began()
+                var segments: [TimedSegment] = []
+                var clock = 0.0
+                var fromSystem = false
+                for await chunk in audio {
+                    fromSystem = (chunk.samples.first ?? 0) > 0.5
+                    let seconds = Double(chunk.samples.count) / chunk.sampleRate
+                    segments.append(TimedSegment(
+                        start: clock, end: clock + seconds,
+                        text: "\(fromSystem ? "sys" : "mic")\(segments.count + 1)."))
+                    clock += seconds
+                    continuation.yield(segments)
+                }
+                if fromSystem && self.failOnSystem {
+                    continuation.finish(throwing: ASRUnavailable.other("system side broke"))
+                } else {
+                    continuation.finish()
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private func began() { sessionsStarted += 1 }
 }
 
-@Test func mixingClampsInsteadOfWrapping() {
-    // Two loud sources add past full scale, and a recognizer hears clipping
-    // as noise.
-    let mixed = MeetingSession.mix([0.9, -0.9], [0.8, -0.8])
-    #expect(mixed[0] == 1)
-    #expect(mixed[1] == -1)
+private func write(_ buffer: AudioRingBuffer, seconds: Double, level: Float) {
+    let samples = [Float](repeating: level, count: Int(seconds * 16_000))
+    samples.withUnsafeBufferPointer { buffer.write($0) }
 }
 
-@Test func aMissingSourceDoesNotTruncateTheOther() {
-    // System capture refused, or the mic stalled for a tick: the meeting must
-    // keep the side it still has, at full length.
-    let mic: [Float] = [0.1, 0.2, 0.3, 0.4]
-    #expect(MeetingSession.mix(mic, []) == mic)
-    #expect(MeetingSession.mix([], mic) == mic)
+@Test func theTwoSidesComeBackLabelledInTheOrderTheyWereSaid() async throws {
+    let mic = ring()
+    let system = ring()
+    let session = MeetingSession(
+        engine: TimedASR(), buffer: mic, systemBuffer: system, locale: "en-US")
+    await session.start()
+
+    // Each side speaks only after the previous one has been drained, so the
+    // order on the meeting's clock is known.
+    write(mic, seconds: 1, level: 0.2)
+    try await until { await session.transcript.contains("mic1") }
+    write(system, seconds: 1, level: 0.7)
+    try await until { await session.transcript.contains("sys1") }
+    write(mic, seconds: 1, level: 0.2)
+    try await until { await session.transcript.contains("mic2") }
+    await session.stop()
+
+    #expect(await session.transcript == "You: mic1.\n\nThem: sys1.\n\nYou: mic2.")
+    #expect(await session.currentPhase == .done)
 }
 
-@Test func unevenLengthsKeepEveryFrame() {
-    let mixed = MeetingSession.mix([0.1, 0.1], [0.2, 0.2, 0.5, 0.5])
-    #expect(mixed.count == 4, "the longer source sets the length")
-    #expect(abs(mixed[0] - 0.3) < 0.0001)
-    #expect(mixed[3] == 0.5, "the tail of the longer source survives untouched")
+@Test func aTapThatNeverDeliversStartsNoSecondRecognizer() async throws {
+    // Nothing playing is the in-person meeting. It must cost one recognizer
+    // and read exactly as it did before labelling existed.
+    let mic = ring()
+    let engine = TimedASR()
+    let session = MeetingSession(
+        engine: engine, buffer: mic, systemBuffer: ring(), locale: "en-US")
+    await session.start()
+    write(mic, seconds: 1, level: 0.2)
+    try await until { await session.transcript.contains("mic1") }
+    write(mic, seconds: 1, level: 0.2)
+    try await until { await session.transcript.contains("mic2") }
+    await session.stop()
+
+    #expect(await engine.sessionsStarted == 1)
+    #expect(await session.transcript == "mic1. mic2.", "one side is not labelled")
+    #expect(await session.systemAudioHeard.seconds == 0)
+}
+
+@Test func theCallStartsItsRecognizerWhenItFirstPlays() async throws {
+    let mic = ring()
+    let system = ring()
+    let engine = TimedASR()
+    let session = MeetingSession(
+        engine: engine, buffer: mic, systemBuffer: system, locale: "en-US")
+    await session.start()
+    write(mic, seconds: 1, level: 0.2)
+    try await until { await session.transcript.contains("mic1") }
+    #expect(await engine.sessionsStarted == 1)
+
+    write(system, seconds: 1, level: 0.7)
+    try await until { await session.transcript.contains("sys1") }
+    await session.stop()
+    #expect(await engine.sessionsStarted == 2)
+    #expect(await session.systemAudioHeard.seconds >= 1)
+}
+
+@Test func atSpeedOnlyTheCallIsTranscribedAndUnlabelled() async throws {
+    let system = ring()
+    let engine = TimedASR()
+    let session = MeetingSession(
+        engine: engine, buffer: ring(), systemBuffer: system,
+        locale: "en-US", playbackRate: 2)
+    await session.start()
+    write(system, seconds: 1, level: 0.7)
+    try await until { await session.transcript.contains("sys1") }
+    await session.stop()
+
+    #expect(await engine.sessionsStarted == 1, "no microphone recognizer at 2x")
+    #expect(await session.transcript.hasPrefix("sys1."))
+    #expect(!SpeakerTurns.isLabelled(await session.transcript))
+}
+
+@Test func oneSideFailingFailsTheMeetingEvenIfTheOtherFinishesCleanly() async throws {
+    let mic = ring()
+    let system = ring()
+    let session = MeetingSession(
+        engine: TimedASR(failOnSystem: true), buffer: mic, systemBuffer: system,
+        locale: "en-US")
+    await session.start()
+    write(mic, seconds: 1, level: 0.2)
+    write(system, seconds: 1, level: 0.7)
+    try await until { await session.transcript.contains("sys1") }
+    await session.stop()
+
+    if case .failed(let why) = await session.currentPhase {
+        #expect(why.contains("system side broke"))
+    } else {
+        Issue.record("expected .failed, got \(await session.currentPhase)")
+    }
 }
 
 @Test func bothSourcesReachTheRecognizer() async throws {
@@ -220,11 +336,12 @@ private func until(
     // Waiting on the drain rather than on the clock: the pump ticks once a
     // second, and a fixed 1.1 s sleep loses the race whenever the machine is
     // busy enough to delay the tick.
-    try await until { await engine.seen().samples >= 16_000 }
+    try await until { await engine.seen().samples >= 32_000 }
     await session.stop()
 
+    // Each side to its own recognizer now, not one mixed second.
     let seen = await engine.seen()
-    #expect(seen.samples >= 16_000, "a second of mixed audio should arrive")
+    #expect(seen.samples >= 32_000, "a second from each side should arrive")
 }
 
 // MARK: - Sped-up playback

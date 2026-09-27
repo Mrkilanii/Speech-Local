@@ -88,3 +88,29 @@ Measured before building (27 Sep): a lazy clipboard item written by one
 process and pasted by another served the text and recorded the read at
 +369 ms — the read time the old 120 ms restore lost to.
 
+## Meetings: "You" and "Them" (decision 12)
+
+Needs a real call — a friend on FaceTime, Zoom or Meet — **with headphones**,
+so the microphone does not also hear the other side.
+
+1. Record 5 minutes at 1×, kind Conversation. Take turns: you ask, they answer,
+   at least 10 exchanges. Once, talk over them for a few seconds. Once, both
+   stay silent for 20 seconds.
+2. **Pass:** the transcript alternates `You:` / `Them:` in the order the
+   exchanges happened; each of your questions is under `You`, each answer
+   under `Them`; no exchange appears out of order by more than one turn; the
+   talk-over appears whole, directly after the turn it interrupted.
+3. The log's `MEETING stopped` line shows `system audio` seconds close to the
+   call's length and `labelled: true`. The note keeps "You" for what you
+   committed to — never a guessed name.
+4. File it: the vault file carries the labels, one turn per paragraph, with the
+   one-line legend under `## Transcript`.
+5. Record 2 minutes with nothing playing (just you talking). **Pass:** the
+   transcript has no labels and the log shows `system audio 0s`.
+6. Repeat step 1 on the laptop speakers. Not a pass/fail: count the answers
+   that appear twice (as `Them` and again as `You`). That number decides
+   whether echo suppression is needed.
+
+Memory with two recognizers: `--probe-meeting 300` during a call. Pass is the
+same as before, under +60 MB/hour.
+

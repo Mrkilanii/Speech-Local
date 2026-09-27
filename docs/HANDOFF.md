@@ -2,6 +2,29 @@
 
 Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 
+## 2026-09-27 — M7: meeting transcripts labelled "You" / "Them"
+
+**Built on branch `worktree-agent-ac6da6e32cf36c5cf`, not merged, not run
+live** (decision 12):
+- Mic and system audio are no longer mixed. Each has its own streaming
+  recognizer (`MeetingSession`); the system one starts on the tap's first
+  buffer. `ASREngine.transcribeSegments` reports timed segments;
+  `SourceTimeline` puts both on the meeting clock across tap silences;
+  `SpeakerTurns` interleaves by start into `You:` / `Them:` turns.
+- One side only (in-person, or 2×) renders unlabelled, exactly as before.
+- Summariser prompts say who "You" and "Them" are. Worst-case labelled window
+  measured at 2,909 tokens with `tokenCount`; map call ≈ 3,440 of 4,096.
+- Vault file carries the labels plus a one-line legend.
+- 463 tests green; `swift build -c release` clean.
+
+**Not verified:** any live call; echo on speakers (the other side can appear
+twice); CPU/memory of two recognizers; the incremental reader's word offset
+when a late segment lands before it. The acceptance test is
+`docs/verification.md` → "Meetings: You and Them".
+
+**Next:** merge, `make all`, Omar runs that test with headphones, then once on
+speakers to count echoes.
+
 ## 2026-09-27 — dictation: clipboard, password guard, Wispr-style corrections
 
 **Live (HEAD, app rebuilt and running):**

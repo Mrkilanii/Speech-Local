@@ -479,8 +479,14 @@ public actor MeetingSummarizer {
 
     Write at most 8 bullets. Each bullet is under 15 words and states one point \
     in your own words — never quote the speaker's sentences. Keep numbers, \
-    names and dates exact. Attribute a point to a speaker only if the \
-    transcript makes the speaker clear.
+    names and dates exact.
+
+    Turns may begin "You:" or "Them:". "You" is the person who recorded this \
+    and will read the note; "Them" is the other side of the call. Where it \
+    matters who asked, agreed or will do something, start the bullet with \
+    "You" or "Them" — never replace them with a guessed name. Without those \
+    labels, attribute a point to a speaker only if the transcript makes the \
+    speaker clear.
 
     Eight is a ceiling, not a target. A passage with two points worth keeping \
     gets two bullets.
@@ -518,6 +524,10 @@ public actor MeetingSummarizer {
     Summary is two or three sentences. Everything else is "-" bullets. Put a \
     name on an action item when the notes name one.
 
+    "You" in the notes is the person this note is for; "Them" is the other \
+    side of the call. Keep both exactly as written — never swap in a guessed \
+    name.
+
     Never invent anything, and never drop a decision, a number or a commitment. \
     Output only the note, with no preamble and no tags.
 
@@ -546,6 +556,8 @@ public actor MeetingSummarizer {
     ## Summary
     ## Key points
     ## Examples
+
+    "You" in the notes is the person taking them; "Them" is the speaker.
 
     Summary is two or three sentences on what it was about. Examples keeps the \
     worked examples and concrete numbers — a note on a tutorial that drops the \
@@ -580,7 +592,8 @@ public actor MeetingSummarizer {
 
     Merge points that say the same thing, and merge points that are the same \
     point said twice. Keep every decision, number, name, date and commitment \
-    exactly as written — those are what the note is for.
+    exactly as written, and who it belongs to ("You" or "Them") — those are \
+    what the note is for.
 
     Everything else is fair to compress: three bullets about one topic become \
     one bullet about that topic. **The output must be shorter than the input.** \
@@ -596,7 +609,9 @@ public actor MeetingSummarizer {
     the text you are given — you only complete it.
 
     You are given two things: what a person typed during a meeting, and bullet \
-    notes taken from the transcript of that meeting.
+    notes taken from the transcript of that meeting. In the transcript notes, \
+    "You" is the person who typed and "Them" is the other side of the call; \
+    keep both as written.
 
     What the person wrote is the skeleton, and it decides what the note is \
     about. Keep their points, their wording and their order. Use the transcript \

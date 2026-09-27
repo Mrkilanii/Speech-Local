@@ -64,7 +64,7 @@ alongside the others, because it costs recording time, not build time.
 
 | # | Stage | Done when |
 |---|---|---|
-| M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | A two-sided call labelled correctly |
+| M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | **Built 27 Sep, not yet run live** (decision 12; branch `worktree-agent-ac6da6e32cf36c5cf`). Done when the two-sided call in `docs/verification.md` passes |
 | M8 | Close the vault loop: a filed meeting triggers or queues `ingest` | A meeting reaches `wiki/` without a manual step |
 | D1 | **Dictation streams while the key is held** (merged 27 Sep). `--realtime` probe: final text 37–54 ms after release for short phrases, 150–600 ms for 23–46 s clips under load 22 (was a median 2.7 s past 60 s). Buffered path kept as the fallback | Live: release-to-text p95 ≤ 700 ms for dictations under 30 s, from `STREAM final` log lines |
 

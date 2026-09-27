@@ -155,7 +155,12 @@ than `x` and `i`. See `docs/decisions/10_…` for the measurements.
 
 **Meeting Notes…** in the menu bar opens a window you leave open. Press Record
 and it captures both your microphone and the audio your Mac is playing — the
-other people on the call — mixing them into one on-device transcript.
+other people on the call — transcribing each on-device and interleaving them
+into one transcript labelled **You** (your microphone) and **Them** (the call).
+It tells the two sides apart by where the audio came from, not by voice, so
+everyone on the far end is "Them" — and wear headphones, or your speakers reach
+your microphone and their words can turn up under "You" too. With nothing
+playing, the transcript is just your microphone, unlabelled.
 
 **Typing is optional.** Write nothing and it summarises what it heard on its
 own — that is the normal case for a video or a lecture. If you *do* type, your

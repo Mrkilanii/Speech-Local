@@ -308,3 +308,38 @@ private func bulletIndices(_ notes: [String]) -> [Int] {
     // $4.8 million". A study note must not launder a pitch.
     #expect(MeetingSummarizer.talkPrompt.contains("are claims"))
 }
+
+// MARK: - Speaker labels
+
+@Test func everyPromptSaysWhoYouAndThemAre() {
+    // The transcript arrives as "You:" / "Them:" turns. Unexplained, "You"
+    // reads as a third party's name, and a model asked to attribute action
+    // items will swap in a name it guessed.
+    for prompt in [MeetingSummarizer.mapPrompt,
+                   MeetingSummarizer.reducePrompt,
+                   MeetingSummarizer.talkPrompt,
+                   MeetingSummarizer.foldPrompt,
+                   MeetingSummarizer.enhancePrompt] {
+        #expect(prompt.contains("\"You\""))
+        #expect(prompt.contains("\"Them\""))
+    }
+}
+
+@Test func aLabelledWindowStillFitsTheContext() {
+    // Measured 27 Sep 2026 with `SystemLanguageModel.tokenCount` on macOS
+    // 26.6 (contextSize reported 4,096): a worst-case window of 1,800 words —
+    // the chunker's target — with a label every eight words, 225 turns, joined
+    // as the chunker joins them, is 2,909 tokens. The labelled map prompt
+    // measured 369 tokens at 265 words.
+    //
+    // So a labelled map call is ~3,280 tokens before the answer, which is at
+    // most 8 bullets under 15 words. Decision 08: 4,096, prompt and answer.
+    let window = 2_909
+    let promptWords = MeetingSummarizer.mapPrompt.split(whereSeparator: \.isWhitespace).count
+    let prompt = promptWords * 369 / 265
+    let answer = 8 * 15 * 4 / 3
+    #expect(window + prompt + answer < 4_096,
+            "\(window) + \(prompt) + \(answer) tokens no longer fits")
+    #expect(TranscriptChunker.targetWords <= 1_800,
+            "the window was measured at 1,800 words")
+}

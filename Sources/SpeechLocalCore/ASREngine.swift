@@ -27,6 +27,44 @@ public protocol ASREngine: Sendable {
         locale: String,
         biasTerms: [String]
     ) -> AsyncThrowingStream<String, Error>
+
+    /// The same transcription, keeping when each segment was said.
+    ///
+    /// Emits every segment so far — settled ones, then the one still being
+    /// guessed, if any — timed on the recognizer's own clock: seconds of audio
+    /// it has been handed. The final element is the settled transcript. A
+    /// meeting needs this to put two recognizers' output in order.
+    func transcribeSegments(
+        audio: AsyncStream<AudioChunk>,
+        locale: String,
+        biasTerms: [String]
+    ) -> AsyncThrowingStream<[TimedSegment], Error>
+}
+
+extension ASREngine {
+    /// For an engine that cannot say when anything was said: the whole
+    /// transcript as one segment at the start. Enough for a single stream,
+    /// where order within the stream is all there is.
+    public func transcribeSegments(
+        audio: AsyncStream<AudioChunk>,
+        locale: String,
+        biasTerms: [String]
+    ) -> AsyncThrowingStream<[TimedSegment], Error> {
+        let text = transcribe(audio: audio, locale: locale, biasTerms: biasTerms)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await partial in text {
+                        continuation.yield([TimedSegment(start: 0, end: 0, text: partial)])
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
 }
 
 public enum ASRAvailability: Sendable, Equatable {

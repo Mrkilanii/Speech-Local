@@ -12,6 +12,15 @@ import Foundation
 /// there, documented as existing so "a long hands-free session cannot grow
 /// without bound in memory", with nothing calling it. This is the caller.
 ///
+/// **Two recognizers, not one mix.** The microphone and the system audio used
+/// to be summed into one stream, which lost who said what. Each now has its own
+/// streaming recognizer, and the transcript is their segments interleaved by
+/// time as "You" and "Them" turns (`SpeakerTurns`). The system-audio
+/// recognizer starts only when the tap first delivers audio: an in-person
+/// meeting, where nothing plays, runs one recognizer and reads exactly as it
+/// did before. Still no audio is kept — each second goes to its own
+/// recognizer and is let go.
+///
 /// **Deliberately not a third `CleanupMode`.** That type is a dictionary key in
 /// `HotkeyManager`'s bindings and gestures, in the dictation session store, in
 /// `Settings.isValid` and `resolvingConflicts`, and it drives two settings
@@ -51,12 +60,20 @@ public actor MeetingSession {
     private let biasTerms: [String]
 
     private var phase: Phase = .idle
-    private var text = ""
     private var startedAt: Date?
     private var endedAt: Date?
     private var pump: Task<Void, Never>?
-    private var reader: Task<Void, Never>?
-    private var feed: AsyncStream<AudioChunk>.Continuation?
+    private var readers: [Task<Void, Never>] = []
+    private var micFeed: AsyncStream<AudioChunk>.Continuation?
+    /// Opened on the first audio the tap delivers, not before.
+    private var systemFeed: AsyncStream<AudioChunk>.Continuation?
+    /// What each recognizer has reported, on its own clock. Replaced wholesale
+    /// on every result: the engine reports everything so far, not deltas.
+    private var micSegments: [TimedSegment] = []
+    private var systemSegments: [TimedSegment] = []
+    /// Each recognizer's clock mapped onto the meeting's.
+    private var micTimeline = SourceTimeline()
+    private var systemTimeline = SourceTimeline()
     /// Samples seen but not yet handed over, for the record — never the audio.
     private var samplesRead = 0
     private var overran = false
@@ -84,7 +101,21 @@ public actor MeetingSession {
     // MARK: - Reading the state
 
     public var currentPhase: Phase { phase }
-    public var transcript: String { text }
+
+    /// Both sides interleaved into turns, or one side unlabelled when only one
+    /// has said anything. Rebuilt on each read, which is a pass over text.
+    public var transcript: String {
+        SpeakerTurns.render(you: micTimeline.place(micSegments),
+                            them: systemTimeline.place(systemSegments))
+    }
+
+    /// Seconds of system audio handed to its recognizer, and how many times
+    /// it went quiet long enough to need re-anchoring. For the log: zero
+    /// seconds is a tap that never delivered, which is not an error.
+    public var systemAudioHeard: (seconds: TimeInterval, gaps: Int) {
+        (Double(systemTimeline.fed) / systemTimeline.sampleRate, systemTimeline.gaps)
+    }
+
     public var didLoseAudio: Bool { overran }
 
     public var elapsed: TimeInterval {
@@ -112,8 +143,9 @@ public actor MeetingSession {
         startedAt = Date()
         endedAt = nil
 
-        let (stream, continuation) = AsyncStream<AudioChunk>.makeStream()
-        feed = continuation
+        // At 2x only the playback is transcribed, so there is no microphone
+        // recognizer to start.
+        if speed == nil { micFeed = openFeed(for: .you) }
 
         // Start reading from where the ring is now: a meeting begins when the
         // user says so, not 30 seconds of whatever preceded it.
@@ -144,36 +176,22 @@ public actor MeetingSession {
                 let (mic, next) = buffer.read(from: cursor)
                 cursor = next
 
-                var samples = speed == nil ? mic : []
+                var system: [Float] = []
                 if let systemBuffer {
                     if systemBuffer.hasOverrun(cursor: systemCursor) {
                         await self?.noteOverrun()
                         systemCursor = systemBuffer.writeCursor
                     }
-                    let (system, systemNext) = systemBuffer.read(from: systemCursor)
+                    let (read, systemNext) = systemBuffer.read(from: systemCursor)
                     systemCursor = systemNext
                     // Only the playback was sped up, so only it is stretched —
-                    // and at that point the microphone is not in the mix.
-                    samples = Self.mix(samples, speed.map { $0.process(system) } ?? system)
+                    // and at that point the microphone is not being recorded.
+                    system = speed.map { $0.process(read) } ?? read
                 }
 
-                guard !samples.isEmpty else { continue }
-                await self?.noteRead(samples.count)
-                continuation.yield(AudioChunk(samples: samples))
-            }
-        }
-
-        reader = Task { [weak self] in
-            guard let self else { return }
-            do {
-                for try await partial in await self.engine.transcribe(
-                    audio: stream, locale: self.locale, biasTerms: self.biasTerms
-                ) {
-                    await self.replaceTranscript(partial)
-                }
-                await self.settle(nil)
-            } catch {
-                await self.settle("\(error)")
+                let heard = speed == nil ? mic : []
+                guard !heard.isEmpty || !system.isEmpty else { continue }
+                await self?.hand(mic: heard, system: system)
             }
         }
     }
@@ -194,11 +212,15 @@ public actor MeetingSession {
         // meeting is lost — the same order the dictation path had to learn.
         pump?.cancel()
         pump = nil
-        feed?.finish()
-        feed = nil
+        micFeed?.finish()
+        micFeed = nil
+        systemFeed?.finish()
+        systemFeed = nil
 
-        await reader?.value
-        reader = nil
+        // No feed can open from here on: `hand` refuses once finishing.
+        let running = readers
+        readers = []
+        for reader in running { await reader.value }
         if phase == .finishing { phase = .done }
     }
 
@@ -221,46 +243,68 @@ public actor MeetingSession {
         phase = .recording
     }
 
-    /// Sums the microphone and the room into one stream.
-    ///
-    /// Both arrive at 16 kHz from the same wall clock, so they are aligned to
-    /// within a drain's jitter — close enough for a recognizer, which is the
-    /// only consumer. The lengths still differ tick to tick, so the shorter is
-    /// summed against the longer and the remainder carried through: a source
-    /// that stalls or was never granted degrades to the other rather than
-    /// truncating the meeting to its length.
-    ///
-    /// Clamped, because two loud sources add past full scale and a recognizer
-    /// hears clipping as noise.
-    static func mix(_ first: [Float], _ second: [Float]) -> [Float] {
-        if second.isEmpty { return first }
-        if first.isEmpty { return second }
-
-        let overlap = min(first.count, second.count)
-        var out = first.count >= second.count ? first : second
-        for index in 0..<overlap {
-            out[index] = max(-1, min(1, first[index] + second[index]))
-        }
-        return out
-    }
-
     // MARK: - Bookkeeping
 
-    private func replaceTranscript(_ partial: String) {
-        // The engine emits the transcript so far, not deltas.
-        text = partial
+    /// Starts a recognizer for one side and returns what feeds it.
+    private func openFeed(for speaker: Speaker) -> AsyncStream<AudioChunk>.Continuation {
+        let (stream, continuation) = AsyncStream<AudioChunk>.makeStream()
+        let engine = self.engine
+        let locale = self.locale
+        let biasTerms = self.biasTerms
+        readers.append(Task { [weak self] in
+            do {
+                for try await segments in engine.transcribeSegments(
+                    audio: stream, locale: locale, biasTerms: biasTerms
+                ) {
+                    await self?.replaceSegments(segments, from: speaker)
+                }
+                await self?.settle(nil)
+            } catch {
+                await self?.settle("\(error)")
+            }
+        })
+        return continuation
     }
 
-    private func noteRead(_ count: Int) { samplesRead += count }
+    /// One drain's audio, each side to its own recognizer, stamped with the
+    /// meeting time it was read at so the two can be put back in order.
+    private func hand(mic: [Float], system: [Float]) {
+        guard phase == .recording || phase == .paused else { return }
+        let now = elapsed
+        if !mic.isEmpty, let micFeed {
+            micTimeline.admit(mic.count, endingAt: now)
+            micFeed.yield(AudioChunk(samples: mic))
+        }
+        if !system.isEmpty {
+            // Lazily: a tap that never delivers never costs a recognizer.
+            if systemFeed == nil { systemFeed = openFeed(for: .them) }
+            // At 2x this counts stretched samples, so its clock runs ahead of
+            // the meeting's. Harmless: at 2x it is the only stream, and order
+            // within one stream is all that is used.
+            systemTimeline.admit(system.count, endingAt: now)
+            systemFeed?.yield(AudioChunk(samples: system))
+        }
+        samplesRead += max(mic.count, system.count)
+    }
+
+    private func replaceSegments(_ segments: [TimedSegment], from speaker: Speaker) {
+        switch speaker {
+        case .you:  micSegments = segments
+        case .them: systemSegments = segments
+        }
+    }
 
     private func noteOverrun() { overran = true }
 
-    /// The recognizer's stream ended, either because the feed closed or
-    /// because it gave up. A failure outranks a clean finish.
+    /// A recognizer's stream ended, either because the feed closed or because
+    /// it gave up. A failure outranks a clean finish — including the other
+    /// recognizer's clean finish arriving after it.
     private func settle(_ error: String?) {
         if let error {
             phase = .failed(error)
             endedAt = endedAt ?? Date()
+        } else if case .failed = phase {
+            return
         } else if phase != .done {
             phase = .done
         }
