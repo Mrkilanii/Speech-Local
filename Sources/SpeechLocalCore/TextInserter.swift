@@ -73,6 +73,26 @@ public actor TextInserter {
     /// Empty until the PASTE log shows one; see `PasteRestore`.
     static let nonConformingReaders: Set<String> = []
 
+    /// Apps already asked to build their accessibility tree, by process.
+    private var awakened: Set<pid_t> = []
+
+    /// Asks an Electron app to publish its accessibility tree.
+    ///
+    /// Claude desktop reported no focused element in 2,026 of 2,163 logged
+    /// insertions, so neither learning from edits nor paste confirmation could
+    /// see it. Chromium-based apps build the tree only for assistive tech, and
+    /// `AXManualAccessibility` is how to ask. Measured 27 Sep: Claude went from
+    /// 9 nodes and no focus to 713 nodes and a readable, settable `AXTextArea`;
+    /// its CPU showed no measurable rise. ChatGPT refuses the attribute
+    /// (-25205), which costs nothing. Called at the key press, because the tree
+    /// is built asynchronously and must be ready by the release.
+    public func wakeAccessibility(pid: pid_t) {
+        guard !awakened.contains(pid) else { return }
+        awakened.insert(pid)
+        AXUIElementSetAttributeValue(
+            AXUIElementCreateApplication(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
     public init() {}
 
     // MARK: - Entry point

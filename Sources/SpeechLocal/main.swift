@@ -60,6 +60,11 @@ if arguments.contains("--probe-audio-sources") {
     exit(0)
 }
 
+if arguments.contains("--probe-electron") {
+    ElectronProbe.run()
+    exit(0)
+}
+
 if arguments.contains("--probe") {
     await Probe.run()
     exit(0)
@@ -229,3 +234,88 @@ enum Diagnostics {
         log(failures == 0 ? "ALL CHECKS PASS" : "\(failures) CHECK(S) FAILED")
     }
 }
+
+// MARK: - Electron accessibility probe (stage W6)
+
+/// Claude desktop reported no focused element in 2,026 of 2,163 logged
+/// insertions, so learning from edits and paste confirmation never see it.
+/// Electron builds its accessibility tree only when asked, and
+/// `AXManualAccessibility` is the documented way to ask. This measures whether
+/// asking works, per running Electron-family app, without leaving it on.
+enum ElectronProbe {
+    static let candidates = ["com.anthropic.claudefordesktop", "com.openai.chat",
+                             "com.openai.codex", "com.tinyspeck.slackmacgap",
+                             "com.microsoft.VSCode", "company.thebrowser.Browser",
+                             "com.google.Chrome"]
+
+    static func run() {
+        _ = NSApplication.shared
+        log("\n=== Electron accessibility probe — \(Date()) ===")
+        log("trusted: \(AXIsProcessTrusted())")
+        for id in candidates {
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first
+            else { continue }
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            let before = describe(element)
+            let status = AXUIElementSetAttributeValue(
+                element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            // The tree is built asynchronously; give it a moment.
+            let treeBefore = census(element)
+            RunLoop.current.run(until: Date().addingTimeInterval(3.0))
+            let after = describe(element)
+            log("\(id): before [\(before)] tree [\(treeBefore)]  set=\(status.rawValue)")
+            log("    after [\(after)] tree [\(census(element))]")
+            if !CommandLine.arguments.contains("--keep") {
+                AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanFalse)
+            }
+        }
+        log("=== probe finished ===")
+    }
+
+    /// How many elements the app's windows expose, and how many of them are
+    /// text areas with readable text. A tree Electron has not built is a few
+    /// nodes; a built one is hundreds.
+    static func census(_ app: AXUIElement) -> String {
+        var nodes = 0, textAreas = 0, readable = 0
+        func walk(_ element: AXUIElement, depth: Int) {
+            guard depth < 40, nodes < 5000 else { return }
+            nodes += 1
+            var role: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+            if let role = role as? String, role == "AXTextArea" || role == "AXTextField" {
+                textAreas += 1
+                var value: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
+                   value is String { readable += 1 }
+            }
+            var children: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
+                  let list = children as? [AXUIElement] else { return }
+            for child in list { walk(child, depth: depth + 1) }
+        }
+        var windows: CFTypeRef?
+        if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windows) == .success,
+           let list = windows as? [AXUIElement] {
+            for window in list { walk(window, depth: 0) }
+        }
+        return "nodes=\(nodes) text=\(textAreas) readable=\(readable)"
+    }
+
+    /// Focused element's role, and how much text it exposes.
+    static func describe(_ app: AXUIElement) -> String {
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+            let focused else { return "no focused element" }
+        let element = unsafeBitCast(focused, to: AXUIElement.self)
+        var role: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        var value: CFTypeRef?
+        let read = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
+        let length = (value as? String)?.count ?? -1
+        var settable: DarwinBoolean = false
+        AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &settable)
+        return "role=\(role as? String ?? "?") valueRead=\(read == .success) len=\(length) selSettable=\(settable.boolValue)"
+    }
+}
+

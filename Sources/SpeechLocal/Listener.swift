@@ -219,6 +219,9 @@ final class Listener: @unchecked Sendable {
                 sessionSamples[mode] = []
                 streams.removeValue(forKey: mode)?.feed.finish()   // never expected; never leaked
                 streams[mode] = openStream(bias: prepareBias())
+                if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+                    Task { await self.inserter.wakeAccessibility(pid: pid) }
+                }
                 Task { @MainActor in self.startDraining() }
                 log("[\(label(mode))] begin (\(kind))")
                 Task { @MainActor in

@@ -30,12 +30,18 @@ without a microphone: 37–54 ms after release for short phrases, 150–600 ms f
 23–46 s clips under load. Falls back to the buffered path on error or empty.
 Live figure: `STREAM final +N ms after release` in doctor.log.
 
+**W6 done (27 Sep):** `TextInserter.wakeAccessibility` sets
+`AXManualAccessibility` on the frontmost app at the key press. `--probe-electron`
+measured Claude desktop going from 9 nodes / no focus to 713 nodes with a
+readable, settable `AXTextArea`; no measurable CPU rise. ChatGPT refuses it
+(-25205); Arc and Chrome exposed nothing to the probe (not investigated).
+
 **Omar's decisions:** build Wispr parity now, in parallel, not overnight (27 Sep).
 
 **Open problems:** Wispr's implicit restatement ("I mean send it Wednesday") is
 refused; `claude` CLI OAuth expired, so the agentic-coding-system harness can't
 run until Omar logs in again; learning-from-edits rarely fires because Claude
-desktop exposes no focused element (W6 spike not done).
+desktop exposed no focused element — addressed by W6 above, not yet seen live.
 
 **Next:** Omar runs the verification.md clipboard check; merge streaming ASR;
 W6 Electron accessibility spike.
