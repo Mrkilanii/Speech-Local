@@ -1,0 +1,122 @@
+[
+  {
+    "id" : "largest",
+    "reply" : "```python\ndef largest_number(numbers):\n    if not numbers:\n        raise ValueError(\"List is empty\")\n    return max(numbers)\n```",
+    "seconds" : 10.90549898147583,
+    "spoken" : "write a function that returns the largest number in a list"
+  },
+  {
+    "id" : "vowels",
+    "reply" : "```python\ndef count_vowels(s):\n    vowels = \"aeiouAEIOU\"\n    count = 0\n    for char in s:\n        if char in vowels:\n            count += 1\n    return count\n```",
+    "seconds" : 4.692102074623108,
+    "spoken" : "write a function that counts the number of vowels in a string"
+  },
+  {
+    "id" : "prime",
+    "reply" : "```python\ndef is_prime(n):\n    if n <= 1:\n        return False\n    if n <= 3:\n        return True\n    if n % 2 == 0 or n % 3 == 0:\n        return False\n    i = 5\n    while i * i <= n:\n        if n % i == 0 or n % (i + 2) == 0:\n            return False\n        i += 6\n    return True\n```",
+    "seconds" : 15.109953999519348,
+    "spoken" : "write a function that checks if a number is prime"
+  },
+  {
+    "id" : "average",
+    "reply" : "```python\ndef average(numbers):\n    if not numbers:\n        return 0\n    return sum(numbers) \/ len(numbers)\n```",
+    "seconds" : 12.988801002502441,
+    "spoken" : "write a function that returns the average of a list of numbers"
+  },
+  {
+    "id" : "reverse",
+    "reply" : "```python\ndef reverse_string(s):\n    return s[::-1]\n```",
+    "seconds" : 11.654744982719421,
+    "spoken" : "write a function that reverses a string"
+  },
+  {
+    "id" : "linear_search",
+    "reply" : "```python\ndef linear_search(lst, item):\n    for index, value in enumerate(lst):\n        if value == item:\n            return index\n    return -1\n```",
+    "seconds" : 12.604436039924622,
+    "spoken" : "write a function that does a linear search on a list for an item and returns the index of the item or minus 1 if it is not found"
+  },
+  {
+    "id" : "bubble_sort",
+    "reply" : "```python\ndef bubble_sort(numbers):\n    for i in range(len(numbers)):\n        for j in range(0, len(numbers) - i - 1):\n            if numbers[j] > numbers[j + 1]:\n                numbers[j], numbers[j + 1] = numbers[j + 1], numbers[j]\n    return numbers\n```",
+    "seconds" : 26.874154925346375,
+    "spoken" : "write a function that sorts a list of numbers using bubble sort"
+  },
+  {
+    "id" : "fizzbuzz",
+    "reply" : "```python\ndef fizzbuzz(n):\n    for i in range(1, n + 1):\n        if i % 3 == 0 and i % 5 == 0:\n            print(\"fizzbuzz\")\n        elif i % 3 == 0:\n            print(\"fizz\")\n        elif i % 5 == 0:\n            print(\"buzz\")\n        else:\n            print(i)\n```",
+    "seconds" : 60.05121600627899,
+    "spoken" : "write a function that prints fizzbuzz from 1 to n"
+  },
+  {
+    "id" : "celsius",
+    "reply" : "```python\ndef celsius_to_fahrenheit(celsius):\n    return (celsius * 9\/5) + 32\n```",
+    "seconds" : 27.180308938026428,
+    "spoken" : "write a function that converts celsius to fahrenheit"
+  },
+  {
+    "id" : "grade",
+    "reply" : "```python\ndef grade(mark):\n    if mark >= 70:\n        return \"A\"\n    elif mark >= 60:\n        return \"B\"\n    elif mark >= 50:\n        return \"C\"\n    else:\n        return \"U\"\n```",
+    "seconds" : 27.257279992103577,
+    "spoken" : "write a function that takes a mark and returns the grade a for 70 or more b for 60 or more c for 50 or more otherwise u"
+  },
+  {
+    "id" : "digit_sum",
+    "reply" : "```python\ndef sum_of_digits(number):\n    return sum(int(digit) for digit in str(number))\n```",
+    "seconds" : 24.497478008270264,
+    "spoken" : "write a function that returns the sum of the digits of a number"
+  },
+  {
+    "id" : "factorial",
+    "reply" : "```python\ndef factorial(n):\n    if n < 0:\n        raise ValueError(\"Factorial is not defined for negative numbers.\")\n    elif n == 0 or n == 1:\n        return 1\n    else:\n        result = 1\n        for i in range(2, n + 1):\n            result *= i\n        return result\n```",
+    "seconds" : 21.21311593055725,
+    "spoken" : "write a function that returns the factorial of a number"
+  },
+  {
+    "id" : "palindrome",
+    "reply" : "```python\ndef is_palindrome(word):\n    return word == word[::-1]\n```",
+    "seconds" : 4.679062008857727,
+    "spoken" : "write a function that checks if a word is a palindrome"
+  },
+  {
+    "id" : "count_words",
+    "reply" : "```python\ndef count_words(sentence):\n    words = sentence.split()\n    return len(words)\n```",
+    "seconds" : 6.335844993591309,
+    "spoken" : "write a function that counts the number of words in a sentence"
+  },
+  {
+    "id" : "duplicates",
+    "reply" : "```python\ndef find_duplicates(lst):\n    seen = set()\n    duplicates = []\n    for item in lst:\n        if item in seen:\n            duplicates.append(item)\n        else:\n            seen.add(item)\n    return duplicates\n```",
+    "seconds" : 11.82210099697113,
+    "spoken" : "write a function that finds the duplicates in a list"
+  },
+  {
+    "id" : "binary_search",
+    "reply" : "```python\ndef binary_search(sorted_list, target):\n    left, right = 0, len(sorted_list) - 1\n    while left <= right:\n        mid = (left + right) \/\/ 2\n        if sorted_list[mid] == target:\n            return mid\n        elif sorted_list[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n```",
+    "seconds" : 29.53039801120758,
+    "spoken" : "write a function that does a binary search on a sorted list for a target and returns the index of the target or minus 1 if it is not there"
+  },
+  {
+    "id" : "times_table",
+    "reply" : "```python\ndef print_times_table(number):\n    for i in range(1, 13):\n        print(number * i)\n```",
+    "seconds" : 16.521675944328308,
+    "spoken" : "write a function that prints the times table for a number from 1 to 12"
+  },
+  {
+    "id" : "leap_year",
+    "reply" : "```python\ndef is_leap_year(year):\n    if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):\n        return True\n    else:\n        return False\n```",
+    "seconds" : 5.404484033584595,
+    "spoken" : "write a function that checks if a year is a leap year"
+  },
+  {
+    "id" : "password",
+    "reply" : "```python\ndef is_valid_password(password):\n    if len(password) < 8:\n        return False\n    if not any(char.isdigit() for char in password):\n        return False\n    return True\n```",
+    "seconds" : 3.4993399381637573,
+    "spoken" : "write a function that checks if a password is at least 8 characters long and contains a digit"
+  },
+  {
+    "id" : "mean_odd",
+    "reply" : "```python\ndef mean_of_odds(numbers):\n    odd_numbers = [num for num in numbers if num % 2 != 0]\n    if not odd_numbers:\n        return 0\n    return sum(odd_numbers) \/ len(odd_numbers)\n```",
+    "seconds" : 4.951567053794861,
+    "spoken" : "write a function that returns the mean of the odd numbers in a list"
+  }
+]
