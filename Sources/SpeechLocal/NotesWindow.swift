@@ -238,9 +238,12 @@ final class NotesModel: ObservableObject {
             settingsStore.current.vocabulary, to: await session.transcript)
         elapsed = await session.elapsed
         let lostAudio = await session.didLoseAudio
+        let other = await session.systemAudioHeard
         self.session = nil
         log("  MEETING stopped — \(Int(elapsed))s, \(transcript.count) chars"
-            + (lostAudio ? " (audio was lost to an overrun)" : ""))
+            + (lostAudio ? " (audio was lost to an overrun)" : "")
+            + ", system audio \(Int(other.seconds))s in \(other.gaps + (other.seconds > 0 ? 1 : 0)) "
+            + "stretch(es), labelled: \(SpeakerTurns.isLabelled(transcript))")
 
         guard var meeting = current else { phase = .done; return }
         meeting.endedAt = Date()

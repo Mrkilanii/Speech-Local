@@ -64,7 +64,7 @@ alongside the others, because it costs recording time, not build time.
 
 | # | Stage | Done when |
 |---|---|---|
-| M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | A two-sided call labelled correctly |
+| M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | **Built 27 Sep, not yet run live** (decision 12; branch `worktree-agent-ac6da6e32cf36c5cf`). Done when the two-sided call in `docs/verification.md` passes |
 | M8 | Close the vault loop: a filed meeting triggers or queues `ingest` | A meeting reaches `wiki/` without a manual step |
 | D1 | Dictation on the streaming ASR path (built on branch `worktree-agent-a4d85ada8883ffaa1`, unmerged, untested) | Release-to-text p95 ≤ 700 ms for dictations under 30 s |
 

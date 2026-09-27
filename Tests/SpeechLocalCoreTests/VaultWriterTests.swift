@@ -97,3 +97,30 @@ private func meeting(title: String = "Design review") -> Meeting {
     #expect(VaultWriter.minutes(5_400) == "1h 30m")
     #expect(VaultWriter.minutes(20) == "1m", "a short meeting is not zero minutes")
 }
+
+@Test func speakerLabelsReachTheVaultAsParagraphs() throws {
+    let root = tempVault()
+    defer { try? FileManager.default.removeItem(at: root) }
+    var labelled = meeting()
+    labelled.transcript = "You: Can we ship Friday?\n\nThem: Yes, if QA signs off."
+
+    let text = try String(contentsOf: VaultWriter(root: root).write(labelled), encoding: .utf8)
+    #expect(text.hasSuffix("""
+        ## Transcript
+
+        _"You" is the microphone (whoever recorded this); "Them" is the call's \
+        audio, everyone on the other end._
+
+        You: Can we ship Friday?
+
+        Them: Yes, if QA signs off.
+
+        """))
+}
+
+@Test func anUnlabelledTranscriptGetsNoLegend() throws {
+    let root = tempVault()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let text = try String(contentsOf: VaultWriter(root: root).write(meeting()), encoding: .utf8)
+    #expect(text.hasSuffix("## Transcript\n\nWe agreed to ship on Friday.\n"))
+}

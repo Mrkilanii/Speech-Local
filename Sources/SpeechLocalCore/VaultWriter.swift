@@ -104,6 +104,12 @@ public struct VaultWriter: Sendable {
 
         let transcript = meeting.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         out += "\n## Transcript\n\n"
+        // Said once, so whoever ingests this knows what the labels are — and
+        // that "Them" is a stream, not one identified person.
+        if SpeakerTurns.isLabelled(transcript) {
+            out += "_\"You\" is the microphone (whoever recorded this); "
+                + "\"Them\" is the call's audio, everyone on the other end._\n\n"
+        }
         out += transcript.isEmpty ? "_Nothing was transcribed._\n" : "\(transcript)\n"
         return out
     }

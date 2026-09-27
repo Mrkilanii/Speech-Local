@@ -20,14 +20,16 @@ import CoreMedia
 /// So: only finalized results are kept, and a finalized result evicts anything
 /// it overlaps. Volatile text is held separately for the live preview, where
 /// being provisional is the point.
-struct TranscriptAssembler {
+struct TranscriptAssembler: Sendable {
     private var finals: [(range: CMTimeRange, text: String)] = []
     private var pending = ""
+    private var pendingRange = CMTimeRange.zero
 
     mutating func add(range: CMTimeRange, text: String, isFinal: Bool) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isFinal else {
             pending = trimmed
+            pendingRange = range
             return
         }
         // Anything this segment covers has been superseded by it.
@@ -46,6 +48,24 @@ struct TranscriptAssembler {
     /// Settled text plus the current guess, for on-screen feedback only.
     var live: String {
         (finals.map(\.text) + [pending]).filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// The settled segments with their times, for a meeting that has to put
+    /// two recognizers in order.
+    var finalizedSegments: [TimedSegment] {
+        finals.map { Self.segment($0.range, $0.text) }
+    }
+
+    /// Settled segments plus the current guess, timed. On-screen only, like
+    /// `live`.
+    var liveSegments: [TimedSegment] {
+        pending.isEmpty
+            ? finalizedSegments
+            : finalizedSegments + [Self.segment(pendingRange, pending)]
+    }
+
+    private static func segment(_ range: CMTimeRange, _ text: String) -> TimedSegment {
+        TimedSegment(start: range.start.seconds, end: range.end.seconds, text: text)
     }
 }
 
@@ -166,15 +186,37 @@ public actor AppleASREngine: ASREngine {
         locale: String,
         biasTerms: [String] = []
     ) -> AsyncThrowingStream<String, Error> {
+        stream(audio: audio, locale: locale, biasTerms: biasTerms,
+               partial: \.live, settled: \.finalized)
+    }
+
+    public nonisolated func transcribeSegments(
+        audio: AsyncStream<AudioChunk>,
+        locale: String,
+        biasTerms: [String] = []
+    ) -> AsyncThrowingStream<[TimedSegment], Error> {
+        stream(audio: audio, locale: locale, biasTerms: biasTerms,
+               partial: \.liveSegments, settled: \.finalizedSegments)
+    }
+
+    /// One streaming pass, reported as text or as timed segments. The
+    /// recognition is identical; only what is read off the assembler differs.
+    private nonisolated func stream<Output: Sendable>(
+        audio: AsyncStream<AudioChunk>,
+        locale: String,
+        biasTerms: [String],
+        partial: KeyPath<TranscriptAssembler, Output> & Sendable,
+        settled: KeyPath<TranscriptAssembler, Output> & Sendable
+    ) -> AsyncThrowingStream<Output, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let text = try await self.run(
+                    let assembled = try await self.run(
                         audio: audio, locale: locale, biasTerms: biasTerms
-                    ) { partial in
-                        continuation.yield(partial)
+                    ) { assembler in
+                        continuation.yield(assembler[keyPath: partial])
                     }
-                    continuation.yield(text)
+                    continuation.yield(assembled[keyPath: settled])
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -197,14 +239,15 @@ public actor AppleASREngine: ASREngine {
             continuation.finish()
         }
         return try await run(audio: stream, locale: locale, biasTerms: biasTerms) { _ in }
+            .finalized
     }
 
     private func run(
         audio: AsyncStream<AudioChunk>,
         locale identifier: String,
         biasTerms: [String] = [],
-        onPartial: @escaping @Sendable (String) -> Void
-    ) async throws -> String {
+        onPartial: @escaping @Sendable (TranscriptAssembler) -> Void
+    ) async throws -> TranscriptAssembler {
         let locale = Locale(identifier: identifier)
         guard let module = await Self.module(for: locale) else {
             throw TranscribeError.localeUnsupported(identifier)
@@ -240,33 +283,33 @@ public actor AppleASREngine: ASREngine {
         actor Segments {
             private var assembler = TranscriptAssembler()
 
-            func add(range: CMTimeRange, text: String, isFinal: Bool) -> String {
+            func add(range: CMTimeRange, text: String, isFinal: Bool) -> TranscriptAssembler {
                 assembler.add(range: range, text: text, isFinal: isFinal)
-                return assembler.live
+                return assembler
             }
 
-            func finalized() -> String { assembler.finalized }
+            func settled() -> TranscriptAssembler { assembler }
         }
         let segments = Segments()
 
-        let collector = Task { () -> String in
+        let collector = Task { () -> TranscriptAssembler in
             switch module {
             case .speech(let transcriber):
                 for try await result in transcriber.results {
-                    let text = await segments.add(
+                    let assembled = await segments.add(
                         range: result.range, text: String(result.text.characters),
                         isFinal: result.isFinal)
-                    onPartial(text)
+                    onPartial(assembled)
                 }
             case .dictation(let transcriber):
                 for try await result in transcriber.results {
-                    let text = await segments.add(
+                    let assembled = await segments.add(
                         range: result.range, text: String(result.text.characters),
                         isFinal: result.isFinal)
-                    onPartial(text)
+                    onPartial(assembled)
                 }
             }
-            return await segments.finalized()
+            return await segments.settled()
         }
 
         // Feed the analyzer in slices rather than one buffer.
