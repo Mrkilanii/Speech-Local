@@ -1,0 +1,288 @@
+{
+  "title": "Dictation — Build Order",
+  "updated": "2026-09-27",
+  "rule": "Hold a key, speak, and the right text lands where you are typing — on the Mac, with no network, and never a word you did not say except the ones you marked as a correction.",
+  "stages": [
+    {
+      "id": "1",
+      "slug": "foundation",
+      "name": "Foundation and dictation core",
+      "status": "done",
+      "size": "done",
+      "does": "A signed menu-bar app with a stable identity, hotkeys, continuous microphone, Apple's on-device recognizer, insertion at the cursor, the floating pill and sounds.",
+      "see": "Hold Right Option (now Fn), speak, release: the text appears where you are typing.",
+      "proof": "Commits 0a28474…32bd321 (16 Aug). The on-device model was rejected for light-touch cleanup: 7.2 s median and dropped words on 2 of 10 (decision 01).",
+      "needs": [
+        {
+          "label": "Nothing",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Signed bundle and permissions",
+          "s": "y"
+        },
+        {
+          "t": "Hotkeys and continuous mic",
+          "s": "y"
+        },
+        {
+          "t": "Apple SpeechAnalyzer recognition",
+          "s": "y"
+        },
+        {
+          "t": "Insertion (accessibility, then paste)",
+          "s": "y"
+        },
+        {
+          "t": "Pill and sounds",
+          "s": "y"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "slug": "product-shell",
+      "name": "Settings, hardening, languages",
+      "status": "done",
+      "size": "done",
+      "does": "Settings and vocabulary, launch at login, a regression corpus, fixes from daily use, transcript history, 54 languages with Arabic cleanup.",
+      "see": "Settings window with hotkeys, vocabulary, learned corrections and history.",
+      "proof": "Commits 22ba8c4…ecc2d61 (16–17 Aug); corpus plus --diagnostics.",
+      "needs": [
+        {
+          "label": "1 Foundation",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Settings and vocabulary",
+          "s": "y"
+        },
+        {
+          "t": "Regression corpus and diagnostics",
+          "s": "y"
+        },
+        {
+          "t": "Hardening from live use",
+          "s": "y"
+        },
+        {
+          "t": "History and 54 languages",
+          "s": "y"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "slug": "spoken-formatting",
+      "name": "Spoken formatting and learning",
+      "status": "done",
+      "size": "done",
+      "does": "Numbers as digits, spoken punctuation, lists, brackets, the comma policy; learning from corrections and from edits you make in the app.",
+      "see": "\"three comma four\" types 3, 4; fixing a word once teaches it.",
+      "proof": "Commits 29fd956…9b12f80 (17–22 Aug); unit tests plus live use.",
+      "needs": [
+        {
+          "label": "1 Foundation",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Digits and separators",
+          "s": "y"
+        },
+        {
+          "t": "Spoken punctuation and lists",
+          "s": "y"
+        },
+        {
+          "t": "Learn from corrections and edits",
+          "s": "y"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "slug": "wispr-parity",
+      "name": "Wispr Flow parity, first pass",
+      "status": "now",
+      "size": "L",
+      "does": "Stops pasting your old clipboard (restores it only once the paste was read), never types into a password prompt, resolves spoken corrections (\"2, actually 3\", \"scratch that\", comma-wrapped \"like\"), drops the full stop in chat apps, pads short dictations with silence and keeps recording 150 ms past release.",
+      "see": "Short messages come through; \"at 2, actually 3\" types \"at 3\"; your clipboard is never pasted instead of what you said; menu items Paste last transcript and Restore previous clipboard.",
+      "proof": "docs/verification.md clipboard check: 100 dictations into Claude, ChatGPT, Arc, Chrome and Terminal with SENTINEL-42 on the clipboard, pasted 0 times. **Not yet run live.** 435 unit tests pass; the lazy clipboard served another process and logged its read at +369 ms.",
+      "needs": [
+        {
+          "label": "Research: how Wispr Flow works (docs/research/2026-09-27-wispr-flow.md)",
+          "met": true
+        },
+        {
+          "label": "Omar dictates on the new build",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Clipboard restored only on evidence",
+          "s": "y"
+        },
+        {
+          "t": "Password-prompt guard",
+          "s": "y"
+        },
+        {
+          "t": "Spoken corrections (decision 11)",
+          "s": "y"
+        },
+        {
+          "t": "Chat full stops",
+          "s": "y"
+        },
+        {
+          "t": "Silence padding and release tail",
+          "s": "y",
+          "d": "1–4 s dictations were empty 7–10% of the time"
+        },
+        {
+          "t": "Live check by Omar",
+          "s": "n"
+        },
+        {
+          "t": "Correction by restating a phrase",
+          "s": "hold",
+          "d": "needs a model; refused (decision 01)"
+        }
+      ],
+      "declaration": "Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decision 11). Predictions: the sentinel is never pasted; short 1–4 s dictations stop coming back empty. Reject conditions: the sentinel is pasted even once after a PASTE restore; any ordinary sentence loses a word to the correction rules.",
+      "docs": [
+        "docs/decisions/11_backtrack_removes_marked_words_only.md",
+        "docs/research/2026-09-27-insertion-bugs.md"
+      ]
+    },
+    {
+      "id": "5",
+      "slug": "streaming",
+      "name": "Transcribe while you talk",
+      "status": "now",
+      "size": "M",
+      "does": "Feeds the recognizer while the key is held, so releasing only finalises instead of transcribing the whole clip.",
+      "see": "Long dictations appear as fast as short ones.",
+      "proof": "Release-to-text p95 at or under 700 ms for dictations under 30 s, from STREAM final lines in doctor.log. Probe (no mic): 37–54 ms for short phrases, 150–600 ms for 23–46 s clips under load. **Not yet measured live.** Before: median 2.7 s past 60 s.",
+      "needs": [
+        {
+          "label": "4 Wispr parity (same code path)",
+          "met": true
+        },
+        {
+          "label": "Omar dictates on the new build",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Streaming merged (33a2e37)",
+          "s": "y"
+        },
+        {
+          "t": "--realtime probe",
+          "s": "y"
+        },
+        {
+          "t": "Live latency from the log",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "slug": "electron-fields",
+      "name": "See the text box in Claude desktop",
+      "status": "now",
+      "size": "S",
+      "does": "Asks Electron apps to publish their text field at the key press, so learning from edits and paste confirmation work in Claude desktop.",
+      "see": "Fixing a word in Claude desktop teaches it; the clipboard comes back sooner there.",
+      "proof": "Probe: Claude went from 9 accessibility nodes and no focus to 713 nodes with a readable text area; no measurable CPU rise. Live: LEARN lines appear after an edit in Claude — **not yet seen.**",
+      "needs": [
+        {
+          "label": "Omar dictates on the new build",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "--probe-electron",
+          "s": "y"
+        },
+        {
+          "t": "Wake at key press (c0d2311)",
+          "s": "y"
+        },
+        {
+          "t": "ChatGPT refuses the attribute",
+          "s": "hold",
+          "d": "-25205; nothing to do"
+        },
+        {
+          "t": "Arc and Chrome expose nothing to the probe",
+          "s": "n",
+          "d": "not investigated"
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "slug": "onset",
+      "name": "No clipped first word",
+      "status": "next",
+      "size": "S",
+      "does": "Measures whether starting exactly at the key press clips the first syllable, and adds a small measured rewind if it does.",
+      "see": "The first word is always there.",
+      "proof": "20 dictations starting on a hard consonant; count first-word losses (decision 09).",
+      "needs": [
+        {
+          "label": "Omar's 20 test dictations",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "20 plosive-start dictations",
+          "s": "n"
+        },
+        {
+          "t": "Rewind only if measured",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "slug": "login",
+      "name": "Starts at login after a rebuild",
+      "status": "next",
+      "size": "S",
+      "does": "Checks that launch at login survives make all.",
+      "see": "After a reboot the app is running.",
+      "proof": "Rebuild, reboot, app running.",
+      "needs": [
+        {
+          "label": "A reboot by Omar",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Rebuild and reboot",
+          "s": "n"
+        }
+      ]
+    }
+  ],
+  "alongside": [
+    "Every reply ends with this Build Order.",
+    "The agentic-coding-system harness needs the claude CLI logged in again before overnight runs (OAuth expired 27 Sep)."
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "title": "Meeting notes — Build Order",
+  "updated": "2026-09-27",
+  "rule": "Record both sides of a meeting on the Mac and get a note that says only what was said; the vault gets the source, never the summary.",
+  "stages": [
+    {
+      "id": "M1",
+      "slug": "capture",
+      "name": "Record both sides",
+      "status": "done",
+      "size": "done",
+      "does": "Microphone plus system audio through a CoreAudio tap, transcribed while recording, holding no audio in memory.",
+      "see": "Start meeting recording in the menu; a live transcript.",
+      "proof": "--probe-meeting: +1.7 MB per hour (decision 04).",
+      "needs": [
+        {
+          "label": "Nothing",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "System-audio spike",
+          "s": "y"
+        },
+        {
+          "t": "Session holds no audio",
+          "s": "y"
+        },
+        {
+          "t": "Mic and system audio mixed",
+          "s": "y"
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "slug": "notes",
+      "name": "The note",
+      "status": "done",
+      "size": "done",
+      "does": "On-device summary folded to fit the model's 4,096-token budget, talk or conversation styles, 2× playback slowed back down, pause, re-summarise, filing the source to the vault.",
+      "see": "A structured note when the meeting ends; the transcript filed to raw/meetings.",
+      "proof": "End-to-end recording checked (decisions 02, 03, 05–08). Reading while recording and fitToBudget are unit tests only.",
+      "needs": [
+        {
+          "label": "M1 Record both sides",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Summariser and fold",
+          "s": "y"
+        },
+        {
+          "t": "Window, store, vault filing",
+          "s": "y"
+        },
+        {
+          "t": "Read while recording",
+          "s": "y",
+          "d": "unit tests only"
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "slug": "long-meeting",
+      "name": "A real hour-long meeting",
+      "status": "wait",
+      "size": "S",
+      "does": "Proves the long-meeting path on the current build.",
+      "see": "A note for a 60-minute meeting within budget.",
+      "proof": "The log shows windows read during recording, the fold report, and the note within budget.",
+      "needs": [
+        {
+          "label": "Omar records a 60+ minute meeting",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Record and read the log",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "slug": "speakers",
+      "name": "Who said what",
+      "status": "now",
+      "size": "M",
+      "does": "Transcribes the microphone and system audio separately and labels turns You and Them.",
+      "see": "The transcript and note say You: … / Them: …",
+      "proof": "A two-sided call labelled correctly; the summary prompt still fits the 4,096-token budget.",
+      "needs": [
+        {
+          "label": "M1 Record both sides",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Interleave and label (agent building)",
+          "s": "n"
+        },
+        {
+          "t": "Live two-sided call",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "M8",
+      "slug": "vault-loop",
+      "name": "Meeting reaches the wiki",
+      "status": "next",
+      "size": "M",
+      "does": "A filed meeting is queued for the vault's ingest, so it reaches wiki/ without a manual step.",
+      "see": "A meeting page in the wiki after the meeting.",
+      "proof": "One meeting reaches wiki/ with no manual step.",
+      "needs": [
+        {
+          "label": "M2 The note",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Design within raw/ immutability",
+          "s": "n"
+        }
+      ]
+    }
+  ],
+  "alongside": []
+}

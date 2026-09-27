@@ -1,0 +1,25 @@
+{
+  "title": "SpeechLocal Build Order",
+  "eyebrow": "SpeechLocal · on-device dictation, code and meeting notes",
+  "headline": "What's built, and <em>what's next</em>",
+  "standfirst": "Three tracks: dictating prose, dictating code, and meeting notes. Everything runs on the Mac with no network. Click any stage for what it does, what you will see, how we will know it works, and what it waits on.",
+  "output": "docs/build-order.html",
+  "artifact_url": "https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF",
+  "tracks": [
+    {
+      "key": "dictation",
+      "name": "Dictation",
+      "folder": "docs/build-order/dictation"
+    },
+    {
+      "key": "code",
+      "name": "Code dictation",
+      "folder": "docs/build-order/code"
+    },
+    {
+      "key": "meetings",
+      "name": "Meeting notes",
+      "folder": "docs/build-order/meetings"
+    }
+  ]
+}

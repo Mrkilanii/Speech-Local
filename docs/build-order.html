@@ -1,0 +1,547 @@
+<title>SpeechLocal Build Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#f6f7fb;--surface:#ffffff;--sunk:#eef1f8;--rule:#dfe4ef;--rule-strong:#c7cfe0;
+  --ink:#171b26;--ink-soft:#4a5165;--ink-faint:#6a7185;
+  --accent:#3355d8;--accent-soft:#e6ebfb;
+  --done:#1b7a40;--done-soft:#ddf2e4;--now:#b8480f;--now-soft:#fde9da;
+  --wait:#6a7185;--wait-soft:#eceff5;
+  --font-display:"Newsreader",Georgia,serif;
+  --font-body:"IBM Plex Sans","IBM Plex Sans Arabic",-apple-system,system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --ground:#111318;--surface:#1a1d25;--sunk:#22262f;--rule:#2d3240;--rule-strong:#414859;
+  --ink:#e8eaf1;--ink-soft:#b2b8c8;--ink-faint:#8c93a6;--accent:#9db0ff;--accent-soft:#232b45;
+  --done:#7fdca0;--done-soft:#15301f;--now:#fdb98a;--now-soft:#3a2416;--wait:#8c93a6;--wait-soft:#23262e}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --ground:#111318;--surface:#1a1d25;--sunk:#22262f;--rule:#2d3240;--rule-strong:#414859;
+  --ink:#e8eaf1;--ink-soft:#b2b8c8;--ink-faint:#8c93a6;--accent:#9db0ff;--accent-soft:#232b45;
+  --done:#7fdca0;--done-soft:#15301f;--now:#fdb98a;--now-soft:#3a2416;--wait:#8c93a6;--wait-soft:#23262e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px;padding-block:0 80px}
+header{padding-block:48px 28px;border-bottom:1px solid var(--rule);margin-bottom:32px}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(2.1rem,5vw,3.2rem);line-height:1.06;letter-spacing:-.018em;margin:0 0 14px;text-wrap:balance}
+h1 em{font-style:italic;color:var(--accent)}
+.standfirst{font-size:1.04rem;color:var(--ink-soft);max-width:62ch;margin:0}
+.overall{display:flex;align-items:center;gap:16px;margin-top:24px;flex-wrap:wrap}
+.obar{flex:1;min-width:200px;height:10px;background:var(--sunk);border-radius:999px;overflow:hidden;display:flex}
+.oseg.d{background:var(--done);height:100%}.oseg.n{background:var(--now);height:100%}
+.okey{display:flex;gap:16px;font-size:12.5px;color:var(--ink-faint);font-family:var(--font-mono);flex-wrap:wrap}
+.okey b{color:var(--ink);font-weight:600}
+h2{font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-.01em;margin:0 0 6px}
+.sectnote{color:var(--ink-soft);font-size:.95rem;margin:0 0 20px;max-width:64ch}
+section{margin-bottom:48px}
+.stages{display:grid;gap:12px}
+.stage{background:var(--surface);border:1px solid var(--rule);border-radius:9px}
+.stage.now{border-color:var(--now);box-shadow:0 0 0 1px var(--now)}
+.stage summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:46px 1fr 20px;gap:14px;padding:15px 16px 13px}
+.stage summary::-webkit-details-marker{display:none}
+.stage summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:9px}
+.letter{font-family:var(--font-mono);font-size:1.4rem;font-weight:600;line-height:1;color:var(--accent);padding-top:3px}
+.stage.done .letter{color:var(--done)}.stage.now .letter{color:var(--now)}.stage.wait .letter{color:var(--wait)}
+.head{min-width:0}
+.shead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sname{font-family:var(--font-display);font-size:1.2rem;font-weight:600;line-height:1.25}
+.pill{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.done{background:var(--done-soft);color:var(--done)}.pill.now{background:var(--now-soft);color:var(--now)}
+.pill.next{background:var(--accent-soft);color:var(--accent)}.pill.wait{background:var(--wait-soft);color:var(--wait)}
+.count{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums;margin-left:auto;white-space:nowrap}
+.needs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:9px}
+.needs-label{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-right:2px}
+.dep{font-family:var(--font-mono);font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sunk);color:var(--ink-soft)}
+.dep.met{background:var(--done-soft);color:var(--done)}
+.chev{align-self:start;margin-top:6px;width:10px;height:10px;border-right:2px solid var(--ink-faint);border-bottom:2px solid var(--ink-faint);transform:rotate(45deg);transition:transform .16s ease-out}
+.stage[open] .chev{transform:rotate(225deg);margin-top:10px}
+.body{padding:2px 16px 16px 76px;display:grid;gap:14px;border-top:1px solid var(--rule);padding-top:14px}
+.block h4{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 4px;font-weight:500}
+.block p{margin:0;font-size:14.5px;color:var(--ink-soft);max-width:70ch}
+.block p b{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
+.feats{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 18px}
+.feats li{font-size:13.5px;line-height:1.5;padding:2px 0 2px 20px;position:relative;color:var(--ink-soft)}
+.feats li::before{position:absolute;left:0;top:2px;font-family:var(--font-mono);font-size:12px}
+.feats li.y{color:var(--ink)}.feats li.y::before{content:"✓";color:var(--done);font-weight:600}
+.feats li.n::before{content:"·";color:var(--ink-faint);font-size:15px;top:0}
+.feats li.hold{color:var(--ink-faint)}.feats li.hold::before{content:"~";color:var(--ink-faint)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--sunk);padding:1px 5px;border-radius:3px;overflow-wrap:anywhere}
+.note{border-left:2px solid var(--accent);padding:2px 0 2px 16px;margin:0 0 20px;max-width:66ch}
+.note .nl{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:4px}
+.note p{margin:0;font-size:14px;color:var(--ink-soft)}
+ul.along{margin:0;padding-left:18px;color:var(--ink-soft);font-size:14.5px;max-width:70ch}
+ul.along li+li{margin-top:6px}
+.tools{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}
+.tools button{font:inherit;font-size:13px;border:1px solid var(--rule-strong);background:var(--surface);color:var(--ink);border-radius:7px;padding:6px 12px;cursor:pointer;min-height:36px}
+.tools button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+footer{border-top:1px solid var(--rule);padding-top:18px;color:var(--ink-faint);font-size:13px;max-width:66ch}
+@media (max-width:640px){.stage summary{grid-template-columns:34px 1fr 16px;gap:10px}.body{padding-left:16px}.grid2{grid-template-columns:1fr}.count{margin-left:0}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+.tabs{display:flex;gap:6px;margin-top:26px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.tabs button{font:inherit;font-size:15px;font-weight:500;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--ink-soft);padding:10px 14px 9px;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs button:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.tabcount{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);background:var(--sunk);border-radius:999px;padding:1px 7px;font-variant-numeric:tabular-nums}
+section[role=tabpanel]{padding-top:24px}
+.rule{color:var(--ink-soft);max-width:66ch;margin:0 0 4px}
+h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px 0 10px}
+.subs{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.subs li{display:grid;grid-template-columns:22px 44px 1fr;gap:6px;font-size:13.8px;line-height:1.5;color:var(--ink-soft)}
+.subs li::before{font-family:var(--font-mono);font-size:12px;padding-top:1px}
+.subs li.y{color:var(--ink)}.subs li.y::before{content:"✓";color:var(--done);font-weight:600}
+.subs li.n::before{content:"·";color:var(--ink-faint);font-size:15px;line-height:1.2}
+.subs li.hold{color:var(--ink-faint)}.subs li.hold::before{content:"~";color:var(--ink-faint)}
+.subs .sid{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);padding-top:1px}
+.subs em{display:block;font-style:normal;color:var(--ink-faint);font-size:12.8px}
+.block a{color:var(--accent)}
+</style>
+<div class="wrap">
+<header>
+  <p class="eyebrow">SpeechLocal · on-device dictation, code and meeting notes · 2026-09-27</p>
+  <h1>What's built, and <em>what's next</em></h1>
+  <p class="standfirst">Three tracks: dictating prose, dictating code, and meeting notes. Everything runs on the Mac with no network. Click any stage for what it does, what you will see, how we will know it works, and what it waits on. <b>6 of 19</b> stages done overall.</p>
+  <div class="tabs" role="tablist" aria-label="Tracks"><button type="button" role="tab" id="tab-dictation" aria-controls="panel-dictation" aria-selected="true" data-track="dictation">Dictation<span class="tabcount">3/8</span></button><button type="button" role="tab" id="tab-code" aria-controls="panel-code" aria-selected="false" data-track="code">Code dictation<span class="tabcount">1/6</span></button><button type="button" role="tab" id="tab-meetings" aria-controls="panel-meetings" aria-selected="false" data-track="meetings">Meeting notes<span class="tabcount">2/5</span></button></div>
+</header>
+
+<section role="tabpanel" id="panel-dictation" aria-labelledby="tab-dictation">
+  <p class="rule">Hold a key, speak, and the right text lands where you are typing — on the Mac, with no network, and never a word you did not say except the ones you marked as a correction.</p>
+  <div class="overall"><div class="obar"><span class="oseg d" style="width:38%"></span><span class="oseg n" style="width:38%"></span></div>
+    <div class="okey"><span><b>3</b> of 8 done</span><span><b>3</b> building now</span></div></div>
+  <div class="tools"><button type="button" class="open-all">Open all</button><button type="button" class="close-all">Close all</button></div>
+  <div class="stages">
+<details class="stage done" id="stage-1">
+  <summary>
+    <span class="letter">1</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Foundation and dictation core</span>
+        <span class="pill done">Done</span>
+        <span class="count">5 / 5 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">Nothing</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>A signed menu-bar app with a stable identity, hotkeys, continuous microphone, Apple&#x27;s on-device recognizer, insertion at the cursor, the floating pill and sounds.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Hold Right Option (now Fn), speak, release: the text appears where you are typing.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Commits 0a28474…32bd321 (16 Aug). The on-device model was rejected for light-touch cleanup: 7.2 s median and dropped words on 2 of 10 (decision 01).</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">1a</span><span>Signed bundle and permissions</span></li><li class="y"><span class="sid">1b</span><span>Hotkeys and continuous mic</span></li><li class="y"><span class="sid">1c</span><span>Apple SpeechAnalyzer recognition</span></li><li class="y"><span class="sid">1d</span><span>Insertion (accessibility, then paste)</span></li><li class="y"><span class="sid">1e</span><span>Pill and sounds</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage done" id="stage-2">
+  <summary>
+    <span class="letter">2</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Settings, hardening, languages</span>
+        <span class="pill done">Done</span>
+        <span class="count">4 / 4 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">1 Foundation</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Settings and vocabulary, launch at login, a regression corpus, fixes from daily use, transcript history, 54 languages with Arabic cleanup.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Settings window with hotkeys, vocabulary, learned corrections and history.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Commits 22ba8c4…ecc2d61 (16–17 Aug); corpus plus --diagnostics.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">2a</span><span>Settings and vocabulary</span></li><li class="y"><span class="sid">2b</span><span>Regression corpus and diagnostics</span></li><li class="y"><span class="sid">2c</span><span>Hardening from live use</span></li><li class="y"><span class="sid">2d</span><span>History and 54 languages</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage done" id="stage-3">
+  <summary>
+    <span class="letter">3</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Spoken formatting and learning</span>
+        <span class="pill done">Done</span>
+        <span class="count">3 / 3 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">1 Foundation</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Numbers as digits, spoken punctuation, lists, brackets, the comma policy; learning from corrections and from edits you make in the app.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>&quot;three comma four&quot; types 3, 4; fixing a word once teaches it.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Commits 29fd956…9b12f80 (17–22 Aug); unit tests plus live use.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">3a</span><span>Digits and separators</span></li><li class="y"><span class="sid">3b</span><span>Spoken punctuation and lists</span></li><li class="y"><span class="sid">3c</span><span>Learn from corrections and edits</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-4" open>
+  <summary>
+    <span class="letter">4</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Wispr Flow parity, first pass</span>
+        <span class="pill now">Building now</span>
+        <span class="count">5 / 7 substages · L</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">Research: how Wispr Flow works (docs/research/2026-09-27-wispr-flow.md)</span><span class="dep">Omar dictates on the new build</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Stops pasting your old clipboard (restores it only once the paste was read), never types into a password prompt, resolves spoken corrections (&quot;2, actually 3&quot;, &quot;scratch that&quot;, comma-wrapped &quot;like&quot;), drops the full stop in chat apps, pads short dictations with silence and keeps recording 150 ms past release.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Short messages come through; &quot;at 2, actually 3&quot; types &quot;at 3&quot;; your clipboard is never pasted instead of what you said; menu items Paste last transcript and Restore previous clipboard.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>docs/verification.md clipboard check: 100 dictations into Claude, ChatGPT, Arc, Chrome and Terminal with SENTINEL-42 on the clipboard, pasted 0 times. <b>Not yet run live.</b> 435 unit tests pass; the lazy clipboard served another process and logged its read at +369 ms.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">4a</span><span>Clipboard restored only on evidence</span></li><li class="y"><span class="sid">4b</span><span>Password-prompt guard</span></li><li class="y"><span class="sid">4c</span><span>Spoken corrections (decision 11)</span></li><li class="y"><span class="sid">4d</span><span>Chat full stops</span></li><li class="y"><span class="sid">4e</span><span>Silence padding and release tail <em>1–4 s dictations were empty 7–10% of the time</em></span></li><li class="n"><span class="sid">4f</span><span>Live check by Omar</span></li><li class="hold"><span class="sid">4g</span><span>Correction by restating a phrase <em>needs a model; refused (decision 01)</em></span></li></ul></div>
+    <div class="block"><h4>Declared before code</h4><p>Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decision 11). Predictions: the sentinel is never pasted; short 1–4 s dictations stop coming back empty. Reject conditions: the sentinel is pasted even once after a PASTE restore; any ordinary sentence loses a word to the correction rules.</p></div><div class="block"><h4>Records</h4><p><code>docs/decisions/11_backtrack_removes_marked_words_only.md</code><br><code>docs/research/2026-09-27-insertion-bugs.md</code></p></div>
+  </div>
+</details>
+<details class="stage now" id="stage-5" open>
+  <summary>
+    <span class="letter">5</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Transcribe while you talk</span>
+        <span class="pill now">Building now</span>
+        <span class="count">2 / 3 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">4 Wispr parity (same code path)</span><span class="dep">Omar dictates on the new build</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Feeds the recognizer while the key is held, so releasing only finalises instead of transcribing the whole clip.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Long dictations appear as fast as short ones.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Release-to-text p95 at or under 700 ms for dictations under 30 s, from STREAM final lines in doctor.log. Probe (no mic): 37–54 ms for short phrases, 150–600 ms for 23–46 s clips under load. <b>Not yet measured live.</b> Before: median 2.7 s past 60 s.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">5a</span><span>Streaming merged (33a2e37)</span></li><li class="y"><span class="sid">5b</span><span>--realtime probe</span></li><li class="n"><span class="sid">5c</span><span>Live latency from the log</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-6" open>
+  <summary>
+    <span class="letter">6</span>
+    <span class="head">
+      <span class="shead"><span class="sname">See the text box in Claude desktop</span>
+        <span class="pill now">Building now</span>
+        <span class="count">2 / 4 substages · S</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">Omar dictates on the new build</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Asks Electron apps to publish their text field at the key press, so learning from edits and paste confirmation work in Claude desktop.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Fixing a word in Claude desktop teaches it; the clipboard comes back sooner there.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Probe: Claude went from 9 accessibility nodes and no focus to 713 nodes with a readable text area; no measurable CPU rise. Live: LEARN lines appear after an edit in Claude — <b>not yet seen.</b></p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">6a</span><span>--probe-electron</span></li><li class="y"><span class="sid">6b</span><span>Wake at key press (c0d2311)</span></li><li class="hold"><span class="sid">6c</span><span>ChatGPT refuses the attribute <em>-25205; nothing to do</em></span></li><li class="n"><span class="sid">6d</span><span>Arc and Chrome expose nothing to the probe <em>not investigated</em></span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage next" id="stage-7" open>
+  <summary>
+    <span class="letter">7</span>
+    <span class="head">
+      <span class="shead"><span class="sname">No clipped first word</span>
+        <span class="pill next">Next</span>
+        <span class="count">0 / 2 substages · S</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">Omar&#x27;s 20 test dictations</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Measures whether starting exactly at the key press clips the first syllable, and adds a small measured rewind if it does.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>The first word is always there.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>20 dictations starting on a hard consonant; count first-word losses (decision 09).</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">7a</span><span>20 plosive-start dictations</span></li><li class="n"><span class="sid">7b</span><span>Rewind only if measured</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage next" id="stage-8" open>
+  <summary>
+    <span class="letter">8</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Starts at login after a rebuild</span>
+        <span class="pill next">Next</span>
+        <span class="count">0 / 1 substages · S</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A reboot by Omar</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Checks that launch at login survives make all.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>After a reboot the app is running.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Rebuild, reboot, app running.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">8a</span><span>Rebuild and reboot</span></li></ul></div>
+    
+  </div>
+</details></div>
+  <h3>Alongside</h3><ul class="along"><li>Every reply ends with this Build Order.</li><li>The agentic-coding-system harness needs the claude CLI logged in again before overnight runs (OAuth expired 27 Sep).</li></ul>
+</section>
+<section role="tabpanel" id="panel-code" aria-labelledby="tab-code" hidden>
+  <p class="rule">Say code the way you would say it to a person, and get code that runs — no training the speaker; the rules learn the phrasing people actually use.</p>
+  <div class="overall"><div class="obar"><span class="oseg d" style="width:17%"></span><span class="oseg n" style="width:50%"></span></div>
+    <div class="okey"><span><b>1</b> of 6 done</span><span><b>3</b> building now</span></div></div>
+  <div class="tools"><button type="button" class="open-all">Open all</button><button type="button" class="close-all">Close all</button></div>
+  <div class="stages">
+<details class="stage done" id="stage-C1">
+  <summary>
+    <span class="letter">C1</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Python by voice</span>
+        <span class="pill done">Done</span>
+        <span class="count">4 / 4 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">Nothing</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>A third hotkey turns speech into Python: keywords, operators, strings, brackets that close themselves, block colons, and a 5,965-name table from numpy, pandas, matplotlib, seaborn, scikit-learn, scipy and torch.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>&quot;for i in range len numbers&quot; types for i in range(len(numbers)):</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Grade from a mark dictated by Omar into Trace Table passed its tests (15 Sep) after six live rounds (decision 10).</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">C1a</span><span>Recognizer spike</span></li><li class="y"><span class="sid">C1b</span><span>Grammar and name table</span></li><li class="y"><span class="sid">C1c</span><span>next line, dedent, indented paste</span></li><li class="y"><span class="sid">C1d</span><span>Live: Grade from a mark passed</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage wait" id="stage-C3">
+  <summary>
+    <span class="letter">C3</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Library script, scored</span>
+        <span class="pill wait">Waiting</span>
+        <span class="count">2 / 3 substages · S</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">Omar&#x27;s third dictation of the script</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Scores the 22-line pandas/numpy/matplotlib script dictated in Omar&#x27;s own words, and fixes what rules can.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>A data script dictated in one press runs.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Replay of the second run: 20 of 22 lines as meant (the 2 misses are real words: buy/by, hi/high). A fresh third dictation should reach 20 of 22.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">C3a</span><span>First run scored and fixed</span></li><li class="y"><span class="sid">C3b</span><span>Second run scored and fixed</span></li><li class="n"><span class="sid">C3c</span><span>Third run, fresh</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-C4" open>
+  <summary>
+    <span class="letter">C4</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Cambridge pseudocode</span>
+        <span class="pill now">Building now</span>
+        <span class="count">0 / 3 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">C1 Python engine</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>The same engine for IGCSE 0478 / A Level 9618 pseudocode: DECLARE, ←, IF … THEN … ENDIF, CASE OF, FOR … NEXT, OUTPUT/INPUT, uppercase keywords.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>&quot;case of mark&quot; types CASE OF Mark with the right indentation and ENDCASE.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>25+ exact-output tests, then one Trace Table pseudocode question passing from a single dictation.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">C4a</span><span>Grammar and tests (agent building)</span></li><li class="n"><span class="sid">C4b</span><span>Choose language in Settings</span></li><li class="n"><span class="sid">C4c</span><span>Live Trace Table question</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-C5" open>
+  <summary>
+    <span class="letter">C5</span>
+    <span class="head">
+      <span class="shead"><span class="sname">SQL</span>
+        <span class="pill now">Building now</span>
+        <span class="count">0 / 2 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">C1 Python engine</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>SQL by voice: uppercase keywords, snake_case names, quoted strings, a closing semicolon.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>&quot;select star from students where age greater than 16&quot; types SELECT * FROM students WHERE age &gt; 16;</p></div>
+      <div class="block"><h4>How we know it works</h4><p>20+ exact-output tests, then a live query in Trace Table&#x27;s SQL track.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">C5a</span><span>Grammar and tests (agent building)</span></li><li class="n"><span class="sid">C5b</span><span>Live query</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-C6" open>
+  <summary>
+    <span class="letter">C6</span>
+    <span class="head">
+      <span class="shead"><span class="sname">TypeScript</span>
+        <span class="pill now">Building now</span>
+        <span class="count">0 / 2 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">C1 Python engine</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>TypeScript by voice: camelCase names, const/let, ===, arrow functions, braces and semicolons.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>&quot;const user name equals quote Omar&quot; types const userName = &quot;Omar&quot;;</p></div>
+      <div class="block"><h4>How we know it works</h4><p>20+ exact-output tests, then a live file in VS Code.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">C6a</span><span>Grammar and tests (agent building)</span></li><li class="n"><span class="sid">C6b</span><span>Live file</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage wait" id="stage-C7">
+  <summary>
+    <span class="letter">C7</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Describe it, get the code</span>
+        <span class="pill wait">Waiting</span>
+        <span class="count">0 / 1 substages · L</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A spike that beats decision 01</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>&quot;write a function that…&quot; on the rewrite key, using the on-device model.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>A described function appears.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Only if a spike beats decision 01&#x27;s numbers for code.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">C7a</span><span>Spike</span></li></ul></div>
+    
+  </div>
+</details></div>
+  
+</section>
+<section role="tabpanel" id="panel-meetings" aria-labelledby="tab-meetings" hidden>
+  <p class="rule">Record both sides of a meeting on the Mac and get a note that says only what was said; the vault gets the source, never the summary.</p>
+  <div class="overall"><div class="obar"><span class="oseg d" style="width:40%"></span><span class="oseg n" style="width:20%"></span></div>
+    <div class="okey"><span><b>2</b> of 5 done</span><span><b>1</b> building now</span></div></div>
+  <div class="tools"><button type="button" class="open-all">Open all</button><button type="button" class="close-all">Close all</button></div>
+  <div class="stages">
+<details class="stage done" id="stage-M1">
+  <summary>
+    <span class="letter">M1</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Record both sides</span>
+        <span class="pill done">Done</span>
+        <span class="count">3 / 3 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">Nothing</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Microphone plus system audio through a CoreAudio tap, transcribed while recording, holding no audio in memory.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>Start meeting recording in the menu; a live transcript.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>--probe-meeting: +1.7 MB per hour (decision 04).</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">M1a</span><span>System-audio spike</span></li><li class="y"><span class="sid">M1b</span><span>Session holds no audio</span></li><li class="y"><span class="sid">M1c</span><span>Mic and system audio mixed</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage done" id="stage-M2">
+  <summary>
+    <span class="letter">M2</span>
+    <span class="head">
+      <span class="shead"><span class="sname">The note</span>
+        <span class="pill done">Done</span>
+        <span class="count">3 / 3 substages · done</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M1 Record both sides</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>On-device summary folded to fit the model&#x27;s 4,096-token budget, talk or conversation styles, 2× playback slowed back down, pause, re-summarise, filing the source to the vault.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>A structured note when the meeting ends; the transcript filed to raw/meetings.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>End-to-end recording checked (decisions 02, 03, 05–08). Reading while recording and fitToBudget are unit tests only.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">M2a</span><span>Summariser and fold</span></li><li class="y"><span class="sid">M2b</span><span>Window, store, vault filing</span></li><li class="y"><span class="sid">M2c</span><span>Read while recording <em>unit tests only</em></span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage wait" id="stage-M3">
+  <summary>
+    <span class="letter">M3</span>
+    <span class="head">
+      <span class="shead"><span class="sname">A real hour-long meeting</span>
+        <span class="pill wait">Waiting</span>
+        <span class="count">0 / 1 substages · S</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">Omar records a 60+ minute meeting</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Proves the long-meeting path on the current build.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>A note for a 60-minute meeting within budget.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>The log shows windows read during recording, the fold report, and the note within budget.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">M3a</span><span>Record and read the log</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage now" id="stage-M7" open>
+  <summary>
+    <span class="letter">M7</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Who said what</span>
+        <span class="pill now">Building now</span>
+        <span class="count">0 / 2 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M1 Record both sides</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>Transcribes the microphone and system audio separately and labels turns You and Them.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>The transcript and note say You: … / Them: …</p></div>
+      <div class="block"><h4>How we know it works</h4><p>A two-sided call labelled correctly; the summary prompt still fits the 4,096-token budget.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">M7a</span><span>Interleave and label (agent building)</span></li><li class="n"><span class="sid">M7b</span><span>Live two-sided call</span></li></ul></div>
+    
+  </div>
+</details>
+<details class="stage next" id="stage-M8" open>
+  <summary>
+    <span class="letter">M8</span>
+    <span class="head">
+      <span class="shead"><span class="sname">Meeting reaches the wiki</span>
+        <span class="pill next">Next</span>
+        <span class="count">0 / 1 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M2 The note</span></span>
+    </span>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="body">
+    <div class="block"><h4>What it does</h4><p>A filed meeting is queued for the vault&#x27;s ingest, so it reaches wiki/ without a manual step.</p></div>
+    <div class="grid2">
+      <div class="block"><h4>What you see</h4><p>A meeting page in the wiki after the meeting.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>One meeting reaches wiki/ with no manual step.</p></div>
+    </div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">M8a</span><span>Design within raw/ immutability</span></li></ul></div>
+    
+  </div>
+</details></div>
+  
+</section>
+<footer>Generated by <code>tools/render_build_order.py</code> from each track's <code>stages.json</code>. Every stage also has its own page in its track's folder: <code>docs/build-order/dictation/</code>, <code>docs/build-order/code/</code>, <code>docs/build-order/meetings/</code>.</footer>
+</div>
+<script>
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function show(key,push){tabs.forEach(t=>{const on=t.dataset.track===key;t.setAttribute('aria-selected',on);document.getElementById('panel-'+t.dataset.track).hidden=!on;});
+  if(push){try{history.replaceState(null,'','#'+key)}catch(e){}}}
+tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.track,true)));
+tabs.forEach((t,i)=>t.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=tabs[(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length];n.focus();show(n.dataset.track,true);}}));
+document.querySelectorAll('.open-all').forEach(b=>b.addEventListener('click',()=>b.closest('section').querySelectorAll('details').forEach(d=>d.open=true)));
+document.querySelectorAll('.close-all').forEach(b=>b.addEventListener('click',()=>b.closest('section').querySelectorAll('details').forEach(d=>d.open=false)));
+const h=location.hash.slice(1);
+if(tabs.some(t=>t.dataset.track===h))show(h,false);
+else if(h){const d=document.getElementById(h);if(d){show(d.closest('section').id.replace('panel-',''),false);d.open=true;d.scrollIntoView();}}
+</script>

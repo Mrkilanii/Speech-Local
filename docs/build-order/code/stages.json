@@ -1,0 +1,176 @@
+{
+  "title": "Code dictation — Build Order",
+  "updated": "2026-09-27",
+  "rule": "Say code the way you would say it to a person, and get code that runs — no training the speaker; the rules learn the phrasing people actually use.",
+  "stages": [
+    {
+      "id": "C1",
+      "slug": "python",
+      "name": "Python by voice",
+      "status": "done",
+      "size": "done",
+      "does": "A third hotkey turns speech into Python: keywords, operators, strings, brackets that close themselves, block colons, and a 5,965-name table from numpy, pandas, matplotlib, seaborn, scikit-learn, scipy and torch.",
+      "see": "\"for i in range len numbers\" types for i in range(len(numbers)):",
+      "proof": "Grade from a mark dictated by Omar into Trace Table passed its tests (15 Sep) after six live rounds (decision 10).",
+      "needs": [
+        {
+          "label": "Nothing",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Recognizer spike",
+          "s": "y"
+        },
+        {
+          "t": "Grammar and name table",
+          "s": "y"
+        },
+        {
+          "t": "next line, dedent, indented paste",
+          "s": "y"
+        },
+        {
+          "t": "Live: Grade from a mark passed",
+          "s": "y"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "slug": "python-libraries",
+      "name": "Library script, scored",
+      "status": "wait",
+      "size": "S",
+      "does": "Scores the 22-line pandas/numpy/matplotlib script dictated in Omar's own words, and fixes what rules can.",
+      "see": "A data script dictated in one press runs.",
+      "proof": "Replay of the second run: 20 of 22 lines as meant (the 2 misses are real words: buy/by, hi/high). A fresh third dictation should reach 20 of 22.",
+      "needs": [
+        {
+          "label": "Omar's third dictation of the script",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "First run scored and fixed",
+          "s": "y"
+        },
+        {
+          "t": "Second run scored and fixed",
+          "s": "y"
+        },
+        {
+          "t": "Third run, fresh",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "slug": "pseudocode",
+      "name": "Cambridge pseudocode",
+      "status": "now",
+      "size": "M",
+      "does": "The same engine for IGCSE 0478 / A Level 9618 pseudocode: DECLARE, ←, IF … THEN … ENDIF, CASE OF, FOR … NEXT, OUTPUT/INPUT, uppercase keywords.",
+      "see": "\"case of mark\" types CASE OF Mark with the right indentation and ENDCASE.",
+      "proof": "25+ exact-output tests, then one Trace Table pseudocode question passing from a single dictation.",
+      "needs": [
+        {
+          "label": "C1 Python engine",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Grammar and tests (agent building)",
+          "s": "n"
+        },
+        {
+          "t": "Choose language in Settings",
+          "s": "n"
+        },
+        {
+          "t": "Live Trace Table question",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "C5",
+      "slug": "sql",
+      "name": "SQL",
+      "status": "now",
+      "size": "M",
+      "does": "SQL by voice: uppercase keywords, snake_case names, quoted strings, a closing semicolon.",
+      "see": "\"select star from students where age greater than 16\" types SELECT * FROM students WHERE age > 16;",
+      "proof": "20+ exact-output tests, then a live query in Trace Table's SQL track.",
+      "needs": [
+        {
+          "label": "C1 Python engine",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Grammar and tests (agent building)",
+          "s": "n"
+        },
+        {
+          "t": "Live query",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "C6",
+      "slug": "typescript",
+      "name": "TypeScript",
+      "status": "now",
+      "size": "M",
+      "does": "TypeScript by voice: camelCase names, const/let, ===, arrow functions, braces and semicolons.",
+      "see": "\"const user name equals quote Omar\" types const userName = \"Omar\";",
+      "proof": "20+ exact-output tests, then a live file in VS Code.",
+      "needs": [
+        {
+          "label": "C1 Python engine",
+          "met": true
+        }
+      ],
+      "items": [
+        {
+          "t": "Grammar and tests (agent building)",
+          "s": "n"
+        },
+        {
+          "t": "Live file",
+          "s": "n"
+        }
+      ]
+    },
+    {
+      "id": "C7",
+      "slug": "describe-code",
+      "name": "Describe it, get the code",
+      "status": "wait",
+      "size": "L",
+      "does": "\"write a function that…\" on the rewrite key, using the on-device model.",
+      "see": "A described function appears.",
+      "proof": "Only if a spike beats decision 01's numbers for code.",
+      "needs": [
+        {
+          "label": "A spike that beats decision 01",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Spike",
+          "s": "n"
+        }
+      ]
+    }
+  ],
+  "alongside": []
+}
