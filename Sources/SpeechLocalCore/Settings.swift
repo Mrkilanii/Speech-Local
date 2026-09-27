@@ -46,6 +46,8 @@ public struct Settings: Codable, Sendable, Equatable {
     public var fullRewriteKey: HotkeyChoice
     /// Dictates Python instead of prose.
     public var codeKey: HotkeyChoice
+    /// What the code key writes.
+    public var codeLanguage: CodeLanguage
     public var commaPolicy: CommaChoice
     /// Spoken form (lowercased) → written form.
     public var aliases: [String: String]
@@ -78,6 +80,7 @@ public struct Settings: Codable, Sendable, Equatable {
         lightTouchKey: .rightOption,
         fullRewriteKey: .rightCommand,
         codeKey: .rightControl,
+        codeLanguage: .python,
         commaPolicy: .sparse,
         aliases: [:],
         launchAtLogin: false,
@@ -96,6 +99,7 @@ public struct Settings: Codable, Sendable, Equatable {
         lightTouchKey: HotkeyChoice,
         fullRewriteKey: HotkeyChoice,
         codeKey: HotkeyChoice,
+        codeLanguage: CodeLanguage = .python,
         commaPolicy: CommaChoice,
         aliases: [String: String],
         launchAtLogin: Bool,
@@ -112,6 +116,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.lightTouchKey = lightTouchKey
         self.fullRewriteKey = fullRewriteKey
         self.codeKey = codeKey
+        self.codeLanguage = codeLanguage
         self.commaPolicy = commaPolicy
         self.aliases = aliases
         self.launchAtLogin = launchAtLogin
@@ -137,6 +142,8 @@ public struct Settings: Codable, Sendable, Equatable {
             HotkeyChoice.self, forKey: .fullRewriteKey) ?? fallback.fullRewriteKey
         codeKey = try container.decodeIfPresent(
             HotkeyChoice.self, forKey: .codeKey) ?? fallback.codeKey
+        codeLanguage = try container.decodeIfPresent(
+            CodeLanguage.self, forKey: .codeLanguage) ?? fallback.codeLanguage
         commaPolicy = try container.decodeIfPresent(
             CommaChoice.self, forKey: .commaPolicy) ?? fallback.commaPolicy
         aliases = try container.decodeIfPresent(

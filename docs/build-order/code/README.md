@@ -8,7 +8,7 @@ Say code the way you would say it to a person, and get code that runs — no tra
 |---|---|---|---|---|
 | C1 | [Python by voice](00-python.md) | Done | 4/4 | done |
 | C3 | [Library script, scored](01-python-libraries.md) | Waiting | 2/3 | S |
-| C4 | [Cambridge pseudocode](02-pseudocode.md) | Building now | 0/3 | M |
+| C4 | [Cambridge pseudocode](02-pseudocode.md) | Building now | 2/4 | M |
 | C5 | [SQL](03-sql.md) | Building now | 0/2 | M |
 | C6 | [TypeScript](04-typescript.md) | Building now | 0/2 | M |
 | C7 | [Describe it, get the code](05-describe-code.md) | Waiting | 0/1 | L |

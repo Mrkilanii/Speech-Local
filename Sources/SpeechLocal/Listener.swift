@@ -33,7 +33,8 @@ final class Listener: @unchecked Sendable {
             llm: AppleCleanupEngine(),
             rules: RulesCleanup(
                 commaPolicy: settingsStore.current.commaPolicy == .sparse ? .sparse : .tidy,
-                language: Language(localeIdentifier: settingsStore.current.locale))
+                language: Language(localeIdentifier: settingsStore.current.locale)),
+            codeLanguage: settingsStore.current.codeLanguage
         )
     }
     private var vocabulary: Vocabulary { settingsStore.current.vocabulary }
@@ -82,6 +83,11 @@ final class Listener: @unchecked Sendable {
                     self.status?.report(restored ? "Clipboard restored" : "Nothing to restore")
                 }
             }
+        }
+        status?.showCodeLanguage(settingsStore.current.codeLanguage)
+        status?.onCodeLanguage = { [weak self] language in
+            self?.settingsStore.update { $0.codeLanguage = language }
+            log("code key now writes \(language.displayName)")
         }
         status?.onPasteLast = { [weak self] in
             guard let self, let text = self.lastInserted else { return }
@@ -527,7 +533,8 @@ final class Listener: @unchecked Sendable {
         do {
             let method = mode == .code
                 ? try await inserter.insert(
-                    PythonDictation.block(PythonDictation.lines(of: raw), caretLine: preceding),
+                    settingsStore.current.codeLanguage.block(
+                        settingsStore.current.codeLanguage.lines(of: raw), caretLine: preceding),
                     multiline: true)
                 : try await inserter.insert(cleaned)
             // Editing a line of code afterwards is programming, not

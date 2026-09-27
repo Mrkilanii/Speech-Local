@@ -48,6 +48,8 @@ final class StatusItem {
     var onNotes: (() -> Void)?
     var onRestoreClipboard: (() -> Void)?
     var onPasteLast: (() -> Void)?
+    var onCodeLanguage: ((CodeLanguage) -> Void)?
+    private var languageItems: [CodeLanguage: NSMenuItem] = [:]
     private var correctItem: NSMenuItem!
     private var meetingItem: NSMenuItem!
     private var notesItem: NSMenuItem!
@@ -73,6 +75,21 @@ final class StatusItem {
             title: "Restore previous clipboard", action: #selector(restorePressed), keyEquivalent: "")
         restore.target = self
         menu.addItem(restore)
+
+        // The code key's language, one click away: Trace Table switches
+        // between its Python and Pseudocode tabs mid-session.
+        let codeMenu = NSMenu()
+        for language in CodeLanguage.allCases {
+            let entry = NSMenuItem(
+                title: language.displayName, action: #selector(languagePressed(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = language.rawValue
+            codeMenu.addItem(entry)
+            languageItems[language] = entry
+        }
+        let codeItem = NSMenuItem(title: "Code key writes", action: nil, keyEquivalent: "")
+        codeItem.submenu = codeMenu
+        menu.addItem(codeItem)
 
         menu.addItem(NSMenuItem.separator())
         meetingItem = NSMenuItem(
@@ -163,6 +180,18 @@ final class StatusItem {
     @objc private func pasteLastPressed() { onPasteLast?() }
 
     @objc private func restorePressed() { onRestoreClipboard?() }
+
+    @objc private func languagePressed(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let language = CodeLanguage(rawValue: raw) else { return }
+        onCodeLanguage?(language)
+        showCodeLanguage(language)
+    }
+
+    /// Ticks the language the code key currently writes.
+    func showCodeLanguage(_ language: CodeLanguage) {
+        for (each, item) in languageItems { item.state = each == language ? .on : .off }
+    }
 
     @objc private func correctPressed() {
         onCorrect?()

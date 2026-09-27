@@ -75,25 +75,34 @@
       "size": "M",
       "does": "The same engine for IGCSE 0478 / A Level 9618 pseudocode: DECLARE, ←, IF … THEN … ENDIF, CASE OF, FOR … NEXT, OUTPUT/INPUT, uppercase keywords.",
       "see": "\"case of mark\" types CASE OF Mark with the right indentation and ENDCASE.",
-      "proof": "25+ exact-output tests, then one Trace Table pseudocode question passing from a single dictation.",
+      "proof": "A Trace Table pseudocode question passes from a single dictation. 491 tests pass; **not yet dictated live.**",
       "needs": [
         {
           "label": "C1 Python engine",
           "met": true
+        },
+        {
+          "label": "Omar dictates one pseudocode question",
+          "met": false
         }
       ],
       "items": [
         {
-          "t": "Grammar and tests (agent building)",
-          "s": "n"
+          "t": "Grammar and tests (26 tests, ~150 phrasings)",
+          "s": "y"
         },
         {
-          "t": "Choose language in Settings",
-          "s": "n"
+          "t": "Code key writes: Python / Pseudocode (Settings and menu bar)",
+          "s": "y"
         },
         {
           "t": "Live Trace Table question",
           "s": "n"
+        },
+        {
+          "t": "Splitting lines on full stops",
+          "s": "hold",
+          "d": "too unreliable; say \"next line\""
         }
       ]
     },

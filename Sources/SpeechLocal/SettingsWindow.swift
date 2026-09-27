@@ -266,11 +266,19 @@ private struct SettingsView: View {
                         Text($0.displayName).tag($0)
                     }
                 }
-                Picker("Code (Python)", selection: Binding(
+                Picker("Code", selection: Binding(
                     get: { model.settings.codeKey },
                     set: { model.setCodeKey($0) }
                 )) {
                     ForEach(HotkeyChoice.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
+                }
+                Picker("Code key writes", selection: Binding(
+                    get: { model.settings.codeLanguage },
+                    set: { language in model.apply { $0.codeLanguage = language } }
+                )) {
+                    ForEach(CodeLanguage.allCases, id: \.self) {
                         Text($0.displayName).tag($0)
                     }
                 }

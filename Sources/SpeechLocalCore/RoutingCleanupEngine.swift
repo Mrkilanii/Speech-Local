@@ -9,10 +9,13 @@ import Foundation
 public struct RoutingCleanupEngine: CleanupEngine {
     private let rules: RulesCleanup
     private let llm: any CleanupEngine
+    private let codeLanguage: CodeLanguage
 
-    public init(llm: any CleanupEngine, rules: RulesCleanup = RulesCleanup()) {
+    public init(llm: any CleanupEngine, rules: RulesCleanup = RulesCleanup(),
+                codeLanguage: CodeLanguage = .python) {
         self.llm = llm
         self.rules = rules
+        self.codeLanguage = codeLanguage
     }
 
     /// Light-touch always works, so the app is never fully unavailable. Only
@@ -41,7 +44,7 @@ public struct RoutingCleanupEngine: CleanupEngine {
         case .code:
             // No vocabulary aliases: they are written for prose, and "what is"
             // rewritten inside an identifier breaks the program.
-            let code = PythonDictation.apply(to: transcript)
+            let code = codeLanguage.apply(to: transcript)
             return AsyncThrowingStream { continuation in
                 continuation.yield(code)
                 continuation.finish()
