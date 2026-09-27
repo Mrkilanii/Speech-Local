@@ -2,6 +2,24 @@
 
 Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 
+## 2026-09-27 (late night) — autonomous run while Omar slept
+
+- **Live results from Omar's first dictations on the new build:** clipboard
+  restored on evidence 3/3; streaming final +323 to +603 ms. Spoken correction
+  missed number words ("At two, actually three") — fixed (612c40d).
+- **M8 merged** (decision 13): tools/ingest-meetings.sh + launchd plist, **not
+  installed**. Omar: `claude` login, then `make install-ingest`.
+- **C7 rejected** (decision 14): 19/20 correct, median 12.8 s / 26.2 s /
+  11.6 s across three runs against a 6 s limit.
+- **Stage 9 (pause-split sentences) rejected for the model** (spikes/
+  pause-breaks): 19/44 agreement, 22 wrong merges. Two rules also ~50%.
+  Next idea: pause length from segment timings — needs instrumentation and
+  Omar's real dictations.
+- **Code mishearings measured** for pseudocode/SQL/TypeScript (decision 10
+  addendum): 11/12, 9/12, 8/12 after CodeConfusions.
+- Meeting-session tests made load-proof (20 s waits, loud timeouts).
+- Settings window no longer reverts a menu change.
+
 ## 2026-09-27 (night) — M8: meetings reach the wiki (built, not installed)
 
 **Built on a worktree branch, not merged, not installed, and never run

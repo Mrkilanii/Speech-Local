@@ -132,3 +132,10 @@ on an idle M1 with the load average recorded. Declare beforehand that the reject
 threshold stays at 6 s. Even if it passes idle, the app will sometimes run on
 a loaded machine, and the build would need a visible "writing…" state and the
 fallback of inserting nothing, as was planned.
+
+## Run 3 — 27 Sep 23:28, load average 25–27 (lower, still not idle)
+
+Same prompt, same 20 tasks, output unchanged. Median **11.6 s** (7.3–19.1),
+warm-up 15.6 s. The fastest single reply (7.3 s) is above the 6 s reject line,
+so the rejection stands at this load. Whether an idle M1 reaches 6 s is still
+not measured; a VPN process was holding a full core throughout.
