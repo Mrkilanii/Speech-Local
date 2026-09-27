@@ -401,8 +401,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <span class="head">
       <span class="shead"><span class="sname">Describe it, get the code</span>
         <span class="pill wait">Waiting</span>
-        <span class="count">0 / 1 substages · L</span></span>
-      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A spike that beats decision 01</span></span>
+        <span class="count">1 / 2 substages · L</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A spike that beats decision 01</span><span class="dep">Latency re-measured on an idle M1 (decision 14)</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
   </summary>
@@ -412,7 +412,7 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
       <div class="block"><h4>What you see</h4><p>A described function appears.</p></div>
       <div class="block"><h4>How we know it works</h4><p>Only if a spike beats decision 01&#x27;s numbers for code.</p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">C7a</span><span>Spike</span></li></ul></div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">C7a</span><span>Spike: 19/20 correct, deterministic, but median 12.8 s / 26.2 s under heavy load, so rejected (decision 14)</span></li><li class="n"><span class="sid">C7b</span><span>Idle-machine latency rerun, same prompt and tasks</span></li></ul></div>
     
   </div>
 </details></div>

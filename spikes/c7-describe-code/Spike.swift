@@ -1,7 +1,7 @@
 // C7 spike: spoken description -> Python, on Apple's on-device model.
 //
 // Build and run (from this directory):
-//   swiftc -O Spike.swift -o /tmp/c7spike && /tmp/c7spike tasks.json results/run1.json
+//   swiftc -O -parse-as-library Spike.swift -o /tmp/c7spike && /tmp/c7spike tasks.json results/run1.json
 //
 // Mirrors how the app calls the model: a fresh LanguageModelSession per call,
 // greedy sampling, one throwaway warm-up generation before the first real one.
@@ -59,16 +59,16 @@ struct Spike {
             let input = "<description>\n\(task.spoken)\n</description>"
             let start = Date()
             var reply: String?
-            var error: String?
+            var failure: String?
             do {
                 let session = LanguageModelSession(instructions: instructions)
                 reply = try await session.respond(to: input, options: options).content
             } catch {
-                error = "\(error)"
+                failure = "\(error)"
             }
             let seconds = Date().timeIntervalSince(start)
-            results.append(Result(id: task.id, spoken: task.spoken, reply: reply, error: error, seconds: seconds))
-            print(String(format: "%-14@ %6.2f s %@", task.id, seconds, error == nil ? "" : "ERROR"))
+            results.append(Result(id: task.id, spoken: task.spoken, reply: reply, error: failure, seconds: seconds))
+            print(String(format: "%-14@ %6.2f s %@", task.id, seconds, failure == nil ? "" : "ERROR"))
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

@@ -2,6 +2,20 @@
 
 Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 
+## 2026-09-27 (late) — C7 "describe it, get the code": spike rejected
+
+Branch `worktree-agent-ac3ee14ce22c32c5b`, not merged. Decision 14.
+- Spike declared and committed before the first model call (5f732de): 20
+  spoken GCSE-style descriptions, hidden tests, one prompt, reject rules.
+- On-device model: **19/20 correct in both runs, replies byte-identical, no
+  prose** (every reply fenced despite being told not to fence).
+- **Median latency 12.8 s and 26.2 s**, above the declared 6 s reject line, so
+  C7 is rejected and nothing was built. The machine was under load average
+  38–190 from parallel sessions; idle latency was **not measured**.
+- **Open:** a fair rerun is possible because the output is deterministic
+  (the rerun can only move latency): same prompt and tasks on an idle M1
+  (C7b in the Build Order). Omar decides whether that is worth doing.
+
 ## 2026-09-27 (evening) — parallel stages landed
 
 - **Streaming ASR merged** (33a2e37); **W6 Electron accessibility** (c0d2311).

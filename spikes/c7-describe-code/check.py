@@ -84,15 +84,15 @@ def split_fence(reply):
 def score(path):
     rows = []
     for r in json.load(open(path)):
-        row = {"id": r["id"], "seconds": r["seconds"], "reply": r["reply"],
+        row = {"id": r["id"], "seconds": r["seconds"], "reply": r.get("reply"),
                "fence": False, "prose": False, "empty": False, "refusal": False,
                "ok": False, "reason": ""}
-        if r["error"]:
+        if r.get("error"):
             row["refusal"] = True
-            row["reason"] = "model error: " + r["error"][:120]
+            row["reason"] = "model error: " + r.get("error")[:120]
             rows.append(row)
             continue
-        if not (r["reply"] or "").strip():
+        if not (r.get("reply") or "").strip():
             row["empty"] = True
             row["reason"] = "empty reply"
             rows.append(row)

@@ -197,11 +197,19 @@
         {
           "label": "A spike that beats decision 01",
           "met": false
+        },
+        {
+          "label": "Latency re-measured on an idle M1 (decision 14)",
+          "met": false
         }
       ],
       "items": [
         {
-          "t": "Spike",
+          "t": "Spike: 19/20 correct, deterministic, but median 12.8 s / 26.2 s under heavy load, so rejected (decision 14)",
+          "s": "y"
+        },
+        {
+          "t": "Idle-machine latency rerun, same prompt and tasks",
           "s": "n"
         }
       ]
