@@ -66,7 +66,7 @@ alongside the others, because it costs recording time, not build time.
 |---|---|---|
 | M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | A two-sided call labelled correctly |
 | M8 | Close the vault loop: a filed meeting triggers or queues `ingest` | A meeting reaches `wiki/` without a manual step |
-| D1 | Dictation on the streaming ASR path (built on branch `worktree-agent-a4d85ada8883ffaa1`, unmerged, untested) | Release-to-text p95 ≤ 700 ms for dictations under 30 s |
+| D1 | **Dictation streams while the key is held** (merged 27 Sep). `--realtime` probe: final text 37–54 ms after release for short phrases, 150–600 ms for 23–46 s clips under load 22 (was a median 2.7 s past 60 s). Buffered path kept as the fallback | Live: release-to-text p95 ≤ 700 ms for dictations under 30 s, from `STREAM final` log lines |
 
 ### Open problems (no stage yet)
 

@@ -24,10 +24,11 @@ Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 (proved with pbpaste). Omar has not dictated on this build yet. The
 `docs/verification.md` clipboard check is the acceptance test.
 
-**In flight:** streaming ASR during the hold (latency grows with length: p50
-275 ms under 5 s, 2.7 s over 60 s). Built by an agent, **not merged, not
-tested**: branch `worktree-agent-a4d85ada8883ffaa1`, commit `1d17bb6`. It
-rewrites the same Listener paths; rebase onto main first.
+**Streaming ASR merged (later on 27 Sep):** the recognizer is fed while the
+key is held; release only finalises. `SpeechLocalStdin --realtime` measures it
+without a microphone: 37–54 ms after release for short phrases, 150–600 ms for
+23–46 s clips under load. Falls back to the buffered path on error or empty.
+Live figure: `STREAM final +N ms after release` in doctor.log.
 
 **Omar's decisions:** build Wispr parity now, in parallel, not overnight (27 Sep).
 

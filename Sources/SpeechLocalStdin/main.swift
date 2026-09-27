@@ -32,6 +32,11 @@ struct Options {
     var sampleRate: Double = 16_000
     var locale: String = "en-US"
     var bias: [String] = []
+    /// Feed the clip the way the app does while the key is held: 0.5 s of
+    /// silence, then 1 s chunks at speaking pace, then 0.5 s of silence, and
+    /// report how long the final text takes after the last chunk. Measures the
+    /// one thing streaming dictation depends on (stage D1).
+    var realtime = false
 }
 
 func parse(_ arguments: [String]) -> Options {
@@ -55,6 +60,9 @@ func parse(_ arguments: [String]) -> Options {
                 }.filter { !$0.isEmpty }
             }
             index += 2
+        case "--realtime":
+            options.realtime = true
+            index += 1
         default:
             index += 1
         }
@@ -109,6 +117,40 @@ case .available:
 case .unavailable(let reason):
     FileHandle.standardError.write(Data("unavailable: \(reason)\n".utf8))
     exit(2)
+}
+
+if options.realtime {
+    let rate = options.sampleRate
+    let silence = [Float](repeating: 0, count: Int(rate * 0.5))
+    let (stream, feed) = AsyncStream<AudioChunk>.makeStream()
+    let result = Task { () throws -> String in
+        var text = ""
+        for try await partial in engine.transcribe(
+            audio: stream, locale: options.locale, biasTerms: options.bias) { text = partial }
+        return text
+    }
+    feed.yield(AudioChunk(samples: silence, sampleRate: rate))
+    var offset = 0
+    let step = Int(rate)
+    while offset < audio.count {
+        let end = min(offset + step, audio.count)
+        try? await Task.sleep(for: .seconds(Double(end - offset) / rate))
+        feed.yield(AudioChunk(samples: Array(audio[offset..<end]), sampleRate: rate))
+        offset = end
+    }
+    feed.yield(AudioChunk(samples: silence, sampleRate: rate))
+    let released = Date()
+    feed.finish()
+    do {
+        let text = try await result.value
+        let ms = Date().timeIntervalSince(released) * 1000
+        FileHandle.standardError.write(Data(String(format: "final +%.0f ms\n", ms).utf8))
+        print(text)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("transcribe failed: \(error)\n".utf8))
+        exit(1)
+    }
 }
 
 do {

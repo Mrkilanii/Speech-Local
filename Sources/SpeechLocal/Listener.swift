@@ -16,6 +16,12 @@ final class Listener: @unchecked Sendable {
     /// leaving the audio there means the producer laps the consumer and silently
     /// eats the beginning. Observed at 32.77 s against a 32.768 s ring.
     private var sessionSamples: [CleanupMode: [Float]] = [:]
+    /// The recognizer for each dictation in progress, fed by the same drain as
+    /// `sessionSamples`. Transcribing only after release made the wait grow
+    /// with the length of the dictation — a median 275 ms under 5 s, 2.7 s
+    /// past a minute, over 2,852 logged dictations. Listening while the key is
+    /// held leaves only finalisation for the release.
+    private var streams: [CleanupMode: LiveStream] = [:]
     private var drainTimer: Timer?
     private let lock = NSLock()
     private var status: StatusItem?
@@ -211,6 +217,8 @@ final class Listener: @unchecked Sendable {
                 // small measured rewind, not the old guess.
                 cursors[mode] = capture.buffer.writeCursor
                 sessionSamples[mode] = []
+                streams.removeValue(forKey: mode)?.feed.finish()   // never expected; never leaked
+                streams[mode] = openStream(bias: prepareBias())
                 Task { @MainActor in self.startDraining() }
                 log("[\(label(mode))] begin (\(kind))")
                 Task { @MainActor in
@@ -223,6 +231,12 @@ final class Listener: @unchecked Sendable {
                 lock.lock(); defer { lock.unlock() }
                 cursors[mode] = capture.buffer.writeCursor
                 sessionSamples[mode] = []
+                // The recognizer has heard the first tap, so it is replaced, not
+                // reused. The bias is kept: it was computed for this same press,
+                // and computing it again would harvest the last edit twice.
+                let old = streams.removeValue(forKey: mode)
+                old?.feed.finish()
+                streams[mode] = openStream(bias: old?.bias ?? prepareBias())
                 log("[\(label(mode))] double-tap detected — discarded, now hands-free")
                 Task { @MainActor in self.status?.report("Hands-free — tap to stop") }
 
@@ -231,8 +245,9 @@ final class Listener: @unchecked Sendable {
                 // key a beat early cut the last syllable, and a one-word
                 // dictation cut that way came back empty (2 of 15 in the
                 // trimmed-clip test, 27 Sep). 150 ms is not noticeable.
+                let released = Date()
                 DispatchQueue.global().asyncAfter(deadline: .now() + 0.15) { [self] in
-                    self.finish(mode: mode, kind: kind, capture: capture)
+                    self.finish(mode: mode, kind: kind, capture: capture, released: released)
                 }
 
             case .none:
@@ -241,7 +256,8 @@ final class Listener: @unchecked Sendable {
         }
     }
 
-    private func finish(mode: CleanupMode, kind: HotkeyGesture.Mode, capture: AudioCapture) {
+    private func finish(mode: CleanupMode, kind: HotkeyGesture.Mode, capture: AudioCapture,
+                        released: Date) {
         // Refused before any recognition: nothing said at a password
         // prompt should reach the recognizer, the log or history.
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -250,6 +266,7 @@ final class Listener: @unchecked Sendable {
             lock.lock()
             cursors.removeValue(forKey: mode)
             sessionSamples.removeValue(forKey: mode)
+            streams.removeValue(forKey: mode)?.feed.finish()   // text never read
             lock.unlock()
             Task { @MainActor in self.stopDrainingIfIdle() }
             log("[\(label(mode))] REFUSED \(reason) — audio discarded, not transcribed")
@@ -272,7 +289,12 @@ final class Listener: @unchecked Sendable {
         lock.lock()
         cursors.removeValue(forKey: mode)
         let samples = sessionSamples.removeValue(forKey: mode) ?? []
+        let live = streams.removeValue(forKey: mode)
         lock.unlock()
+        if let live {
+            live.feed.yield(silence())   // the trailing half of the padding
+            live.feed.finish()           // end of input: the recognizer finalises
+        }
         Task { @MainActor in self.stopDrainingIfIdle() }
         let seconds = Double(samples.count) / capture.buffer.sampleRate
         let rms = rootMeanSquare(samples)
@@ -291,156 +313,259 @@ final class Listener: @unchecked Sendable {
             self.status?.report(summary)
             self.panel?.show(.processing)
         }
-        Task { await self.transcribe(samples: samples, mode: mode) }
+        Task {
+            if let live {
+                await self.finishLive(live, samples: samples, mode: mode, released: released)
+            } else {
+                await self.transcribe(samples: samples, mode: mode)
+            }
+        }
     }
 
-    /// M3: audio -> transcript -> cleaned text. Insertion arrives in M4, so the
-    /// result is logged and shown in the menu rather than typed anywhere yet.
-    private func transcribe(samples: [Float], mode: CleanupMode) async {
-        guard let rate = capture?.buffer.sampleRate else { return }
-        // Half a second of silence either side. A one-word line — "else",
-        // "try" — came back EMPTY without it (decision 10), and so do short
-        // prose dictations: 7–10% of 1–4 s dictations since 15 Sep returned
-        // nothing, 110 of 184 empties with real signal. On trimmed clips the
-        // padding recovered 15 of 15 against 14 of 15.
-        let pad = [Float](repeating: 0, count: Int(rate * 0.5))
-        let samples = pad + samples + pad
-        let t0 = Date()
-        do {
-            // Before biasing, so a fix made since the last dictation counts
-            // towards this one.
-            if settingsStore.current.learnFromEdits { await harvestEdit() }
-            let bias = await learned.biasTerms()
-            let heard = try await asr.transcribe(
-                samples: samples, sampleRate: rate, locale: settingsStore.current.locale, biasTerms: bias)
-            // Repair only fires where a learned correction's context recurs.
-            let raw = await learned.repair(heard)
-            if raw != heard { log("  LEARNED  \"\(heard)\" -> \"\(raw)\"") }
-            let asrMs = Date().timeIntervalSince(t0) * 1000
+    /// The recognizer for one dictation, listening while the key is held.
+    private struct LiveStream {
+        let feed: AsyncStream<AudioChunk>.Continuation
+        /// Learned terms, computed once at the press. The recognizer is built
+        /// with them, so they cannot wait until release.
+        let bias: Task<[String], Never>
+        /// The finalised transcript, once the feed is finished.
+        let text: Task<String, Error>
+    }
 
-            guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                log("  ASR returned nothing (silence, or speech too quiet)")
+    /// Harvests the last edit and reads the learned terms, off the hotkey
+    /// queue. Before biasing, so a fix made since the last dictation counts
+    /// towards this one.
+    private func prepareBias() -> Task<[String], Never> {
+        let learnFromEdits = settingsStore.current.learnFromEdits
+        return Task {
+            if learnFromEdits { await self.harvestEdit() }
+            return await self.learned.biasTerms()
+        }
+    }
+
+    /// Starts a recognizer on an empty feed, opened with half a second of
+    /// silence (see `silence()`). Audio buffers in the stream until the bias is
+    /// ready, so nothing said in the meantime is lost.
+    ///
+    /// A discarded stream is closed with `feed.finish()` and left to wind down,
+    /// never cancelled: cancelling makes the engine throw out of its feed loop
+    /// without finishing the analyzer's input, and what that does afterwards
+    /// has not been measured.
+    private func openStream(bias: Task<[String], Never>) -> LiveStream {
+        let (audio, feed) = AsyncStream<AudioChunk>.makeStream()
+        feed.yield(silence())
+        let locale = settingsStore.current.locale
+        let asr = self.asr
+        let text = Task { () throws -> String in
+            let terms = await bias.value
+            var text = ""
+            // Each element is the whole transcript so far; the last is final.
+            for try await partial in asr.transcribe(audio: audio, locale: locale, biasTerms: terms) {
+                text = partial
+            }
+            return text
+        }
+        return LiveStream(feed: feed, bias: bias, text: text)
+    }
+
+    /// Half a second of silence, fed before and after every dictation. A
+    /// one-word line — "else", "try" — came back EMPTY without it (decision
+    /// 10), and so do short prose dictations: 7–10% of 1–4 s dictations since
+    /// 15 Sep returned nothing, 110 of 184 empties with real signal. On trimmed
+    /// clips the padding recovered 15 of 15 against 14 of 15.
+    private func silence() -> AudioChunk {
+        let rate = capture?.buffer.sampleRate ?? 16_000
+        return AudioChunk(samples: [Float](repeating: 0, count: Int(rate * 0.5)), sampleRate: rate)
+    }
+
+    /// The whole clip at once, after the fact. Undo uses it, and so does a
+    /// dictation whose live recognizer failed or heard nothing.
+    private func transcribeBuffered(samples: [Float], bias: [String]) async throws -> String {
+        let rate = capture?.buffer.sampleRate ?? 16_000
+        let pad = silence().samples
+        return try await asr.transcribe(
+            samples: pad + samples + pad, sampleRate: rate,
+            locale: settingsStore.current.locale, biasTerms: bias)
+    }
+
+    /// Release of a live dictation: wait for the recognizer to finalise, then
+    /// carry on exactly as the buffered path does.
+    private func finishLive(_ live: LiveStream, samples: [Float], mode: CleanupMode,
+                            released: Date) async {
+        let bias = await live.bias.value
+        var heard = ""
+        do {
+            heard = try await live.text.value
+            log(String(format: "  STREAM final +%.0f ms after release",
+                       Date().timeIntervalSince(released) * 1000))
+        } catch {
+            log("  STREAM FAILED (\(error)) — transcribing the recorded audio instead")
+        }
+        // Empty is retried too: it is what a lost final segment would look
+        // like, and on a genuinely silent press the retry is short. Logged, so
+        // the log shows whether it ever rescues anything.
+        if heard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !samples.isEmpty {
+            do {
+                heard = try await transcribeBuffered(samples: samples, bias: bias)
+                log("  STREAM fallback — buffered path heard "
+                    + (heard.isEmpty ? "nothing either" : "\"\(heard)\""))
+            } catch {
+                await reportASRFailure(error)
+                return
+            }
+        }
+        await deliver(heard: heard, bias: bias, mode: mode, since: released)
+    }
+
+    private func reportASRFailure(_ error: Error) async {
+        log("  ASR FAILED: \(error)")
+        await MainActor.run {
+            self.status?.apply(.error("transcription failed"))
+            self.status?.report("ASR failed: \(error)")
+            self.panel?.show(.failed("Transcription failed"))
+        }
+    }
+
+    /// Audio already recorded, transcribed in one go: Undo after a cancel.
+    private func transcribe(samples: [Float], mode: CleanupMode) async {
+        guard capture != nil else { return }
+        let t0 = Date()
+        // Before biasing, so a fix made since the last dictation counts
+        // towards this one.
+        if settingsStore.current.learnFromEdits { await harvestEdit() }
+        let bias = await learned.biasTerms()
+        do {
+            let heard = try await transcribeBuffered(samples: samples, bias: bias)
+            await deliver(heard: heard, bias: bias, mode: mode, since: t0)
+        } catch {
+            await reportASRFailure(error)
+        }
+    }
+
+    /// Everything after recognition: learned repair, corrections, cleanup,
+    /// insertion, history. `t0` is where the logged ASR time starts — the
+    /// release, for a live dictation, so the figure is the wait the user has.
+    private func deliver(heard: String, bias: [String], mode: CleanupMode, since t0: Date) async {
+        // Repair only fires where a learned correction's context recurs.
+        let raw = await learned.repair(heard)
+        if raw != heard { log("  LEARNED  \"\(heard)\" -> \"\(raw)\"") }
+        let asrMs = Date().timeIntervalSince(t0) * 1000
+
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            log("  ASR returned nothing (silence, or speech too quiet)")
+            await MainActor.run {
+                self.status?.apply(.idle)
+                self.status?.report("No speech detected")
+                self.panel?.show(.failed("No speech detected"))
+            }
+            return
+        }
+        log(String(format: "  ASR   %5.0f ms  \"%@\"%@", asrMs, raw,
+                   bias.isEmpty ? "" : "  (biased toward \(bias.count) learned term(s))"))
+        lastRaw = raw
+        await MainActor.run { self.status?.allowCorrection(true) }
+
+        // Spoken corrections, before cleanup (decision 11). Never in code:
+        // "no" and "actually" can be names there.
+        var spoken = raw
+        if mode != .code, settingsStore.current.backtrack,
+           Language(localeIdentifier: settingsStore.current.locale) == .english {
+            spoken = Backtrack.apply(raw)
+            if spoken != raw { log("  BACKTRACK \"\(spoken)\"") }
+            if spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                log("  everything was scratched — nothing to insert")
                 await MainActor.run {
                     self.status?.apply(.idle)
-                    self.status?.report("No speech detected")
-                    self.panel?.show(.failed("No speech detected"))
+                    self.panel?.show(.failed("Scratched"))
                 }
                 return
             }
-            log(String(format: "  ASR   %5.0f ms  \"%@\"%@", asrMs, raw,
-                       bias.isEmpty ? "" : "  (biased toward \(bias.count) learned term(s))"))
-            lastRaw = raw
-            await MainActor.run { self.status?.allowCorrection(true) }
+        }
 
-            // Spoken corrections, before cleanup (decision 11). Never in code:
-            // "no" and "actually" can be names there.
-            var spoken = raw
-            if mode != .code, settingsStore.current.backtrack,
-               Language(localeIdentifier: settingsStore.current.locale) == .english {
-                spoken = Backtrack.apply(raw)
-                if spoken != raw { log("  BACKTRACK \"\(spoken)\"") }
-                if spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    log("  everything was scratched — nothing to insert")
-                    await MainActor.run {
-                        self.status?.apply(.idle)
-                        self.panel?.show(.failed("Scratched"))
-                    }
-                    return
-                }
-            }
+        let t1 = Date()
+        var cleaned = spoken
+        do {
+            for try await partial in cleanup.stream(
+                transcript: spoken, mode: mode, vocabulary: vocabulary
+            ) { cleaned = partial }
+        } catch {
+            // Degrade loudly, never lose text.
+            log("  CLEANUP FAILED (\(error)) — falling back to raw transcript")
+            cleaned = spoken
+        }
+        let cleanMs = Date().timeIntervalSince(t1) * 1000
+        let totalMs = Date().timeIntervalSince(t0) * 1000
 
-            let t1 = Date()
-            var cleaned = spoken
-            do {
-                for try await partial in cleanup.stream(
-                    transcript: spoken, mode: mode, vocabulary: vocabulary
-                ) { cleaned = partial }
-            } catch {
-                // Degrade loudly, never lose text.
-                log("  CLEANUP FAILED (\(error)) — falling back to raw transcript")
-                cleaned = spoken
-            }
-            let cleanMs = Date().timeIntervalSince(t1) * 1000
-            let totalMs = Date().timeIntervalSince(t0) * 1000
+        log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
+        log(String(format: "  TOTAL %5.0f ms", totalMs))
 
-            log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
-            log(String(format: "  TOTAL %5.0f ms", totalMs))
-
-            // M4: put the text where the user is actually typing.
-            log("  FOCUS \(await inserter.describeFocus())")
-            // The caret is often mid-sentence, where cleanup's opening capital
-            // is wrong. The target's own text is the only thing that knows.
-            let preceding = await inserter.textBeforeCaret()
-            // Code has no sentences to open.
-            let opened = mode == .code
-                ? cleaned : SentenceOpening.adjust(cleaned, following: preceding, raw: spoken)
-            if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
-            cleaned = opened
-            let frontApp = NSWorkspace.shared.frontmostApplication
-            if mode != .code {
-                cleaned = ChatPunctuation.apply(cleaned, bundleID: frontApp?.bundleIdentifier)
-            }
-            // History records what was actually typed, after every rule, so
-            // "Paste last transcript" and the History tab match the screen.
-            // Written only once the guard has had its say.
-            let record = { [self] (text: String) async in
-                guard self.settingsStore.current.keepHistory else { return }
-                await self.history.record(TranscriptEntry(
-                    raw: heard, cleaned: text, mode: mode, appName: frontApp?.localizedName))
-            }
-            do {
-                let method = mode == .code
-                    ? try await inserter.insert(
-                        PythonDictation.block(PythonDictation.lines(of: raw), caretLine: preceding),
-                        multiline: true)
-                    : try await inserter.insert(cleaned)
-                // Editing a line of code afterwards is programming, not
-                // correcting a mishearing — nothing there to learn from.
-                if mode == .code { await inserter.forgetInsertion() }
-                log("  INSERT via \(method.rawValue)")
-                lastInserted = cleaned
-                await record(cleaned)
-                await MainActor.run {
-                    self.status?.apply(.idle)
-                    self.status?.report(String(cleaned.prefix(60)))
-                    self.panel?.flashInserted()
-                }
-            } catch {
-                // Nowhere to type it: show the text in the pill with a copy
-                // button rather than discarding it.
-                if case TextInserter.InsertError.refused(let reason) = error {
-                    // Typed at a password prompt or under secure input: not
-                    // inserted, not kept. Secure input (Terminal's Secure
-                    // Keyboard Entry) still offers the text to copy.
-                    log("  REFUSED \(reason) — not inserted, not kept")
-                    await MainActor.run {
-                        self.status?.apply(.idle)
-                        if reason == .secureInput {
-                            self.panel?.show(.result(cleaned))
-                        } else {
-                            self.panel?.show(.failed("Not dictating into a password prompt"))
-                        }
-                    }
-                    return
-                }
-                await record(cleaned)
-                if case TextInserter.InsertError.noTextInput = error {
-                    log("  no text field focused — offering the text to copy")
-                } else {
-                    log("  INSERT FAILED (\(error)) — offering the text to copy")
-                }
-                await MainActor.run {
-                    self.status?.apply(.idle)
-                    self.status?.report(String(cleaned.prefix(60)))
-                    self.panel?.show(.result(cleaned))
-                }
+        // M4: put the text where the user is actually typing.
+        log("  FOCUS \(await inserter.describeFocus())")
+        // The caret is often mid-sentence, where cleanup's opening capital
+        // is wrong. The target's own text is the only thing that knows.
+        let preceding = await inserter.textBeforeCaret()
+        // Code has no sentences to open.
+        let opened = mode == .code
+            ? cleaned : SentenceOpening.adjust(cleaned, following: preceding, raw: spoken)
+        if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
+        cleaned = opened
+        let frontApp = NSWorkspace.shared.frontmostApplication
+        if mode != .code {
+            cleaned = ChatPunctuation.apply(cleaned, bundleID: frontApp?.bundleIdentifier)
+        }
+        // History records what was actually typed, after every rule, so
+        // "Paste last transcript" and the History tab match the screen.
+        // Written only once the guard has had its say.
+        let record = { [self] (text: String) async in
+            guard self.settingsStore.current.keepHistory else { return }
+            await self.history.record(TranscriptEntry(
+                raw: heard, cleaned: text, mode: mode, appName: frontApp?.localizedName))
+        }
+        do {
+            let method = mode == .code
+                ? try await inserter.insert(
+                    PythonDictation.block(PythonDictation.lines(of: raw), caretLine: preceding),
+                    multiline: true)
+                : try await inserter.insert(cleaned)
+            // Editing a line of code afterwards is programming, not
+            // correcting a mishearing — nothing there to learn from.
+            if mode == .code { await inserter.forgetInsertion() }
+            log("  INSERT via \(method.rawValue)")
+            lastInserted = cleaned
+            await record(cleaned)
+            await MainActor.run {
+                self.status?.apply(.idle)
+                self.status?.report(String(cleaned.prefix(60)))
+                self.panel?.flashInserted()
             }
         } catch {
-            log("  ASR FAILED: \(error)")
+            // Nowhere to type it: show the text in the pill with a copy
+            // button rather than discarding it.
+            if case TextInserter.InsertError.refused(let reason) = error {
+                // Typed at a password prompt or under secure input: not
+                // inserted, not kept. Secure input (Terminal's Secure
+                // Keyboard Entry) still offers the text to copy.
+                log("  REFUSED \(reason) — not inserted, not kept")
+                await MainActor.run {
+                    self.status?.apply(.idle)
+                    if reason == .secureInput {
+                        self.panel?.show(.result(cleaned))
+                    } else {
+                        self.panel?.show(.failed("Not dictating into a password prompt"))
+                    }
+                }
+                return
+            }
+            await record(cleaned)
+            if case TextInserter.InsertError.noTextInput = error {
+                log("  no text field focused — offering the text to copy")
+            } else {
+                log("  INSERT FAILED (\(error)) — offering the text to copy")
+            }
             await MainActor.run {
-                self.status?.apply(.error("transcription failed"))
-                self.status?.report("ASR failed: \(error)")
-                self.panel?.show(.failed("Transcription failed"))
+                self.status?.apply(.idle)
+                self.status?.report(String(cleaned.prefix(60)))
+                self.panel?.show(.result(cleaned))
             }
         }
     }
@@ -524,9 +649,13 @@ final class Listener: @unchecked Sendable {
 
     private func drain() {
         guard let capture else { return }
-        lock.lock()
+        // Held for the whole pass, reads included. The timer drains on the
+        // main thread and a release drains on another queue; two passes
+        // reading from the same cursor would hand the recognizer the same
+        // second twice, or out of order. The ring read is lock-free, so this
+        // never waits on the audio thread.
+        lock.lock(); defer { lock.unlock() }
         let pending = cursors
-        lock.unlock()
 
         for (mode, cursor) in pending {
             if capture.buffer.hasOverrun(cursor: cursor) {
@@ -534,10 +663,9 @@ final class Listener: @unchecked Sendable {
             }
             let (samples, next) = capture.buffer.read(from: cursor)
             guard !samples.isEmpty else { continue }
-            lock.lock()
             sessionSamples[mode, default: []].append(contentsOf: samples)
             cursors[mode] = next
-            lock.unlock()
+            streams[mode]?.feed.yield(AudioChunk(samples: samples, sampleRate: capture.buffer.sampleRate))
         }
     }
 
@@ -551,6 +679,7 @@ final class Listener: @unchecked Sendable {
             self.lock.lock()
             self.cursors.removeValue(forKey: mode)
             self.sessionSamples.removeValue(forKey: mode)
+            self.streams.removeValue(forKey: mode)?.feed.finish()   // text never read
             self.lock.unlock()
             Task { @MainActor in self.stopDrainingIfIdle() }
             log("[\(self.label(mode))] abandoned — \(reason)")
@@ -572,6 +701,9 @@ final class Listener: @unchecked Sendable {
             self.lock.lock()
             let started = self.cursors.removeValue(forKey: mode)
             let accumulated = self.sessionSamples.removeValue(forKey: mode)
+            // Undo transcribes the kept samples with the buffered path, so the
+            // live recognizer's text is never needed.
+            self.streams.removeValue(forKey: mode)?.feed.finish()
             self.lock.unlock()
             Task { @MainActor in self.stopDrainingIfIdle() }
             if started != nil, let accumulated, !accumulated.isEmpty {
