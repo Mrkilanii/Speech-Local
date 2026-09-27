@@ -250,7 +250,7 @@
       "proof": "Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).",
       "needs": [
         {
-          "label": "A spike: the on-device model deciding only the ambiguous breaks, under 1 s",
+          "label": "A signal better than a coin toss (pause length, untested)",
           "met": false
         }
       ],
@@ -266,9 +266,20 @@
           "d": "~50% right on 25 cases"
         },
         {
-          "t": "Model spike on ambiguous breaks only",
-          "s": "n"
+          "t": "On-device model deciding the break",
+          "s": "hold",
+          "d": "rejected: 19/44 agree, 22 wrong merges, ~8 s each"
+        },
+        {
+          "t": "Pause length from the recognizer's segment times",
+          "s": "n",
+          "d": "next idea: measurable from audio"
         }
+      ],
+      "declaration": "Declared 27 Sep before the model run (spikes/pause-breaks/DECLARATION.md): 44 labelled fragments from doctor.log; predict ≥36/44 agreement and ≤3 wrong merges; reject below 33/44 or above 5 wrong merges.",
+      "result": "Rejected: 19/44 agreement, 22 wrong merges, median 8.2 s (machine loaded). The model calls almost every pause mid-sentence.",
+      "docs": [
+        "spikes/pause-breaks/DECLARATION.md"
       ]
     },
     {

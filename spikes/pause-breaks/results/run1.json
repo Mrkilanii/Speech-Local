@@ -1,0 +1,266 @@
+[
+  {
+    "id" : 0,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 5.283792972564697
+  },
+  {
+    "id" : 1,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 7.847245931625366
+  },
+  {
+    "id" : 2,
+    "label" : "keep",
+    "reply" : "SEPARATE",
+    "seconds" : 5.403624057769775
+  },
+  {
+    "id" : 3,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 9.116284966468811
+  },
+  {
+    "id" : 4,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 9.589601993560791
+  },
+  {
+    "id" : 8,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 4.834632992744446
+  },
+  {
+    "id" : 9,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.112681031227112
+  },
+  {
+    "id" : 10,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.197180032730103
+  },
+  {
+    "id" : 11,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 7.700271010398865
+  },
+  {
+    "id" : 14,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.630845069885254
+  },
+  {
+    "id" : 15,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 4.7147029638290405
+  },
+  {
+    "id" : 17,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 5.695405006408691
+  },
+  {
+    "id" : 18,
+    "label" : "keep",
+    "reply" : "SEPARATE",
+    "seconds" : 9.610757946968079
+  },
+  {
+    "id" : 19,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.306169033050537
+  },
+  {
+    "id" : 20,
+    "label" : "keep",
+    "reply" : "SEPARATE",
+    "seconds" : 8.132959961891174
+  },
+  {
+    "id" : 22,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 5.114735960960388
+  },
+  {
+    "id" : 23,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.076048970222473
+  },
+  {
+    "id" : 25,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 4.49916398525238
+  },
+  {
+    "id" : 29,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.817949056625366
+  },
+  {
+    "id" : 32,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.231132984161377
+  },
+  {
+    "id" : 33,
+    "label" : "keep",
+    "reply" : "SEPARATE",
+    "seconds" : 8.49363899230957
+  },
+  {
+    "id" : 34,
+    "label" : "merge",
+    "reply" : "SEPARATE",
+    "seconds" : 9.437945008277893
+  },
+  {
+    "id" : 35,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 5.509384989738464
+  },
+  {
+    "id" : 36,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 9.362470030784607
+  },
+  {
+    "id" : 37,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 5.1776169538497925
+  },
+  {
+    "id" : 39,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.43008291721344
+  },
+  {
+    "id" : 42,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.240901947021484
+  },
+  {
+    "id" : 43,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.62878406047821
+  },
+  {
+    "id" : 44,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 9.469658970832825
+  },
+  {
+    "id" : 45,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.723883986473083
+  },
+  {
+    "id" : 46,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 9.078410029411316
+  },
+  {
+    "id" : 49,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.487879037857056
+  },
+  {
+    "id" : 51,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.404069066047668
+  },
+  {
+    "id" : 52,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 4.614842891693115
+  },
+  {
+    "id" : 54,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 8.270801067352295
+  },
+  {
+    "id" : 55,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 4.987460970878601
+  },
+  {
+    "id" : 59,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.26355493068695
+  },
+  {
+    "id" : 60,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 4.522003889083862
+  },
+  {
+    "id" : 61,
+    "label" : "merge",
+    "reply" : "SEPARATE",
+    "seconds" : 9.293200016021729
+  },
+  {
+    "id" : 63,
+    "label" : "merge",
+    "reply" : "SEPARATE",
+    "seconds" : 8.000838994979858
+  },
+  {
+    "id" : 64,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 8.125025987625122
+  },
+  {
+    "id" : 65,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 4.447036027908325
+  },
+  {
+    "id" : 66,
+    "label" : "keep",
+    "reply" : "CONTINUES",
+    "seconds" : 7.444846987724304
+  },
+  {
+    "id" : 68,
+    "label" : "merge",
+    "reply" : "CONTINUES",
+    "seconds" : 7.524058103561401
+  }
+]

@@ -246,8 +246,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <span class="head">
       <span class="shead"><span class="sname">No full stop where you only paused</span>
         <span class="pill wait">Waiting</span>
-        <span class="count">0 / 3 substages · M</span></span>
-      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A spike: the on-device model deciding only the ambiguous breaks, under 1 s</span></span>
+        <span class="count">0 / 4 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A signal better than a coin toss (pause length, untested)</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
   </summary>
@@ -257,8 +257,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
       <div class="block"><h4>What you see</h4><p>A pause mid-sentence leaves no full stop and no capital.</p></div>
       <div class="block"><h4>How we know it works</h4><p>Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).</p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="hold"><span class="sid">9a</span><span>Rule: merge short fragments <em>~50% right on 69 logged cases</em></span></li><li class="hold"><span class="sid">9b</span><span>Rule: merge after a dangling word <em>~50% right on 25 cases</em></span></li><li class="n"><span class="sid">9c</span><span>Model spike on ambiguous breaks only</span></li></ul></div>
-    
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="hold"><span class="sid">9a</span><span>Rule: merge short fragments <em>~50% right on 69 logged cases</em></span></li><li class="hold"><span class="sid">9b</span><span>Rule: merge after a dangling word <em>~50% right on 25 cases</em></span></li><li class="hold"><span class="sid">9c</span><span>On-device model deciding the break <em>rejected: 19/44 agree, 22 wrong merges, ~8 s each</em></span></li><li class="n"><span class="sid">9d</span><span>Pause length from the recognizer&#x27;s segment times <em>next idea: measurable from audio</em></span></li></ul></div>
+    <div class="block"><h4>Declared before code</h4><p>Declared 27 Sep before the model run (spikes/pause-breaks/DECLARATION.md): 44 labelled fragments from doctor.log; predict ≥36/44 agreement and ≤3 wrong merges; reject below 33/44 or above 5 wrong merges.</p></div><div class="block"><h4>Result</h4><p>Rejected: 19/44 agreement, 22 wrong merges, median 8.2 s (machine loaded). The model calls almost every pause mid-sentence.</p></div><div class="block"><h4>Records</h4><p><code>spikes/pause-breaks/DECLARATION.md</code></p></div>
   </div>
 </details>
 <details class="stage next" id="stage-7" open>

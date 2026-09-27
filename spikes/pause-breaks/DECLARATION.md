@@ -21,3 +21,25 @@ latency at most 1.0 s per case.
 merges, OR median latency above 2 s on a machine with load average under 20.
 If latency cannot be measured on a quiet machine, the latency verdict is
 recorded as not measured, and the stage stays waiting.
+
+## Result — run 1, 27 Sep 23:21–23:27 (load average 81 → 17 during the run)
+
+| | Predicted | Reject if | Actual |
+|---|---|---|---|
+| Agreement with labels | ≥ 36/44 | < 33/44 | **19/44** (43%) |
+| Wrong merges | ≤ 3 | > 5 | **22** |
+| Missed merges | — | — | 3 |
+| Median latency | ≤ 1.0 s | > 2 s at load < 20 | **8.2 s** (load above 20 — not a clean measure) |
+
+**Rejected** on agreement and on wrong merges; either alone fires. The model
+answered CONTINUES on 36 of 44 — it treats almost every pause as mid-sentence,
+which is the "merge everything" rule (41%) with an eight-second wait. Latency
+was not measured cleanly, and does not need to be: the accuracy fails first.
+The prompt is not being tuned against these labels.
+
+**What this leaves:** pause-split sentences stay unfixed. The remaining paths
+are a better model than the on-device one (not available offline on this
+Mac), or a signal the recognizer has and the transcript does not — the pause
+length itself. SpeechAnalyzer reports each segment's time range; a full stop
+after a pause under ~300 ms is more likely mid-sentence. That is measurable
+from audio and is the next thing worth trying.
