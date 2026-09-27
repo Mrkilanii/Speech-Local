@@ -73,6 +73,13 @@ command line of the shell running it, so it kills itself mid-script. Use
 later commands there — including `git status`, which will then report on the
 wrong repository.
 
+**launchd does not expand `~` or `$HOME` in a plist.** That is why
+`make install-ingest` renders `tools/dev.kilanii.speechlocal.ingest.plist` with
+sed instead of copying it. launchd's PATH is also bare
+(`/usr/bin:/bin:/usr/sbin:/sbin`), so `claude` in `/opt/homebrew/bin` is found
+only because the plist sets PATH. And `/bin/bash` is 3.2, so the ingest script
+avoids `mapfile`, associative arrays and `${var,,}`.
+
 ## Tests
 
 **Fixed sleeps race the drain.** `MeetingSession` pumps once a second; a test

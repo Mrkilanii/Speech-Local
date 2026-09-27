@@ -114,3 +114,67 @@ so the microphone does not also hear the other side.
 Memory with two recognizers: `--probe-meeting 300` during a call. Pass is the
 same as before, under +60 MB/hour.
 
+
+## Meetings reach the wiki (decision 13)
+
+The script's live path is covered without Claude or the real vault:
+
+```bash
+tools/test-ingest-meetings.sh    # 31 cases, throwaway vault, fake claude
+```
+
+It covers the lock, a stale lock, the dirty-vault refusal, the no-since
+refusal, oldest-first with max 1, the empty-meeting skip, the "named in
+wiki/log.md" skip, and a timeout. It also covers a session that reports
+failure, one that claims OK without doing the work, one that crashes, and
+one that changes `raw/`. None of the failures is recorded as ingested.
+
+**Switching it on.** First `claude` once in a terminal, to log in; the login
+expired on 27 September. Then, from the main checkout:
+
+```bash
+tools/ingest-meetings.sh --dry-run --since 2026-09-01   # see what it would take
+make install-ingest
+launchctl kickstart gui/$(id -u)/dev.kilanii.speechlocal.ingest   # don't wait 30 min
+tail -f ~/Library/Logs/SpeechLocal/ingest.log
+```
+
+**Dry run: pass.** It lists the meetings as `done` / `empty` / `THIS RUN` /
+`later`. The six meetings ingested by hand in August show as `done (named in
+wiki/source-summaries/)`. It says `vault: clean` and prints a prompt naming
+exactly one `raw/meetings/` file. It writes nothing:
+`~/Library/Logs/SpeechLocal/ingest.log` does not change.
+
+**The first live ingest: pass criteria.** Record a short meeting, or use
+the first one filed after install, and let one run happen:
+
+1. The log shows `START`, `RUN raw/meetings/<file>`, then `OK <file> …
+   cost_usd=… turns=…`, and no `FAIL` or `WARN`. Note the cost; it is
+   the per-meeting price.
+2. `git -C ~/Documents/second-brain log -1 --stat` is one commit. It
+   touches only `wiki/`: a new `wiki/source-summaries/<Title> <date>.md`,
+   `wiki/index.md`, `wiki/log.md`, and any canonical page it updated.
+   Nothing under `raw/`.
+3. The summary page has the exact frontmatter from
+   `_system/page-conventions.md`: `type: source-summary`, `area:` set,
+   `sources:` naming the raw file. It says what the recording actually was,
+   and it labels inferences as inferences. Read it against the transcript: it
+   invents nothing.
+4. `git -C ~/Documents/second-brain status -sb` shows the vault is not ahead
+   of origin, so the push worked.
+5. `~/Library/Application Support/SpeechLocal/ingested.txt` gains that one
+   line. A second `kickstart` logs `DONE nothing to ingest`, or takes the
+   next meeting. It never repeats that meeting.
+6. Make any uncommitted change in the vault (edit a note before Obsidian Git
+   commits it), then `kickstart`. The log shows
+   `REFUSE vault has uncommitted changes`, and nothing is written.
+
+**Likely first failures, in the order they would appear.**
+`FAIL macOS privacy denied access`: launchd's `/bin/bash` needs access to
+`~/Documents`. If a prompt appears, allow it: that grants the Documents
+folder only. If no prompt appears, the manual route is Full Disk Access for
+`/bin/bash` (System Settings → Privacy & Security). That lets every bash
+script read the whole disk, so it is a real trade-off. Neither route has
+been tried yet. `claude exited 1` with an auth message: log in
+again. `WARN … not pushed`: the agent has no ssh key; the commit is safe, so
+push by hand.

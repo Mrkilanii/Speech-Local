@@ -136,22 +136,40 @@
       "id": "M8",
       "slug": "vault-loop",
       "name": "Meeting reaches the wiki",
-      "status": "next",
+      "status": "now",
       "size": "M",
-      "does": "A filed meeting is queued for the vault's ingest, so it reaches wiki/ without a manual step.",
-      "see": "A meeting page in the wiki after the meeting.",
-      "proof": "One meeting reaches wiki/ with no manual step.",
+      "does": "A background job (not the app, which stays offline) hands each newly filed meeting to a Claude session that ingests it into wiki/ by the vault's own rules.",
+      "see": "Within about 30 minutes of a meeting, a source-summary page in the wiki and one commit naming it. Nothing under raw/ changes.",
+      "proof": "One meeting reaches wiki/ with no manual step, and it passes the checks in verification.md under \"Meetings reach the wiki\".",
       "needs": [
         {
           "label": "M2 The note",
           "met": true
+        },
+        {
+          "label": "Omar logs in to the claude CLI and runs make install-ingest",
+          "met": false
         }
       ],
       "items": [
         {
           "t": "Design within raw/ immutability",
-          "s": "n"
+          "s": "y",
+          "d": "decision 13"
+        },
+        {
+          "t": "Ingest script, launchd agent, make install-ingest",
+          "s": "y",
+          "d": "31 cases pass against a fake vault; dry run against the real vault"
+        },
+        {
+          "t": "First live ingest",
+          "s": "n",
+          "d": "not run: the CLI login is expired, and a run spends quota"
         }
+      ],
+      "docs": [
+        "docs/decisions/13_meetings_reach_the_wiki_through_a_claude_session.md"
       ]
     }
   ],

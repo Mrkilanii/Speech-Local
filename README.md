@@ -207,6 +207,38 @@ source material: your notes and the transcript, never the generated summary —
 vault that is not there is never created. Configure it under
 **Settings → General**.
 
+**Getting it into the wiki without a manual step (optional, uses the
+network).** The app never does this, because it would break the promise that
+nothing leaves the Mac. A separate background job does it instead:
+
+```bash
+make install-ingest      # from the main checkout, not a worktree
+```
+
+Every 30 minutes, `tools/ingest-meetings.sh` looks in `raw/meetings/` for a
+meeting that has not been ingested yet. It takes one per run, oldest first,
+and only meetings filed from the install day on. That one meeting goes to a
+`claude -p` session in the vault, which ingests it by the vault's own rules:
+a page in `wiki/source-summaries/`, knowledge merged into canonical pages
+only where warranted, an entry in `wiki/index.md` and `wiki/log.md`, then one
+commit and a push. It can only write in `wiki/`. It refuses to run while the
+vault has uncommitted changes, so it never mixes into your edits. A meeting
+counts as ingested only once the vault shows the summary, the log entry and
+the commit.
+
+What this needs and costs: the network, a logged-in `claude` CLI, and your
+Claude usage for every meeting. Check what it would do, without running
+anything:
+
+```bash
+tools/ingest-meetings.sh --dry-run
+```
+
+Everything it does is logged to `~/Library/Logs/SpeechLocal/ingest.log`.
+`make uninstall-ingest` turns it off. To ingest the meetings from before the
+install, run `tools/ingest-meetings.sh --since all --max 5` by hand. The
+reasoning is in `docs/decisions/13_meetings_reach_the_wiki_through_a_claude_session.md`.
+
 Recorded meetings are kept under `~/Library/Application Support/SpeechLocal/`,
 one file each, readable only by you. A meeting holds everything said in a room,
 so it gets the same promise transcript history gets: **Settings → General →
@@ -479,7 +511,9 @@ Nothing leaves your machine at runtime. Transcription and cleanup both run
 on-device through Apple frameworks with no server path. Learned corrections and
 history live under `~/Library/Application Support/SpeechLocal/` and are never
 transmitted. No analytics, no account, no update check. The only network access
-is downloading a language you explicitly asked for.
+is downloading a language you explicitly asked for. The optional wiki ingest
+(`make install-ingest`) is a separate background job, not the app. It sends a
+meeting's transcript to Claude, and it runs only if you install it.
 
 The app refuses to type into password fields, identified by accessibility
 subrole.
