@@ -47,6 +47,7 @@ public enum PseudocodeDictation {
     /// One spoken line can also become several: "else if" is ELSE and a nested
     /// IF, and a body said after THEN, DO or REPEAT starts a line of its own.
     public static func lines(of transcript: String) -> [Line] {
+        let transcript = CodeConfusions.apply(transcript, for: .pseudocode)
         let tokens = PythonDictation.tidyGlue(
             Token.split(transcript).flatMap(splitHyphen)
                 .filter { !PythonDictation.fillers.contains(Token.word($0)) })

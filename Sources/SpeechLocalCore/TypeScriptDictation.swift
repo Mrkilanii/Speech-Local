@@ -35,6 +35,7 @@ public enum TypeScriptDictation {
     /// The dictation as lines, split where the speaker said "next line" and
     /// around every closed block.
     public static func lines(of transcript: String) -> [Line] {
+        let transcript = CodeConfusions.apply(transcript, for: .typescript)
         let tokens = PythonDictation.tidyGlue(
             Token.split(transcript).filter { !PythonDictation.fillers.contains(Token.word($0)) }
         ).flatMap(PythonDictation.unglueQuote)

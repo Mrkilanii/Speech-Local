@@ -92,6 +92,11 @@
           "s": "y"
         },
         {
+          "t": "Recognizer spike with a synthetic voice",
+          "s": "y",
+          "d": "lines exactly right 8/12 → 11/12 after the mishearing table"
+        },
+        {
           "t": "Code key writes: Python / Pseudocode (Settings and menu bar)",
           "s": "y"
         },
@@ -131,6 +136,11 @@
           "s": "y"
         },
         {
+          "t": "Recognizer spike with a synthetic voice",
+          "s": "y",
+          "d": "lines exactly right 7/12 → 9/12 after the mishearing table"
+        },
+        {
           "t": "On the code key, Cambridge names for Trace Table",
           "s": "y"
         },
@@ -168,6 +178,11 @@
         {
           "t": "Grammar and tests (16 tests, 71 checks)",
           "s": "y"
+        },
+        {
+          "t": "Recognizer spike with a synthetic voice",
+          "s": "y",
+          "d": "lines exactly right 7/12 → 8/12 after the mishearing table"
         },
         {
           "t": "On the code key",

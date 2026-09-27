@@ -185,3 +185,22 @@ Replayed through the rules, the verbatim second run gives 22 lines of which 20
 are what was meant; the other two are "buy" for "by" and "hi" for "high" —
 real words, left alone. `theC3ScriptSecondRun` holds it. **This is a replay of
 his recorded words, not a fresh dictation.**
+
+## Addendum 2026-09-27 — pseudocode, SQL and TypeScript, measured
+
+36 `say`-voiced lines (12 per language) through `SpeechLocalStdin --realtime`
+— the app's streaming path, padding included — then through each language's
+rules. Lines exactly right, before and after `CodeConfusions`:
+
+| Language | Before | After | Left over (real words, not fixable) |
+|---|---|---|---|
+| Pseudocode | 8/12 | 11/12 | "agreed" for "greet" |
+| SQL | 7/12 | 9/12 | "staff" for "star", "formide", "are" for "a", plurals |
+| TypeScript | 7/12 | 8/12 | "use the name", "ad", "and arrow", "dodgson" |
+
+Fixed by position-limited tables: "next time" → NEXT and "Tendo" → "ten do"
+(pseudocode; "next time" had been a line break and lost the NEXT); "a string"
+→ "as string" only straight after a name; "commer" → comma (all); "wear" →
+WHERE, "in a join" → INNER JOIN, a pause after AVG/COUNT/SUM (SQL); "Konst" /
+"Constant" at line start → const, "Clothes block", "a wage" → await
+(TypeScript). One voice, synthetic; Omar's own voice not yet measured.

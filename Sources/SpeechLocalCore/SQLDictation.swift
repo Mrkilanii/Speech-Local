@@ -54,6 +54,7 @@ public enum SQLDictation {
     /// The dictation as lines: one per clause, and one per column inside a
     /// `CREATE TABLE`.
     public static func lines(of transcript: String, naming: Naming = .snakeCase) -> [Line] {
+        let transcript = CodeConfusions.apply(transcript, for: .sql)
         let tokens = PythonDictation.tidyGlue(
             Token.split(transcript).filter { !PythonDictation.fillers.contains(Token.word($0)) }
         ).flatMap(PythonDictation.unglueQuote)
