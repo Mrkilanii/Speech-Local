@@ -12,3 +12,9 @@ import Foundation
     let data = Data(#"{"lightTouchKey":"fn"}"#.utf8)
     #expect(try JSONDecoder().decode(Settings.self, from: data).codeLanguage == .python)
 }
+
+@Test func sqlUsesTraceTableNaming() {
+    #expect(CodeLanguage.sql.apply(to: "select employee name from employee")
+            == SQLDictation.apply(to: "select employee name from employee", naming: .cambridge))
+    #expect(CodeLanguage.allCases.count == 4)
+}

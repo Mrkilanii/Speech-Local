@@ -2,6 +2,21 @@
 
 Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 
+## 2026-09-27 (evening) — parallel stages landed
+
+- **Streaming ASR merged** (33a2e37); **W6 Electron accessibility** (c0d2311).
+- **M7 speaker labels** merged: mic and system audio transcribed separately,
+  interleaved as You/Them (decision 12). Not run on a live call; echo on
+  laptop speakers is not handled — count duplicates on a speakers call.
+- **Code key writes Python / Pseudocode / SQL / TypeScript**, chosen in
+  Settings or the menu bar. SQL uses Cambridge naming (Trace Table's tables).
+  None of the three new languages has been dictated live.
+- **Build Order** replaces docs/build-order.md: JSON in docs/build-order/,
+  rendered by tools/render_build_order.py, published at
+  https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF. Republish after every reply.
+- Known small bug: an open Settings window keeps its own copy of settings, so
+  changing the code language from the menu and then editing Settings reverts it.
+
 ## 2026-09-27 — M7: meeting transcripts labelled "You" / "Them"
 
 **Built on branch `worktree-agent-ac6da6e32cf36c5cf`, not merged, not run

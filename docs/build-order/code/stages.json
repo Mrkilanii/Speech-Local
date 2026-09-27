@@ -114,21 +114,34 @@
       "size": "M",
       "does": "SQL by voice: uppercase keywords, snake_case names, quoted strings, a closing semicolon.",
       "see": "\"select star from students where age greater than 16\" types SELECT * FROM students WHERE age > 16;",
-      "proof": "20+ exact-output tests, then a live query in Trace Table's SQL track.",
+      "proof": "A query dictated into Trace Table's SQL track runs. 522 tests pass; **not yet dictated live.**",
       "needs": [
         {
           "label": "C1 Python engine",
           "met": true
+        },
+        {
+          "label": "Omar dictates one SQL query",
+          "met": false
         }
       ],
       "items": [
         {
-          "t": "Grammar and tests (agent building)",
+          "t": "Grammar and tests (14 tests, 45 checks)",
+          "s": "y"
+        },
+        {
+          "t": "On the code key, Cambridge names for Trace Table",
+          "s": "y"
+        },
+        {
+          "t": "Live query in Trace Table",
           "s": "n"
         },
         {
-          "t": "Live query",
-          "s": "n"
+          "t": "Recognizer mishearings of SQL words",
+          "s": "n",
+          "d": "never measured"
         }
       ]
     },
@@ -140,21 +153,34 @@
       "size": "M",
       "does": "TypeScript by voice: camelCase names, const/let, ===, arrow functions, braces and semicolons.",
       "see": "\"const user name equals quote Omar\" types const userName = \"Omar\";",
-      "proof": "20+ exact-output tests, then a live file in VS Code.",
+      "proof": "A TypeScript file dictated into VS Code compiles. 522 tests pass; **not yet dictated live.**",
       "needs": [
         {
           "label": "C1 Python engine",
           "met": true
+        },
+        {
+          "label": "Omar dictates one TypeScript file",
+          "met": false
         }
       ],
       "items": [
         {
-          "t": "Grammar and tests (agent building)",
+          "t": "Grammar and tests (16 tests, 71 checks)",
+          "s": "y"
+        },
+        {
+          "t": "On the code key",
+          "s": "y"
+        },
+        {
+          "t": "Live file in VS Code",
           "s": "n"
         },
         {
-          "t": "Live file",
-          "s": "n"
+          "t": "Ternary, template strings starting with /",
+          "s": "hold",
+          "d": "known gaps"
         }
       ]
     },
