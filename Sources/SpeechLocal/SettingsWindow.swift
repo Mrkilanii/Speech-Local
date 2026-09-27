@@ -160,14 +160,17 @@ final class SettingsModel: ObservableObject {
     }
 
     func apply(_ transform: (inout AppSettings) -> Void, hotkeysChanged: Bool = false) {
-        var next = settings
+        // From the store, not this window's copy: the menu bar changes
+        // settings too (the code language), and an edit here must not put
+        // back what the menu just changed.
+        var next = store.current
         transform(&next)
         settings = store.update { $0 = next }
         if hotkeysChanged { onHotkeysChanged?(settings) }
     }
 
     func setLightTouchKey(_ key: HotkeyChoice) {
-        var next = settings
+        var next = store.current
         next.lightTouchKey = key
         next = next.resolvingConflicts(changed: \.lightTouchKey)
         settings = store.update { $0 = next }
@@ -175,7 +178,7 @@ final class SettingsModel: ObservableObject {
     }
 
     func setFullRewriteKey(_ key: HotkeyChoice) {
-        var next = settings
+        var next = store.current
         next.fullRewriteKey = key
         next = next.resolvingConflicts(changed: \.fullRewriteKey)
         settings = store.update { $0 = next }
@@ -183,7 +186,7 @@ final class SettingsModel: ObservableObject {
     }
 
     func setCodeKey(_ key: HotkeyChoice) {
-        var next = settings
+        var next = store.current
         next.codeKey = key
         next = next.resolvingConflicts(changed: \.codeKey)
         settings = store.update { $0 = next }

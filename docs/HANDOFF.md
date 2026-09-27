@@ -60,8 +60,8 @@ Branch `worktree-agent-ac3ee14ce22c32c5b`, not merged. Decision 14.
 - **Build Order** replaces docs/build-order.md: JSON in docs/build-order/,
   rendered by tools/render_build_order.py, published at
   https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF. Republish after every reply.
-- Known small bug: an open Settings window keeps its own copy of settings, so
-  changing the code language from the menu and then editing Settings reverts it.
+- Fixed: an open Settings window kept its own copy of settings, so a code
+  language chosen from the menu was reverted by the next Settings edit.
 
 ## 2026-09-27 — M7: meeting transcripts labelled "You" / "Them"
 
