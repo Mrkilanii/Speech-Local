@@ -63,8 +63,13 @@ private func write(_ buffer: AudioRingBuffer, seconds: Double) {
 /// The session drains once a second; every fixed sleep near that boundary is a
 /// coin flip on a loaded machine, and three of these tests were failing about
 /// one run in three because of it.
+///
+/// 20 s, not 6: on 27 Sep, with other sessions' test runs holding the load
+/// average above 100, a drain took longer than 6 s and the next assertion
+/// failed for a reason that had nothing to do with it. A timeout now says so.
 private func until(
-    _ timeout: Duration = .seconds(6),
+    _ timeout: Duration = .seconds(20),
+    sourceLocation: SourceLocation = #_sourceLocation,
     _ condition: @Sendable () async -> Bool
 ) async throws {
     let deadline = ContinuousClock.now + timeout
@@ -72,6 +77,7 @@ private func until(
         if await condition() { return }
         try await Task.sleep(for: .milliseconds(50))
     }
+    Issue.record("condition not met within \(timeout)", sourceLocation: sourceLocation)
 }
 
 // MARK: - The loop
