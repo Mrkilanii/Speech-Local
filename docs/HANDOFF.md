@@ -2,6 +2,38 @@
 
 Read this first, then `AGENTS.md`. Newest state at the top; older entries stay.
 
+## 2026-09-27 (night) — M8: meetings reach the wiki (built, not installed)
+
+**Built on a worktree branch, not merged, not installed, and never run
+against Claude** (decision 13):
+- The app is unchanged and stays offline. `tools/ingest-meetings.sh` finds
+  `raw/meetings/` files that are not yet ingested, oldest first, one per run.
+  It runs `claude -p` in the vault with a prompt scoped to that one file and
+  the vault's own ingest rules. It records the file in
+  `~/Library/Application Support/SpeechLocal/ingested.txt` only after it has
+  checked the vault: a source-summary names the file, the log names it, a
+  commit exists, and nothing under `raw/` changed.
+- Writes are limited to `wiki/` by permission rule, in `dontAsk` mode. The
+  run refuses on a dirty vault, on a held lock, or with no since date.
+- The launchd agent is `tools/dev.kilanii.speechlocal.ingest.plist`, every
+  30 minutes. `make install-ingest` / `make uninstall-ingest` (refused
+  from a worktree).
+- `tools/test-ingest-meetings.sh`: 31 cases against a throwaway vault and a
+  fake `claude`, all pass. The dry run against the real vault picks
+  `2026-09-06-meeting-6-september-21-03.md` first under `--since 2026-09-01`.
+  It sees the six hand-ingested meetings as done, through their
+  source-summary `sources` (they are not named in `wiki/log.md`).
+
+**Not verified:** any real `claude` session. That includes the permission
+rules, launchd's access to `~/Documents` (TCC), and `git push` from launchd.
+shellcheck is not installed, so it was not run.
+
+**Omar's move:** log in with `claude`, merge, then from the main checkout run
+`make install-ingest` and `launchctl kickstart gui/$(id -u)/dev.kilanii.speechlocal.ingest`,
+and check it against verification.md, "Meetings reach the wiki". The backlog
+from before the install is four meetings: 31 Aug, 6 Sep ×2, 7 Sep.
+`--since all --max 5` takes it deliberately.
+
 ## 2026-09-27 (evening) — parallel stages landed
 
 - **Streaming ASR merged** (33a2e37); **W6 Electron accessibility** (c0d2311).

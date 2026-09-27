@@ -1,4 +1,4 @@
-.PHONY: all build test bundle sign doctor cert cert-help clean
+.PHONY: all build test bundle sign doctor cert cert-help clean install-ingest uninstall-ingest
 
 APP        := SpeechLocal
 BUNDLE_ID  := dev.kilanii.speechlocal
@@ -109,3 +109,39 @@ cert-help:
 
 clean:
 	rm -rf .build dist
+
+# --- Meetings reach the wiki (decision 13) ----------------------------------
+# A launchd agent runs tools/ingest-meetings.sh every 30 minutes. The app is not
+# involved and stays offline; the script hands each new raw/meetings/ file to a
+# `claude -p` session that ingests it by the vault's own rules.
+#
+# The plist is rendered, not copied verbatim: launchd expands neither `~` nor
+# $HOME, so __HOME__ and __REPO__ are filled in here. The agent runs the script
+# from THIS checkout, so install from the main checkout — a worktree is deleted
+# later and the agent would point at nothing.
+#
+# ingest-since is written once, with today's date: the first install ingests
+# meetings filed from today on, never the backlog. Reinstalling keeps the date.
+# To take the backlog, run the script by hand with --since all.
+INGEST_LABEL := dev.kilanii.speechlocal.ingest
+INGEST_PLIST := $(HOME)/Library/LaunchAgents/$(INGEST_LABEL).plist
+INGEST_STATE := $(HOME)/Library/Application Support/SpeechLocal
+
+install-ingest:
+	@case "$(CURDIR)" in */.claude/worktrees/*) \
+		echo "ERROR: run this from the main checkout, not a worktree ($(CURDIR))."; exit 1;; esac
+	@mkdir -p "$(HOME)/Library/LaunchAgents" "$(INGEST_STATE)" "$(HOME)/Library/Logs/SpeechLocal"
+	@test -f "$(INGEST_STATE)/ingest-since" || date +%Y-%m-%d > "$(INGEST_STATE)/ingest-since"
+	@sed -e 's|__REPO__|$(CURDIR)|g' -e 's|__HOME__|$(HOME)|g' \
+		tools/$(INGEST_LABEL).plist > "$(INGEST_PLIST)"
+	@plutil -lint "$(INGEST_PLIST)"
+	@launchctl bootout gui/$$(id -u)/$(INGEST_LABEL) 2>/dev/null || true
+	@launchctl bootstrap gui/$$(id -u) "$(INGEST_PLIST)"
+	@echo "installed $(INGEST_LABEL): every 30 min, meetings filed since $$(cat "$(INGEST_STATE)/ingest-since")"
+	@echo "log:     ~/Library/Logs/SpeechLocal/ingest.log"
+	@echo "run now: launchctl kickstart gui/$$(id -u)/$(INGEST_LABEL)"
+
+uninstall-ingest:
+	@launchctl bootout gui/$$(id -u)/$(INGEST_LABEL) 2>/dev/null || true
+	@rm -f "$(INGEST_PLIST)"
+	@echo "removed $(INGEST_LABEL). State kept: $(INGEST_STATE)/ingested.txt, ingest-since"

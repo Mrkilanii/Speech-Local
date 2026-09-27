@@ -441,8 +441,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
 </section>
 <section role="tabpanel" id="panel-meetings" aria-labelledby="tab-meetings" hidden>
   <p class="rule">Record both sides of a meeting on the Mac and get a note that says only what was said; the vault gets the source, never the summary.</p>
-  <div class="overall"><div class="obar"><span class="oseg d" style="width:40%"></span><span class="oseg n" style="width:20%"></span></div>
-    <div class="okey"><span><b>2</b> of 5 done</span><span><b>1</b> building now</span></div></div>
+  <div class="overall"><div class="obar"><span class="oseg d" style="width:40%"></span><span class="oseg n" style="width:40%"></span></div>
+    <div class="okey"><span><b>2</b> of 5 done</span><span><b>2</b> building now</span></div></div>
   <div class="tools"><button type="button" class="open-all">Open all</button><button type="button" class="close-all">Close all</button></div>
   <div class="stages">
 <details class="stage done" id="stage-M1">
@@ -529,25 +529,25 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <div class="block"><h4>Records</h4><p><code>docs/decisions/12_speakers_are_the_two_streams.md</code></p></div>
   </div>
 </details>
-<details class="stage next" id="stage-M8" open>
+<details class="stage now" id="stage-M8" open>
   <summary>
     <span class="letter">M8</span>
     <span class="head">
       <span class="shead"><span class="sname">Meeting reaches the wiki</span>
-        <span class="pill next">Next</span>
-        <span class="count">0 / 1 substages · M</span></span>
-      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M2 The note</span></span>
+        <span class="pill now">Building now</span>
+        <span class="count">2 / 3 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M2 The note</span><span class="dep">Omar logs in to the claude CLI and runs make install-ingest</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
   </summary>
   <div class="body">
-    <div class="block"><h4>What it does</h4><p>A filed meeting is queued for the vault&#x27;s ingest, so it reaches wiki/ without a manual step.</p></div>
+    <div class="block"><h4>What it does</h4><p>A background job (not the app, which stays offline) hands each newly filed meeting to a Claude session that ingests it into wiki/ by the vault&#x27;s own rules.</p></div>
     <div class="grid2">
-      <div class="block"><h4>What you see</h4><p>A meeting page in the wiki after the meeting.</p></div>
-      <div class="block"><h4>How we know it works</h4><p>One meeting reaches wiki/ with no manual step.</p></div>
+      <div class="block"><h4>What you see</h4><p>Within about 30 minutes of a meeting, a source-summary page in the wiki and one commit naming it. Nothing under raw/ changes.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>One meeting reaches wiki/ with no manual step, and it passes the checks in verification.md under &quot;Meetings reach the wiki&quot;.</p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">M8a</span><span>Design within raw/ immutability</span></li></ul></div>
-    
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">M8a</span><span>Design within raw/ immutability <em>decision 13</em></span></li><li class="y"><span class="sid">M8b</span><span>Ingest script, launchd agent, make install-ingest <em>31 cases pass against a fake vault; dry run against the real vault</em></span></li><li class="n"><span class="sid">M8c</span><span>First live ingest <em>not run: the CLI login is expired, and a run spends quota</em></span></li></ul></div>
+    <div class="block"><h4>Records</h4><p><code>docs/decisions/13_meetings_reach_the_wiki_through_a_claude_session.md</code></p></div>
   </div>
 </details></div>
   
