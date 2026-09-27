@@ -1,0 +1,22 @@
+[
+  {"id": "largest", "spoken": "write a function that returns the largest number in a list"},
+  {"id": "vowels", "spoken": "write a function that counts the number of vowels in a string"},
+  {"id": "prime", "spoken": "write a function that checks if a number is prime"},
+  {"id": "average", "spoken": "write a function that returns the average of a list of numbers"},
+  {"id": "reverse", "spoken": "write a function that reverses a string"},
+  {"id": "linear_search", "spoken": "write a function that does a linear search on a list for an item and returns the index of the item or minus 1 if it is not found"},
+  {"id": "bubble_sort", "spoken": "write a function that sorts a list of numbers using bubble sort"},
+  {"id": "fizzbuzz", "spoken": "write a function that prints fizzbuzz from 1 to n"},
+  {"id": "celsius", "spoken": "write a function that converts celsius to fahrenheit"},
+  {"id": "grade", "spoken": "write a function that takes a mark and returns the grade a for 70 or more b for 60 or more c for 50 or more otherwise u"},
+  {"id": "digit_sum", "spoken": "write a function that returns the sum of the digits of a number"},
+  {"id": "factorial", "spoken": "write a function that returns the factorial of a number"},
+  {"id": "palindrome", "spoken": "write a function that checks if a word is a palindrome"},
+  {"id": "count_words", "spoken": "write a function that counts the number of words in a sentence"},
+  {"id": "duplicates", "spoken": "write a function that finds the duplicates in a list"},
+  {"id": "binary_search", "spoken": "write a function that does a binary search on a sorted list for a target and returns the index of the target or minus 1 if it is not there"},
+  {"id": "times_table", "spoken": "write a function that prints the times table for a number from 1 to 12"},
+  {"id": "leap_year", "spoken": "write a function that checks if a year is a leap year"},
+  {"id": "password", "spoken": "write a function that checks if a password is at least 8 characters long and contains a digit"},
+  {"id": "mean_odd", "spoken": "write a function that returns the mean of the odd numbers in a list"}
+]
