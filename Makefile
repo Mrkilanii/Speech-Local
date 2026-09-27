@@ -22,11 +22,22 @@ build:
 TESTING_FW  := /Library/Developer/CommandLineTools/Library/Developer/Frameworks
 TESTING_LIB := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 
+# Only when the active toolchain IS Command Line Tools. With Xcode selected
+# (`xcode-select -p` under Xcode.app), Swift Testing ships with the compiler,
+# and pointing it at the CLT copy fails in the @Test macro expansion
+# ("module 'Testing' has no member named '__SourceBounds'") — seen 2026-09-27
+# after Xcode became the selected toolchain.
+DEVELOPER_DIR_ACTIVE := $(shell xcode-select -p)
+
 test:
+ifneq (,$(findstring CommandLineTools,$(DEVELOPER_DIR_ACTIVE)))
 	swift test \
 		-Xswiftc -F -Xswiftc "$(TESTING_FW)" \
 		-Xlinker -rpath -Xlinker "$(TESTING_FW)" \
 		-Xlinker -rpath -Xlinker "$(TESTING_LIB)"
+else
+	swift test
+endif
 
 # Assemble a real .app. A bare SPM binary crashes on NSStatusBar
 # (CGSConnectionByID assertion) — the bundle is mandatory, not cosmetic.

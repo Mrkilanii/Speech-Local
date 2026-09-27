@@ -46,6 +46,8 @@ final class StatusItem {
     var onSettings: (() -> Void)?
     var onMeeting: (() -> Void)?
     var onNotes: (() -> Void)?
+    var onRestoreClipboard: (() -> Void)?
+    var onPasteLast: (() -> Void)?
     private var correctItem: NSMenuItem!
     private var meetingItem: NSMenuItem!
     private var notesItem: NSMenuItem!
@@ -60,6 +62,17 @@ final class StatusItem {
             title: "Fix last dictation…", action: #selector(correctPressed), keyEquivalent: "")
         correctItem.isEnabled = false
         menu.addItem(correctItem)
+        // Wispr Flow's recovery pair. The clipboard one matters because a
+        // paste with no evidence it was read leaves the transcript on the
+        // clipboard rather than risk pasting the user's old copy.
+        let pasteLast = NSMenuItem(
+            title: "Paste last transcript", action: #selector(pasteLastPressed), keyEquivalent: "")
+        pasteLast.target = self
+        menu.addItem(pasteLast)
+        let restore = NSMenuItem(
+            title: "Restore previous clipboard", action: #selector(restorePressed), keyEquivalent: "")
+        restore.target = self
+        menu.addItem(restore)
 
         menu.addItem(NSMenuItem.separator())
         meetingItem = NSMenuItem(
@@ -146,6 +159,10 @@ final class StatusItem {
     @objc private func meetingPressed() { onMeeting?() }
 
     @objc private func notesPressed() { onNotes?() }
+
+    @objc private func pasteLastPressed() { onPasteLast?() }
+
+    @objc private func restorePressed() { onRestoreClipboard?() }
 
     @objc private func correctPressed() {
         onCorrect?()

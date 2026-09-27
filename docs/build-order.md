@@ -30,6 +30,7 @@ if this file and `git log` disagree, `git log` wins.
 | 13 | **Long meetings.** Pause, hierarchical fold, re-summarise, reading while recording, note length bounded in code | 31 Aug – 15 Sep | `6e3700d`…`df363f7` | Fold and fallback seen live; **reading while recording and `fitToBudget` are unit tests only** (decision 08) |
 | 14 | **Onset and updating.** Dictation starts at the press; README section on updating | 15 Sep | `2b03961`, `f1d38ea` | **Onset clipping not measured** (decision 09) |
 | 15 | **Python dictation.** Spike (recognizer output, bias, padding, custom LM); grammar; third hotkey; name table from 7 libraries | 15 Sep | this commit | 364 tests; spike table in decision 10. **Not yet dictated live by a person** |
+| 16 | **Wispr parity, first pass.** Clipboard restored only on evidence of a read; password-prompt guard; spoken corrections (decision 11); chat full stops; silence padding and a 150 ms release tail for short dictations; history records what was typed | 27 Sep | this commit | 435 tests; lazy clipboard proved with pbpaste. **Not yet dictated live** |
 
 ---
 
@@ -65,7 +66,7 @@ alongside the others, because it costs recording time, not build time.
 |---|---|---|
 | M7 | Speaker labels: mic versus system audio as "you" and "them" at minimum | A two-sided call labelled correctly |
 | M8 | Close the vault loop: a filed meeting triggers or queues `ingest` | A meeting reaches `wiki/` without a manual step |
-| D1 | Dictation on the streaming ASR path, removing the 5-minute cap | A 10-minute dictation with flat memory |
+| D1 | Dictation on the streaming ASR path (built on branch `worktree-agent-a4d85ada8883ffaa1`, unmerged, untested) | Release-to-text p95 ≤ 700 ms for dictations under 30 s |
 
 ### Open problems (no stage yet)
 

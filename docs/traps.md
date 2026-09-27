@@ -82,3 +82,10 @@ Wait on the condition — see `until` in `MeetingSessionTests`.
 **The suite crashes intermittently in teardown.** An objc "Hash table
 corrupted" abort after every test has already reported passing. Pre-existing,
 unrelated to any change; re-run before investigating.
+
+- **`make test` failed in the `@Test` macro ("module 'Testing' has no member
+  named '__SourceBounds'") once Xcode became the selected toolchain.** The
+  Makefile pointed the compiler at Command Line Tools' older Testing framework.
+  It now does that only when `xcode-select -p` is CommandLineTools. Looked like
+  broken tests; was a toolchain mismatch. (27 Sep 2026)
+

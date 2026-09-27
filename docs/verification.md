@@ -70,3 +70,21 @@ the confusion tables.
 | 4 | by region equals d f dot group by quote region close quote close open square quote price close quote close square dot mean · next line · by region dot plot kind equals quote bar · next line · p l t dot title quote capital average price by region · next line · p l t dot x label quote capital region · next line · p l t dot show |
 | 5 | high equals d f open square d f open square quote price close quote close square greater than 100 close square · next line · print len high · next line · for region in d f open square quote region close quote close square dot unique colon · next line · print region |
 | 6 | (on a new, unindented line) def summarise taking data colon · next line · return data dot describe · next line · dedent print summarise open paren d f |
+
+## Insertion: the clipboard is never pasted instead of the dictation
+
+Every paste now logs its evidence: `PASTE restore +NNN ms reads [+x,+y] ax
+true|false in <app>`, `PASTE keep (no evidence of a read)`, or `PASTE abandon`.
+
+1. Copy a sentinel (`SENTINEL-42`) to the clipboard.
+2. Dictate 20 times each into Claude, ChatGPT, Arc, Chrome and Terminal.
+3. **Pass:** every insertion is the dictation, never `SENTINEL-42`; after each
+   `PASTE restore`, `pbpaste` prints `SENTINEL-42`; after `PASTE keep`, the
+   menu's Restore previous clipboard brings it back.
+4. Copy something new within half a second of a paste: the log says
+   `abandon`, and your new copy is still on the clipboard.
+
+Measured before building (27 Sep): a lazy clipboard item written by one
+process and pasted by another served the text and recorded the read at
++369 ms — the read time the old 120 ms restore lost to.
+

@@ -11,6 +11,7 @@ tested) and `SpeechLocal` (AppKit/SwiftUI app).
 
 | You need | Go to |
 |---|---|
+| What is live, in flight and next (read first) | `docs/HANDOFF.md` |
 | How a change gets made and verified here | `docs/CONTEXT.md` |
 | Why something is built the way it is | `docs/decisions/` |
 | Environment traps that have cost hours | `docs/traps.md` |

@@ -44,6 +44,8 @@ final class Listener: @unchecked Sendable {
     /// Audio from a cancelled dictation, retained so Undo can still transcribe it.
     private var cancelledSamples: [Float]?
     private var cancelledMode: CleanupMode?
+    /// What was last typed, for "Paste last transcript".
+    private var lastInserted: String?
 
     /// Retained by the callbacks it installs, so it outlives `run()`.
     @MainActor
@@ -65,6 +67,26 @@ final class Listener: @unchecked Sendable {
             self.notesWindow?.toggleRecording()
         }
         status?.onSettings = { [weak self] in self?.openSettings() }
+        status?.onRestoreClipboard = { [weak self] in
+            guard let self else { return }
+            Task {
+                let restored = await self.inserter.restorePreviousClipboard()
+                log(restored ? "  PASTE restored by hand" : "  PASTE nothing held to restore")
+                await MainActor.run {
+                    self.status?.report(restored ? "Clipboard restored" : "Nothing to restore")
+                }
+            }
+        }
+        status?.onPasteLast = { [weak self] in
+            guard let self, let text = self.lastInserted else { return }
+            // The menu takes focus; give it back to the app first.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                Task { _ = try? await self.inserter.insert(text) }
+            }
+        }
+        Task { [inserter] in
+            await inserter.setPasteEventHandler { line in log("  " + line) }
+        }
 
         let panel = DictationPanel()
         // Live level comes from the tail of the ring buffer, so the waveform
@@ -205,39 +227,13 @@ final class Listener: @unchecked Sendable {
                 Task { @MainActor in self.status?.report("Hands-free — tap to stop") }
 
             case .finishRecording(let kind):
-                // Drain FIRST. drain() iterates `cursors`, so removing the entry
-                // before draining silently discarded everything captured since
-                // the last tick — up to a second of speech, always from the end.
-                lock.lock()
-                let started = cursors[mode]
-                lock.unlock()
-                guard let start = started else { return }
-                let overran = capture.buffer.hasOverrun(cursor: start)
-                drain()
-
-                lock.lock()
-                cursors.removeValue(forKey: mode)
-                let samples = sessionSamples.removeValue(forKey: mode) ?? []
-                lock.unlock()
-                Task { @MainActor in self.stopDrainingIfIdle() }
-                let seconds = Double(samples.count) / capture.buffer.sampleRate
-                let rms = rootMeanSquare(samples)
-                let peak = samples.map(abs).max() ?? 0
-                log(String(
-                    format: "[%@] finish (%@)  %.2f s  %d samples  rms %.4f  peak %.3f  %@%@",
-                    label(mode), "\(kind)", seconds, samples.count, rms, peak,
-                    rms > 0.001 ? "SIGNAL" : "SILENCE — check input device",
-                    overran ? "  !! ring buffer overran" : ""))
-                let summary = String(
-                    format: "%@ %@ — %.1f s, %@", label(mode), "\(kind)", seconds,
-                    rms > 0.001 ? "audio OK" : "SILENT")
-                Task { @MainActor in
-                    self.status?.apply(.processing)
-                    if self.settingsStore.current.playSounds { self.status?.chime(start: false) }
-                    self.status?.report(summary)
-                    self.panel?.show(.processing)
+                // Keep listening a moment past the release. Letting go of the
+                // key a beat early cut the last syllable, and a one-word
+                // dictation cut that way came back empty (2 of 15 in the
+                // trimmed-clip test, 27 Sep). 150 ms is not noticeable.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.15) { [self] in
+                    self.finish(mode: mode, kind: kind, capture: capture)
                 }
-                Task { await self.transcribe(samples: samples, mode: mode) }
 
             case .none:
                 break
@@ -245,19 +241,70 @@ final class Listener: @unchecked Sendable {
         }
     }
 
+    private func finish(mode: CleanupMode, kind: HotkeyGesture.Mode, capture: AudioCapture) {
+        // Refused before any recognition: nothing said at a password
+        // prompt should reach the recognizer, the log or history.
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if case .refuse(let reason) = InsertionGuard.check(
+            bundleID: front, secureInputEnabled: false, focusedSubrole: nil) {
+            lock.lock()
+            cursors.removeValue(forKey: mode)
+            sessionSamples.removeValue(forKey: mode)
+            lock.unlock()
+            Task { @MainActor in self.stopDrainingIfIdle() }
+            log("[\(label(mode))] REFUSED \(reason) — audio discarded, not transcribed")
+            Task { @MainActor in
+                self.status?.apply(.idle)
+                self.panel?.show(.failed("Not dictating into a password prompt"))
+            }
+            return
+        }
+        // Drain FIRST. drain() iterates `cursors`, so removing the entry
+        // before draining silently discarded everything captured since
+        // the last tick — up to a second of speech, always from the end.
+        lock.lock()
+        let started = cursors[mode]
+        lock.unlock()
+        guard let start = started else { return }
+        let overran = capture.buffer.hasOverrun(cursor: start)
+        drain()
+
+        lock.lock()
+        cursors.removeValue(forKey: mode)
+        let samples = sessionSamples.removeValue(forKey: mode) ?? []
+        lock.unlock()
+        Task { @MainActor in self.stopDrainingIfIdle() }
+        let seconds = Double(samples.count) / capture.buffer.sampleRate
+        let rms = rootMeanSquare(samples)
+        let peak = samples.map(abs).max() ?? 0
+        log(String(
+            format: "[%@] finish (%@)  %.2f s  %d samples  rms %.4f  peak %.3f  %@%@",
+            label(mode), "\(kind)", seconds, samples.count, rms, peak,
+            rms > 0.001 ? "SIGNAL" : "SILENCE — check input device",
+            overran ? "  !! ring buffer overran" : ""))
+        let summary = String(
+            format: "%@ %@ — %.1f s, %@", label(mode), "\(kind)", seconds,
+            rms > 0.001 ? "audio OK" : "SILENT")
+        Task { @MainActor in
+            self.status?.apply(.processing)
+            if self.settingsStore.current.playSounds { self.status?.chime(start: false) }
+            self.status?.report(summary)
+            self.panel?.show(.processing)
+        }
+        Task { await self.transcribe(samples: samples, mode: mode) }
+    }
+
     /// M3: audio -> transcript -> cleaned text. Insertion arrives in M4, so the
     /// result is logged and shown in the menu rather than typed anywhere yet.
     private func transcribe(samples: [Float], mode: CleanupMode) async {
         guard let rate = capture?.buffer.sampleRate else { return }
-        // A one-word line — "else", "try" — came back EMPTY from the
-        // recognizer until half a second of silence was added either side
-        // (decision 10). Code is full of those; prose is not, so only code
-        // pays for it.
-        var samples = samples
-        if mode == .code {
-            let pad = [Float](repeating: 0, count: Int(rate * 0.5))
-            samples = pad + samples + pad
-        }
+        // Half a second of silence either side. A one-word line — "else",
+        // "try" — came back EMPTY without it (decision 10), and so do short
+        // prose dictations: 7–10% of 1–4 s dictations since 15 Sep returned
+        // nothing, 110 of 184 empties with real signal. On trimmed clips the
+        // padding recovered 15 of 15 against 14 of 15.
+        let pad = [Float](repeating: 0, count: Int(rate * 0.5))
+        let samples = pad + samples + pad
         let t0 = Date()
         do {
             // Before biasing, so a fix made since the last dictation counts
@@ -285,28 +332,39 @@ final class Listener: @unchecked Sendable {
             lastRaw = raw
             await MainActor.run { self.status?.allowCorrection(true) }
 
+            // Spoken corrections, before cleanup (decision 11). Never in code:
+            // "no" and "actually" can be names there.
+            var spoken = raw
+            if mode != .code, settingsStore.current.backtrack,
+               Language(localeIdentifier: settingsStore.current.locale) == .english {
+                spoken = Backtrack.apply(raw)
+                if spoken != raw { log("  BACKTRACK \"\(spoken)\"") }
+                if spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    log("  everything was scratched — nothing to insert")
+                    await MainActor.run {
+                        self.status?.apply(.idle)
+                        self.panel?.show(.failed("Scratched"))
+                    }
+                    return
+                }
+            }
+
             let t1 = Date()
-            var cleaned = raw
+            var cleaned = spoken
             do {
                 for try await partial in cleanup.stream(
-                    transcript: raw, mode: mode, vocabulary: vocabulary
+                    transcript: spoken, mode: mode, vocabulary: vocabulary
                 ) { cleaned = partial }
             } catch {
                 // Degrade loudly, never lose text.
                 log("  CLEANUP FAILED (\(error)) — falling back to raw transcript")
-                cleaned = raw
+                cleaned = spoken
             }
             let cleanMs = Date().timeIntervalSince(t1) * 1000
             let totalMs = Date().timeIntervalSince(t0) * 1000
 
             log(String(format: "  CLEAN %5.0f ms  \"%@\"", cleanMs, cleaned))
             log(String(format: "  TOTAL %5.0f ms", totalMs))
-
-            if settingsStore.current.keepHistory {
-                await history.record(TranscriptEntry(
-                    raw: heard, cleaned: cleaned, mode: mode,
-                    appName: NSWorkspace.shared.frontmostApplication?.localizedName))
-            }
 
             // M4: put the text where the user is actually typing.
             log("  FOCUS \(await inserter.describeFocus())")
@@ -315,9 +373,21 @@ final class Listener: @unchecked Sendable {
             let preceding = await inserter.textBeforeCaret()
             // Code has no sentences to open.
             let opened = mode == .code
-                ? cleaned : SentenceOpening.adjust(cleaned, following: preceding, raw: raw)
+                ? cleaned : SentenceOpening.adjust(cleaned, following: preceding, raw: spoken)
             if opened != cleaned { log("  OPENING lowercased — caret is mid-sentence") }
             cleaned = opened
+            let frontApp = NSWorkspace.shared.frontmostApplication
+            if mode != .code {
+                cleaned = ChatPunctuation.apply(cleaned, bundleID: frontApp?.bundleIdentifier)
+            }
+            // History records what was actually typed, after every rule, so
+            // "Paste last transcript" and the History tab match the screen.
+            // Written only once the guard has had its say.
+            let record = { [self] (text: String) async in
+                guard self.settingsStore.current.keepHistory else { return }
+                await self.history.record(TranscriptEntry(
+                    raw: heard, cleaned: text, mode: mode, appName: frontApp?.localizedName))
+            }
             do {
                 let method = mode == .code
                     ? try await inserter.insert(
@@ -328,6 +398,8 @@ final class Listener: @unchecked Sendable {
                 // correcting a mishearing — nothing there to learn from.
                 if mode == .code { await inserter.forgetInsertion() }
                 log("  INSERT via \(method.rawValue)")
+                lastInserted = cleaned
+                await record(cleaned)
                 await MainActor.run {
                     self.status?.apply(.idle)
                     self.status?.report(String(cleaned.prefix(60)))
@@ -336,6 +408,22 @@ final class Listener: @unchecked Sendable {
             } catch {
                 // Nowhere to type it: show the text in the pill with a copy
                 // button rather than discarding it.
+                if case TextInserter.InsertError.refused(let reason) = error {
+                    // Typed at a password prompt or under secure input: not
+                    // inserted, not kept. Secure input (Terminal's Secure
+                    // Keyboard Entry) still offers the text to copy.
+                    log("  REFUSED \(reason) — not inserted, not kept")
+                    await MainActor.run {
+                        self.status?.apply(.idle)
+                        if reason == .secureInput {
+                            self.panel?.show(.result(cleaned))
+                        } else {
+                            self.panel?.show(.failed("Not dictating into a password prompt"))
+                        }
+                    }
+                    return
+                }
+                await record(cleaned)
                 if case TextInserter.InsertError.noTextInput = error {
                     log("  no text field focused — offering the text to copy")
                 } else {

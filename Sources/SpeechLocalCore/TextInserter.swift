@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import Carbon   // IsSecureEventInputEnabled
 
 /// Inserts text into whatever application currently has focus.
 ///
@@ -22,6 +23,10 @@ public actor TextInserter {
         case noTextInput
         /// A password field. Refused deliberately — never type into one.
         case secureField
+        /// The system authentication dialog, or secure input is on. See
+        /// `InsertionGuard`: dictation reached the macOS password prompt three
+        /// times before this existed.
+        case refused(InsertionGuard.Reason)
         case focusChanged
         case pasteboardBusy
         case bothMethodsFailed(String)
@@ -42,6 +47,31 @@ public actor TextInserter {
     /// be read back later. Held here rather than handed out because
     /// `AXUIElement` must not cross an actor boundary.
     private var lastInsertion: (element: AXUIElement, snapshot: String, inserted: String)?
+
+    /// The user's clipboard, held while a paste is waiting for evidence that it
+    /// was read (`PasteRestore`), or kept after that evidence never came.
+    private var heldClipboard: [[(NSPasteboard.PasteboardType, Data)]]?
+    /// Our clipboard's change count while a restore is pending.
+    private var pendingOurChangeCount: Int?
+    private var restoreTask: Task<Void, Never>?
+    /// Serves the transcript lazily so the moment an app reads it is known.
+    /// Held until the clipboard changes: after `keepTranscript` it is still the
+    /// clipboard, and AppKit asks it again on every later paste.
+    private var provider: TranscriptProvider?
+    /// The field a pending paste went into, and how often the transcript
+    /// appeared in it before. Kept on the actor: `AXUIElement` is not Sendable.
+    private var confirmTarget: (element: AXUIElement, before: Int)?
+
+    /// One line per paste decision, for doctor.log. The core has no logger.
+    public var onPasteEvent: (@Sendable (String) -> Void)?
+    public func setPasteEventHandler(_ handler: (@Sendable (String) -> Void)?) {
+        onPasteEvent = handler
+    }
+
+    /// Clipboard readers known to read every new item even when it is marked
+    /// transient. While one runs, a read is not evidence the target pasted.
+    /// Empty until the PASTE log shows one; see `PasteRestore`.
+    static let nonConformingReaders: Set<String> = []
 
     public init() {}
 
@@ -167,6 +197,16 @@ public actor TextInserter {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !payload.isEmpty else { return .accessibility }
 
+        // Before anything else, including the blind-paste branch below: with
+        // no focused element that branch pasted into SecurityAgent three times.
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let focused = try? focusedElement()
+        let verdict = InsertionGuard.check(
+            bundleID: frontmost?.bundleIdentifier,
+            secureInputEnabled: IsSecureEventInputEnabled(),
+            focusedSubrole: focused.flatMap { string($0, kAXSubroleAttribute as String) })
+        if case .refuse(let reason) = verdict { throw InsertError.refused(reason) }
+
         // Three distinguishable states, and only the middle one refuses:
         //
         //   1. No AX element at all      -> paste blind. The app publishes no
@@ -204,7 +244,7 @@ public actor TextInserter {
             guard Self.pastesBlind(NSWorkspace.shared.frontmostApplication) else {
                 throw InsertError.noTextInput
             }
-            try insertViaPaste(payload)
+            try insertViaPaste(payload, confirmIn: element)
             return .paste
         }
 
@@ -212,7 +252,7 @@ public actor TextInserter {
         if insertViaAccessibility(element, text: payload) {
             method = .accessibility
         } else {
-            try insertViaPaste(payload)
+            try insertViaPaste(payload, confirmIn: element)
             method = .paste
         }
         // Snapshot the field as it stands with our text in it, so a later read
@@ -392,32 +432,58 @@ public actor TextInserter {
 
     // MARK: - Paste fallback
 
-    private func insertViaPaste(_ text: String) throws {
+    /// Pastes through the clipboard and gives the user's clipboard back — but
+    /// only once something shows the paste was read.
+    ///
+    /// This used to restore 120 ms after ⌘V on a timer. Claude, ChatGPT, Arc and
+    /// Chrome take 2,547 of 2,805 logged pastes, all Chromium or Electron,
+    /// where ⌘V is handled in a renderer: when that took longer than 120 ms the
+    /// app read the restored clipboard and pasted the user's old copy instead of
+    /// the dictation. A timer cannot be made safe, only longer.
+    ///
+    /// So the transcript is written lazily, and the provider records when it is
+    /// read. `PasteRestore` decides from those reads, from the focused field
+    /// (where it publishes its text) and from the change count. With no
+    /// evidence the transcript simply stays on the clipboard, which is Wispr
+    /// Flow's behaviour when an insert fails, and "Restore previous clipboard"
+    /// in the menu brings the user's back.
+    private func insertViaPaste(_ text: String, confirmIn element: AXUIElement? = nil) throws {
         let pasteboard = NSPasteboard.general
-        let targetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let targetPID = frontmost?.processIdentifier
 
-        // Preserve whatever the user had. Promised/lazy items cannot be faithfully
-        // restored, so only plain string content is saved — documented, not silently
-        // best-effort.
-        let saved = pasteboard.string(forType: .string)
-        let savedChangeCount = pasteboard.changeCount
-
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        pasteboard.setString(pasteboardMarker, forType: .init(pasteboardMarker))
-        let ourChangeCount = pasteboard.changeCount
-
-        defer {
-            // Restore only if the pasteboard still holds our content. If the user
-            // copied something in the meantime, theirs wins.
-            if pasteboard.changeCount == ourChangeCount {
-                pasteboard.clearContents()
-                if let saved { pasteboard.setString(saved, forType: .string) }
-            }
-            _ = savedChangeCount
+        // A new dictation while a restore is still pending must not snapshot
+        // our own transcript as "the user's clipboard".
+        restoreTask?.cancel()
+        restoreTask = nil
+        if !PasteRestore.reuseSnapshot(
+            pendingOurChangeCount: pendingOurChangeCount, changeCount: pasteboard.changeCount) {
+            heldClipboard = Self.snapshot(pasteboard)
         }
 
+        confirmTarget = element.flatMap { field in
+            readValue(field).map { (field, Self.occurrences(of: text, in: $0)) }
+        }
+
+        let provider = TranscriptProvider(text: text)
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: [.string])
+        // The nspasteboard.org convention clipboard managers honour: do not
+        // record this item. It also keeps dictations out of their history.
+        for marker in ["org.nspasteboard.TransientType", "org.nspasteboard.AutoGeneratedType",
+                       pasteboardMarker] {
+            item.setData(Data(), forType: .init(marker))
+        }
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects([item]) else {
+            throw InsertError.bothMethodsFailed("could not write the clipboard")
+        }
+        self.provider = provider
+        let ourChangeCount = pasteboard.changeCount
+        pendingOurChangeCount = ourChangeCount
+
         // Focus can move between transcription finishing and the paste landing.
+        // The transcript stays on the clipboard rather than being lost.
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID else {
             throw InsertError.focusChanged
         }
@@ -442,10 +508,148 @@ public actor TextInserter {
         down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticTag)
         up.setIntegerValueField(.eventSourceUserData, value: Self.syntheticTag)
 
+        let postedAt = ProcessInfo.processInfo.systemUptime
         down.post(tap: .cgAnnotatedSessionEventTap)
         up.post(tap: .cgAnnotatedSessionEventTap)
 
-        // Give the target app a moment to consume the pasteboard before restore.
-        Thread.sleep(forTimeInterval: 0.12)
+        let attributable = !NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier.map(Self.nonConformingReaders.contains) ?? false
+        }
+        let app = frontmost?.localizedName ?? "?"
+        restoreTask = Task { [weak self] in
+            await self?.awaitRestore(
+                postedAt: postedAt, ourChangeCount: ourChangeCount, provider: provider,
+                attributable: attributable, text: text, app: app)
+        }
+    }
+
+    /// Polls `PasteRestore` every 50 ms until it stops saying `wait`.
+    private func awaitRestore(
+        postedAt: TimeInterval, ourChangeCount: Int, provider: TranscriptProvider,
+        attributable: Bool, text: String, app: String
+    ) async {
+        let pasteboard = NSPasteboard.general
+        while !Task.isCancelled {
+            let confirmed: Bool = {
+                guard let target = confirmTarget, let value = readValue(target.element)
+                else { return false }
+                return Self.occurrences(of: text, in: value) > target.before
+            }()
+            let now = ProcessInfo.processInfo.systemUptime
+            let reads = provider.reads
+            let decision = PasteRestore.decide(
+                now: now, postedAt: postedAt, reads: reads, readsAttributable: attributable,
+                axConfirmed: confirmed, changeCount: pasteboard.changeCount,
+                ourChangeCount: ourChangeCount)
+            if case .wait(let until) = decision {
+                let pause = min(0.05, max(0.01, until - now))
+                try? await Task.sleep(for: .seconds(pause))
+                continue
+            }
+
+            let readList = reads.map { String(format: "%+.0f", ($0 - postedAt) * 1000) }
+                .joined(separator: ",")
+            let elapsed = String(format: "+%.0f ms", (now - postedAt) * 1000)
+            switch decision {
+            case .restore:
+                if let held = heldClipboard {
+                    Self.write(held, to: pasteboard)
+                    heldClipboard = nil
+                    self.provider = nil
+                    onPasteEvent?("PASTE restore \(elapsed)  reads [\(readList)]  ax \(confirmed)  in \(app)")
+                } else {
+                    // Files, PDFs and very large items are not snapshotted, as
+                    // in Wispr: the transcript stays.
+                    onPasteEvent?("PASTE keep (nothing restorable) \(elapsed)  reads [\(readList)]  in \(app)")
+                }
+            case .keepTranscript:
+                onPasteEvent?("PASTE keep (no evidence of a read) \(elapsed)  in \(app) — "
+                    + "use Restore previous clipboard")
+            case .abandon:
+                // The user copied something new; theirs wins.
+                heldClipboard = nil
+                onPasteEvent?("PASTE abandon — clipboard changed \(elapsed)")
+            case .wait:
+                break
+            }
+            pendingOurChangeCount = nil
+            confirmTarget = nil
+            return
+        }
+    }
+
+    /// Whether "Restore previous clipboard" has anything to give back.
+    public var canRestoreClipboard: Bool { heldClipboard != nil && pendingOurChangeCount == nil }
+
+    /// The menu's recovery after `keepTranscript`: put the user's clipboard back.
+    @discardableResult
+    public func restorePreviousClipboard() -> Bool {
+        guard let held = heldClipboard else { return false }
+        restoreTask?.cancel()
+        restoreTask = nil
+        pendingOurChangeCount = nil
+        Self.write(held, to: NSPasteboard.general)
+        heldClipboard = nil
+        provider = nil
+        return true
+    }
+
+    /// Every item and type, materialised now — a lazy item from another app
+    /// cannot be asked later. Nil when `ClipboardSnapshot` says not to take it.
+    private static func snapshot(_ pasteboard: NSPasteboard) -> [[(NSPasteboard.PasteboardType, Data)]]? {
+        let items = pasteboard.pasteboardItems ?? []
+        let captured: [[(NSPasteboard.PasteboardType, Data)]] = items.map { item in
+            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
+        }
+        let sizes = captured.map { pairs in
+            Dictionary(pairs.map { ($0.0.rawValue, $0.1.count) }, uniquingKeysWith: { a, _ in a })
+        }
+        guard ClipboardSnapshot.decide(items: sizes) == .take else { return nil }
+        return captured
+    }
+
+    private static func write(_ items: [[(NSPasteboard.PasteboardType, Data)]], to pasteboard: NSPasteboard) {
+        pasteboard.clearContents()
+        let restored = items.map { pairs -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            for (type, data) in pairs { item.setData(data, forType: type) }
+            return item
+        }
+        if !restored.isEmpty { pasteboard.writeObjects(restored) }
+    }
+
+    private static func occurrences(of needle: String, in haystack: String) -> Int {
+        guard !needle.isEmpty else { return 0 }
+        return haystack.components(separatedBy: needle).count - 1
+    }
+
+    private func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
+        else { return nil }
+        return value as? String
+    }
+}
+
+/// Hands the transcript to whoever asks, and records when they asked. The
+/// callback arrives on the main thread; the actor reads `reads` from its own.
+final class TranscriptProvider: NSObject, NSPasteboardItemDataProvider, @unchecked Sendable {
+    private let text: String
+    private let lock = NSLock()
+    private var readTimes: [TimeInterval] = []
+
+    init(text: String) { self.text = text }
+
+    var reads: [TimeInterval] {
+        lock.lock(); defer { lock.unlock() }
+        return readTimes
+    }
+
+    func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem,
+                    provideDataForType type: NSPasteboard.PasteboardType) {
+        lock.lock()
+        readTimes.append(ProcessInfo.processInfo.systemUptime)
+        lock.unlock()
+        item.setString(text, forType: type)
     }
 }

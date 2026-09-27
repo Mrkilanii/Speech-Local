@@ -354,6 +354,15 @@ private struct SettingsView: View {
                      + "Fix last dictation. Reads the field you dictated into.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("Resolve spoken corrections", isOn: Binding(
+                    get: { model.settings.backtrack },
+                    set: { on in model.apply { $0.backtrack = on } }
+                ))
+                Text("\"at 2, actually 3\" types \"at 3\"; \"scratch that\" "
+                     + "deletes what you just said; a \"like,\" or \"you know,\" "
+                     + "between commas is dropped. English only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Keep recorded meetings", isOn: Binding(
                     get: { model.settings.keepMeetings },
                     set: { model.setKeepMeetings($0) }

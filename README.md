@@ -58,6 +58,33 @@ brackets") is read as the same command.
 "C-O-M-M-A" is `comma`. That is the escape hatch for every rewrite above, and
 the reason each one can afford to be decisive.
 
+### It corrects itself when you do
+
+Say the correction the way you would to a person, and only the correction is
+typed:
+
+| You say | You get |
+|---|---|
+| "let's meet at 2, actually 3" | `Let's meet at 3.` |
+| "Monday, no actually Tuesday" | `Tuesday.` |
+| "tell him it's late, scratch that, tell him it's ready" | `Tell him it's ready.` |
+| "so, like, you know, we ship" | `So we ship.` |
+
+Three shapes only (decision 11): a value swapped for another of the same kind
+(a number, time, weekday or month) after "actually", "no", "sorry", "wait" or
+"I mean"; "scratch that"; and "like," or "you know," set off by commas.
+**Restating a whole phrase is not resolved** — "send it Tuesday, I mean send
+it on Wednesday" keeps both — because deciding that needs a model, and the
+on-device one failed at it (decision 01). English only; turn it off in
+Settings → General → Resolve spoken corrections.
+
+**Your clipboard is safe.** Dictation is pasted, and your clipboard is only
+put back once the app you dictated into has actually read the paste. If that
+can't be confirmed within 2 seconds, the transcript stays on the clipboard
+instead of risking your old copy being pasted — **Restore previous clipboard**
+in the menu brings yours back. **Paste last transcript** types the last
+dictation again. Nothing is ever typed into a macOS password prompt.
+
 ### It writes Python
 
 Hold the code key (Right Control by default) and say one line of Python.
@@ -237,7 +264,7 @@ cd Speech-Local
 make test
 ```
 
-You should see `364 tests ... passed`.
+You should see `435 tests ... passed`.
 
 > **Do not put the repo in iCloud Drive** — that means `~/Documents` or
 > `~/Desktop` if "Desktop & Documents" syncing is on. `fileproviderd` re-adds

@@ -70,6 +70,9 @@ public struct Settings: Codable, Sendable, Equatable {
     /// what changed, so it only works where the app publishes its text — and it
     /// means the field's contents are read, which is why it can be turned off.
     public var learnFromEdits: Bool
+    /// Whether spoken corrections are resolved: "2, actually 3" is "3",
+    /// "scratch that" deletes, a comma-wrapped "like," goes (decision 11).
+    public var backtrack: Bool
 
     public static let `default` = Settings(
         lightTouchKey: .rightOption,
@@ -82,6 +85,7 @@ public struct Settings: Codable, Sendable, Equatable {
         playSounds: true,
         keepHistory: true,
         learnFromEdits: true,
+        backtrack: true,
         vaultPath: VaultWriter.defaultRoot()?.path ?? "",
         autoFileMeetings: true,
         keepMeetings: true,
@@ -99,6 +103,7 @@ public struct Settings: Codable, Sendable, Equatable {
         playSounds: Bool,
         keepHistory: Bool,
         learnFromEdits: Bool,
+        backtrack: Bool = true,
         vaultPath: String,
         autoFileMeetings: Bool,
         keepMeetings: Bool,
@@ -114,6 +119,7 @@ public struct Settings: Codable, Sendable, Equatable {
         self.playSounds = playSounds
         self.keepHistory = keepHistory
         self.learnFromEdits = learnFromEdits
+        self.backtrack = backtrack
         self.vaultPath = vaultPath
         self.autoFileMeetings = autoFileMeetings
         self.keepMeetings = keepMeetings
@@ -145,6 +151,8 @@ public struct Settings: Codable, Sendable, Equatable {
             Bool.self, forKey: .keepHistory) ?? fallback.keepHistory
         learnFromEdits = try container.decodeIfPresent(
             Bool.self, forKey: .learnFromEdits) ?? fallback.learnFromEdits
+        backtrack = try container.decodeIfPresent(
+            Bool.self, forKey: .backtrack) ?? fallback.backtrack
         vaultPath = try container.decodeIfPresent(
             String.self, forKey: .vaultPath) ?? fallback.vaultPath
         autoFileMeetings = try container.decodeIfPresent(
