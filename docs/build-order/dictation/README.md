@@ -2,7 +2,7 @@
 
 Hold a key, speak, and the right text lands where you are typing — on the Mac, with no network, and never a word you did not say except the ones you marked as a correction.
 
-**3 of 8 stages done.** The clickable page covering every track is `docs/build-order.html`.
+**3 of 8 stages done.** The clickable page covering every track is `docs/build-order.html` (https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF).
 
 | Stage | What | Status | Substages | Size |
 |---|---|---|---|---|

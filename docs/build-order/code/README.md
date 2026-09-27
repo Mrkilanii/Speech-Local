@@ -2,7 +2,7 @@
 
 Say code the way you would say it to a person, and get code that runs — no training the speaker; the rules learn the phrasing people actually use.
 
-**1 of 6 stages done.** The clickable page covering every track is `docs/build-order.html`.
+**1 of 6 stages done.** The clickable page covering every track is `docs/build-order.html` (https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF).
 
 | Stage | What | Status | Substages | Size |
 |---|---|---|---|---|

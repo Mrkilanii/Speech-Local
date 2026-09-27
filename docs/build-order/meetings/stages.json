@@ -94,22 +94,42 @@
       "size": "M",
       "does": "Transcribes the microphone and system audio separately and labels turns You and Them.",
       "see": "The transcript and note say You: … / Them: …",
-      "proof": "A two-sided call labelled correctly; the summary prompt still fits the 4,096-token budget.",
+      "proof": "Headphones call of 5 minutes: turns alternate You/Them in the real order, the MEETING stopped line says labelled: true. 463 tests pass; **not yet run on a live call.**",
       "needs": [
         {
           "label": "M1 Record both sides",
           "met": true
+        },
+        {
+          "label": "Omar's 5-minute headphones call",
+          "met": false
         }
       ],
       "items": [
         {
-          "t": "Interleave and label (agent building)",
-          "s": "n"
+          "t": "Two recognizers, one per side",
+          "s": "y"
+        },
+        {
+          "t": "Interleave and label (SpeakerTurns)",
+          "s": "y"
+        },
+        {
+          "t": "Summariser prompts and budget (≈3,440 of 4,096 worst case)",
+          "s": "y"
         },
         {
           "t": "Live two-sided call",
           "s": "n"
+        },
+        {
+          "t": "Echo on laptop speakers",
+          "s": "n",
+          "d": "not handled; count duplicates live"
         }
+      ],
+      "docs": [
+        "docs/decisions/12_speakers_are_the_two_streams.md"
       ]
     },
     {

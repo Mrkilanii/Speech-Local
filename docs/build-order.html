@@ -493,8 +493,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <span class="head">
       <span class="shead"><span class="sname">Who said what</span>
         <span class="pill now">Building now</span>
-        <span class="count">0 / 2 substages · M</span></span>
-      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M1 Record both sides</span></span>
+        <span class="count">3 / 5 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep met">M1 Record both sides</span><span class="dep">Omar&#x27;s 5-minute headphones call</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
   </summary>
@@ -502,10 +502,10 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <div class="block"><h4>What it does</h4><p>Transcribes the microphone and system audio separately and labels turns You and Them.</p></div>
     <div class="grid2">
       <div class="block"><h4>What you see</h4><p>The transcript and note say You: … / Them: …</p></div>
-      <div class="block"><h4>How we know it works</h4><p>A two-sided call labelled correctly; the summary prompt still fits the 4,096-token budget.</p></div>
+      <div class="block"><h4>How we know it works</h4><p>Headphones call of 5 minutes: turns alternate You/Them in the real order, the MEETING stopped line says labelled: true. 463 tests pass; <b>not yet run on a live call.</b></p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="n"><span class="sid">M7a</span><span>Interleave and label (agent building)</span></li><li class="n"><span class="sid">M7b</span><span>Live two-sided call</span></li></ul></div>
-    
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">M7a</span><span>Two recognizers, one per side</span></li><li class="y"><span class="sid">M7b</span><span>Interleave and label (SpeakerTurns)</span></li><li class="y"><span class="sid">M7c</span><span>Summariser prompts and budget (≈3,440 of 4,096 worst case)</span></li><li class="n"><span class="sid">M7d</span><span>Live two-sided call</span></li><li class="n"><span class="sid">M7e</span><span>Echo on laptop speakers <em>not handled; count duplicates live</em></span></li></ul></div>
+    <div class="block"><h4>Records</h4><p><code>docs/decisions/12_speakers_are_the_two_streams.md</code></p></div>
   </div>
 </details>
 <details class="stage next" id="stage-M8" open>

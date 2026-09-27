@@ -1,5 +1,11 @@
 # Build order
 
+> **Superseded 27 Sep 2026 by the Build Order:** `docs/build-order.json` and
+> `docs/build-order/<track>/stages.json`, rendered by `tools/render_build_order.py`
+> and published at https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF. Edit the
+> JSON, not this file. Kept below as the record of stages 1–16.
+
+
 **Reads:** `git log`, `docs/decisions/`.
 **Does:** shows the order the app was built in, and the order proposed from here.
 **Writes:** a new future stage when one is agreed; a past stage when one lands.
