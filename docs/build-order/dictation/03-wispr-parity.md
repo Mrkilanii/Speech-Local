@@ -26,12 +26,17 @@ docs/verification.md clipboard check: 100 dictations into Claude, ChatGPT, Arc, 
 - ✓ **4c** Spoken corrections (decision 11)
 - ✓ **4d** Chat full stops
 - ✓ **4e** Silence padding and release tail — 1–4 s dictations were empty 7–10% of the time
-- · **4f** Live check by Omar
-- ~ **4g** Correction by restating a phrase — needs a model; refused (decision 01)
+- ✓ **4f** Numbers said as words, and "to" heard for "two" — Omar's first live try typed "At 2 actually 3." — fixed
+- · **4g** Live check by Omar
+- ~ **4h** Correction by restating a phrase — needs a model; refused (decision 01)
 
 ## Declared before code
 
 Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decision 11). Predictions: the sentinel is never pasted; short 1–4 s dictations stop coming back empty. Reject conditions: the sentinel is pasted even once after a PASTE restore; any ordinary sentence loses a word to the correction rules.
+
+## Result
+
+First live use, 27 Sep: clipboard restored on a read 3 of 3 times (PASTE restore +68 to +144 ms, ax true, in Claude). The correction missed "At two, actually three" because the recognizer writes small numbers as words; fixed the same night. The sentinel check is still to run.
 
 ## Records
 

@@ -147,6 +147,11 @@
           "d": "1–4 s dictations were empty 7–10% of the time"
         },
         {
+          "t": "Numbers said as words, and \"to\" heard for \"two\"",
+          "s": "y",
+          "d": "Omar's first live try typed \"At 2 actually 3.\" — fixed"
+        },
+        {
           "t": "Live check by Omar",
           "s": "n"
         },
@@ -160,7 +165,8 @@
       "docs": [
         "docs/decisions/11_backtrack_removes_marked_words_only.md",
         "docs/research/2026-09-27-insertion-bugs.md"
-      ]
+      ],
+      "result": "First live use, 27 Sep: clipboard restored on a read 3 of 3 times (PASTE restore +68 to +144 ms, ax true, in Claude). The correction missed \"At two, actually three\" because the recognizer writes small numbers as words; fixed the same night. The sentinel check is still to run."
     },
     {
       "id": "5",
@@ -194,7 +200,8 @@
           "t": "Live latency from the log",
           "s": "n"
         }
-      ]
+      ],
+      "result": "First live figures, 27 Sep: STREAM final +323, +434, +603 ms after release on three dictations."
     },
     {
       "id": "6",
@@ -229,6 +236,38 @@
           "t": "Arc and Chrome expose nothing to the probe",
           "s": "n",
           "d": "not investigated"
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "slug": "pause-breaks",
+      "name": "No full stop where you only paused",
+      "status": "wait",
+      "size": "M",
+      "does": "Stops a pause from ending the sentence: \"two, actually three. Logs.\" should be one sentence.",
+      "see": "A pause mid-sentence leaves no full stop and no capital.",
+      "proof": "Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).",
+      "needs": [
+        {
+          "label": "A spike: the on-device model deciding only the ambiguous breaks, under 1 s",
+          "met": false
+        }
+      ],
+      "items": [
+        {
+          "t": "Rule: merge short fragments",
+          "s": "hold",
+          "d": "~50% right on 69 logged cases"
+        },
+        {
+          "t": "Rule: merge after a dangling word",
+          "s": "hold",
+          "d": "~50% right on 25 cases"
+        },
+        {
+          "t": "Model spike on ambiguous breaks only",
+          "s": "n"
         }
       ]
     },

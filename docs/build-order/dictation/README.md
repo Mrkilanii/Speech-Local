@@ -2,18 +2,19 @@
 
 Hold a key, speak, and the right text lands where you are typing — on the Mac, with no network, and never a word you did not say except the ones you marked as a correction.
 
-**3 of 8 stages done.** The clickable page covering every track is `docs/build-order.html` (https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF).
+**3 of 9 stages done.** The clickable page covering every track is `docs/build-order.html` (https://claude.ai/artifact/7zpeck57CfHsYrZQX4CxCF).
 
 | Stage | What | Status | Substages | Size |
 |---|---|---|---|---|
 | 1 | [Foundation and dictation core](00-foundation.md) | Done | 5/5 | done |
 | 2 | [Settings, hardening, languages](01-product-shell.md) | Done | 4/4 | done |
 | 3 | [Spoken formatting and learning](02-spoken-formatting.md) | Done | 3/3 | done |
-| 4 | [Wispr Flow parity, first pass](03-wispr-parity.md) | Building now | 5/7 | L |
+| 4 | [Wispr Flow parity, first pass](03-wispr-parity.md) | Building now | 6/8 | L |
 | 5 | [Transcribe while you talk](04-streaming.md) | Building now | 2/3 | M |
 | 6 | [See the text box in Claude desktop](05-electron-fields.md) | Building now | 2/4 | S |
-| 7 | [No clipped first word](06-onset.md) | Next | 0/2 | S |
-| 8 | [Starts at login after a rebuild](07-login.md) | Next | 0/1 | S |
+| 9 | [No full stop where you only paused](06-pause-breaks.md) | Waiting | 0/3 | M |
+| 7 | [No clipped first word](07-onset.md) | Next | 0/2 | S |
+| 8 | [Starts at login after a rebuild](08-login.md) | Next | 0/1 | S |
 
 ## Alongside
 

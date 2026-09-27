@@ -15,7 +15,7 @@ import Testing
     ("Monday actually 3", "Monday actually 3"),
     ("It was 2. Actually 3 people came.", "It was 2. Actually 3 people came."),
     ("at 2 pm actually 3 pm", "at 2 pm actually 3 pm"),
-    ("at two actually three", "at two actually three"),
+    ("at two actually three", "at three"),
     ("at 1,000 actually 2,000", "at 1,000 actually 2,000"),
 ])
 func correctedValueAcceptance(input: String, expected: String) {
@@ -60,4 +60,17 @@ func correctedValueAcceptance(input: String, expected: String) {
 @Test func correctedValueKeepsWhitespaceWhenNothingFires() {
     let text = "at 2\nthen  3"
     #expect(CorrectedValue.apply(text) == text)
+}
+
+// Omar's own dictations, 27 Sep, verbatim from doctor.log.
+@Test(arguments: [
+    ("At two, actually three.", "At three."),
+    ("So I was planning on doing like to actually three. Logs.",
+     "So I was planning on doing like three. Logs."),
+    ("I want to actually go", "I want to actually go"),
+    ("I have to, no, wait", "I have to, no, wait"),
+    ("twenty-three, sorry, twenty-four", "twenty-four"),
+])
+func numberWordsAndHeardAsTwo(spoken: String, expected: String) {
+    #expect(CorrectedValue.apply(spoken) == expected)
 }

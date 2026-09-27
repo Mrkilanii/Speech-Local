@@ -15,3 +15,8 @@ func backtrackComposesTheThreeStages(spoken: String, expected: String) {
         #expect(Backtrack.apply(entry.input) == entry.input, "\(entry.input)")
     }
 }
+
+@Test func omarsCorrectionThroughTheWholePipeline() {
+    // doctor.log 27 Sep: typed "At 2 actually 3." before this fix.
+    #expect(RulesCleanup().apply(to: Backtrack.apply("At two, actually three.")) == "At 3.")
+}

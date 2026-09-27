@@ -24,9 +24,17 @@ import Foundation
 /// 4. **The second value has nothing in front of it**, so a quote or bracket
 ///    opening after the connector is not swallowed.
 ///
-/// Figures are digits only. Spoken number words have not been through
-/// `SpokenNumbers` yet at this stage, and a grouped figure like "1,000" is
-/// left alone because its comma is ambiguous with a pause.
+/// A figure is digits or a single number word. The recognizer writes small
+/// numbers as words — Omar's "at 2, actually 3" arrived as "At two, actually
+/// three." (27 Sep) and was left alone when figures were digits only, because
+/// `SpokenNumbers` runs later, in cleanup. The kept word becomes a digit there.
+/// A grouped figure like "1,000" is left alone: its comma is ambiguous with a
+/// pause.
+///
+/// **"to" and "too" count as a first value only when a figure follows the
+/// connector.** "two" is heard as "to" often enough that `SpokenNumbers` keeps
+/// an exception table for it, and "like to actually three" (same dictation)
+/// meant "like two, actually three". Nothing else reads "to actually 3".
 ///
 /// **"May" is a month only when capitalised.** Lowercase "may" is the verb —
 /// "we may, actually, may not" is not a date — and the recognizer capitalises
@@ -77,8 +85,9 @@ public enum CorrectedValue {
     /// If a correction starts at `index`, the index of the value it ends on.
     private static func correction(in tokens: [String], at index: Int) -> Int? {
         let first = Token.parts(of: tokens[index])
+        let heardAsTwo = ["to", "too"].contains(first.core.lowercased())
         guard first.trailing.isEmpty || first.trailing == ",",
-              let kind = kind(of: first.core)
+              let kind = heardAsTwo ? .figure : kind(of: first.core)
         else { return nil }
 
         for connectorLength in connectorLengths(in: tokens, after: index) {
@@ -111,6 +120,11 @@ public enum CorrectedValue {
             return .figure
         }
         let lower = core.lowercased()
+        let parts = lower.split(separator: "-").map(String.init)   // "twenty-three"
+        if !parts.isEmpty, parts.allSatisfy({ SpokenNumbers.units[$0] != nil
+            || SpokenNumbers.tens[$0] != nil || $0 == "hundred" }) {
+            return .figure
+        }
         if weekdays.contains(lower) { return .weekday }
         // The verb "may" is far more common than the month in speech.
         if lower == "may" { return core.first?.isUppercase == true ? .month : nil }
