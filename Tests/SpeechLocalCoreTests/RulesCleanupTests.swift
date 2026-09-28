@@ -547,3 +547,14 @@ func leavesAmbiguousWordsAlone(word: String) {
 @Test func theDesktopIsNeverAPasteTarget() {
     #expect(TextInserter.isDesktop(nil))
 }
+
+// Omar's own dictations, 27 Sep (doctor.log): the second comma went missing.
+@Test(arguments: [
+    ("No, no, no. Basically everything.", "No, no, no. Basically everything."),
+    ("No, no, yes, I get it, but like, what if I need to send an email?",
+     "No, no, yes, I get it, but like what if I need to send an email?"),
+    ("I said no, no way.", "I said no no way."),
+])
+func runsOfRepliesKeepTheirCommas(spoken: String, expected: String) {
+    #expect(RulesCleanup().apply(to: spoken) == expected)
+}

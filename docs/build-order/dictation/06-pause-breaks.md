@@ -12,18 +12,18 @@ A pause mid-sentence leaves no full stop and no capital.
 
 ## How we know it works
 
-Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).
+From PAUSES lines: if gaps before mid-sentence breaks and before real sentence ends separate cleanly (e.g. under vs over some threshold) on Omar's own dictations, a rule on pause length ships; if they overlap, it does not. Two text rules and the on-device model scored about 50% (27 Sep).
 
 ## Needs
 
-- · A signal better than a coin toss (pause length, untested)
+- · ~50 logged breaks from Omar's own dictations
 
 ## Substages
 
 - ~ **9a** Rule: merge short fragments — ~50% right on 69 logged cases
 - ~ **9b** Rule: merge after a dangling word — ~50% right on 25 cases
 - ~ **9c** On-device model deciding the break — rejected: 19/44 agree, 22 wrong merges, ~8 s each
-- · **9d** Pause length from the recognizer's segment times — next idea: measurable from audio
+- ✓ **9d** Pause length logged at every break (PAUSES in doctor.log) — collecting; decide once ~50 real breaks are logged
 
 ## Declared before code
 

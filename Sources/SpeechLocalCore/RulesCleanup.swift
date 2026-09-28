@@ -117,6 +117,10 @@ public struct RulesCleanup: Sendable {
         "day", "eye", "job", "key", "law", "man", "map", "pay", "war", "win",
     ])
 
+    /// Short replies said in a run: "no, no, yes".
+    static let replies: Set<String> = ["no", "yes", "yeah", "yep", "okay", "ok", "right",
+                                       "wait", "sure", "oh", "well", "nope"]
+
     /// Words that genuinely follow a comma. Used by `.sparse` to keep the commas
     /// that carry grammar and drop the ones that mark a breath.
     static let clauseMarkers: Set<String> = [
@@ -364,8 +368,19 @@ public struct RulesCleanup: Sendable {
             // here would turn "leave one space, two of them" into a command.
             let carriesCommand = language.hasPunctuationWords
                 && SpokenPunctuation.isCommandWord(String(word.dropLast()))
+            // A run of short replies that opens a sentence is punctuated in
+            // writing: "No, no, yes, I get it." The opener rule kept only the
+            // first comma, so Omar's "No, no, no." came out "No, no no."
+            // (27 Sep). Each comma is kept while the run continues from an
+            // opening reply that kept its own.
+            let bare = word.dropLast().trimmingCharacters(in: .punctuationCharacters).lowercased()
+            let continuesReplies = language == .english && Self.replies.contains(bare)
+                && index > 0 && words[index - 1].hasSuffix(String(language.comma))
+                && Self.replies.contains(words[index - 1].dropLast()
+                    .trimmingCharacters(in: .punctuationCharacters).lowercased())
+                && result.last?.hasSuffix(String(language.comma)) == true
             let keep = language.clauseMarkers.contains(next)
-                || separatesFigures || carriesCommand || isOpener
+                || separatesFigures || carriesCommand || isOpener || continuesReplies
             result.append(keep ? word : String(word.dropLast()))
         }
         return result.joined(separator: " ")

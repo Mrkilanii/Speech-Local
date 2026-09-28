@@ -195,7 +195,7 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
       <div class="block"><h4>How we know it works</h4><p>docs/verification.md clipboard check: 100 dictations into Claude, ChatGPT, Arc, Chrome and Terminal with SENTINEL-42 on the clipboard, pasted 0 times. <b>Not yet run live.</b> 435 unit tests pass; the lazy clipboard served another process and logged its read at +369 ms.</p></div>
     </div>
     <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">4a</span><span>Clipboard restored only on evidence</span></li><li class="y"><span class="sid">4b</span><span>Password-prompt guard</span></li><li class="y"><span class="sid">4c</span><span>Spoken corrections (decision 11)</span></li><li class="y"><span class="sid">4d</span><span>Chat full stops</span></li><li class="y"><span class="sid">4e</span><span>Silence padding and release tail <em>1–4 s dictations were empty 7–10% of the time</em></span></li><li class="y"><span class="sid">4f</span><span>Numbers said as words, and &quot;to&quot; heard for &quot;two&quot; <em>Omar&#x27;s first live try typed &quot;At 2 actually 3.&quot; — fixed</em></span></li><li class="n"><span class="sid">4g</span><span>Live check by Omar</span></li><li class="hold"><span class="sid">4h</span><span>Correction by restating a phrase <em>needs a model; refused (decision 01)</em></span></li></ul></div>
-    <div class="block"><h4>Declared before code</h4><p>Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decision 11). Predictions: the sentinel is never pasted; short 1–4 s dictations stop coming back empty. Reject conditions: the sentinel is pasted even once after a PASTE restore; any ordinary sentence loses a word to the correction rules.</p></div><div class="block"><h4>Result</h4><p>First live use, 27 Sep: clipboard restored on a read 3 of 3 times (PASTE restore +68 to +144 ms, ax true, in Claude). The correction missed &quot;At two, actually three&quot; because the recognizer writes small numbers as words; fixed the same night. The sentinel check is still to run.</p></div><div class="block"><h4>Records</h4><p><code>docs/decisions/11_backtrack_removes_marked_words_only.md</code><br><code>docs/research/2026-09-27-insertion-bugs.md</code></p></div>
+    <div class="block"><h4>Declared before code</h4><p>Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decision 11). Predictions: the sentinel is never pasted; short 1–4 s dictations stop coming back empty. Reject conditions: the sentinel is pasted even once after a PASTE restore; any ordinary sentence loses a word to the correction rules.</p></div><div class="block"><h4>Result</h4><p>Live, 27–28 Sep: clipboard restored on evidence 37/37 (Claude, ChatGPT, Arc); 2 empty results in 42 dictations, both taps under 0.2 s. Corrections fired 3 times, removing only comma-wrapped like/you know. Number-word corrections fixed 27 Sep. Sentinel check still to run.</p></div><div class="block"><h4>Records</h4><p><code>docs/decisions/11_backtrack_removes_marked_words_only.md</code><br><code>docs/research/2026-09-27-insertion-bugs.md</code></p></div>
   </div>
 </details>
 <details class="stage now" id="stage-5" open>
@@ -204,7 +204,7 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <span class="head">
       <span class="shead"><span class="sname">Transcribe while you talk</span>
         <span class="pill now">Building now</span>
-        <span class="count">2 / 3 substages · M</span></span>
+        <span class="count">2 / 4 substages · M</span></span>
       <span class="needs"><span class="needs-label">Needs</span><span class="dep met">4 Wispr parity (same code path)</span><span class="dep">Omar dictates on the new build</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
@@ -215,8 +215,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
       <div class="block"><h4>What you see</h4><p>Long dictations appear as fast as short ones.</p></div>
       <div class="block"><h4>How we know it works</h4><p>Release-to-text p95 at or under 700 ms for dictations under 30 s, from STREAM final lines in doctor.log. Probe (no mic): 37–54 ms for short phrases, 150–600 ms for 23–46 s clips under load. <b>Not yet measured live.</b> Before: median 2.7 s past 60 s.</p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">5a</span><span>Streaming merged (33a2e37)</span></li><li class="y"><span class="sid">5b</span><span>--realtime probe</span></li><li class="n"><span class="sid">5c</span><span>Live latency from the log</span></li></ul></div>
-    <div class="block"><h4>Result</h4><p>First live figures, 27 Sep: STREAM final +323, +434, +603 ms after release on three dictations.</p></div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="y"><span class="sid">5a</span><span>Streaming merged (33a2e37)</span></li><li class="y"><span class="sid">5b</span><span>--realtime probe</span></li><li class="n"><span class="sid">5c</span><span>Live latency from the log</span></li><li class="n"><span class="sid">5d</span><span>Explain the p95 outliers (bias timing now logged)</span></li></ul></div>
+    <div class="block"><h4>Result</h4><p>Live, 42 dictations 27–28 Sep: median 502 ms, p90 1.3 s, p95 1.6 s, max 2.7 s; no longer grows with length (34.8 s → 800 ms). Outliers not yet explained — STREAM bias ready now logged to find them.</p></div>
   </div>
 </details>
 <details class="stage now" id="stage-6" open>
@@ -246,8 +246,8 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <span class="head">
       <span class="shead"><span class="sname">No full stop where you only paused</span>
         <span class="pill wait">Waiting</span>
-        <span class="count">0 / 4 substages · M</span></span>
-      <span class="needs"><span class="needs-label">Needs</span><span class="dep">A signal better than a coin toss (pause length, untested)</span></span>
+        <span class="count">1 / 4 substages · M</span></span>
+      <span class="needs"><span class="needs-label">Needs</span><span class="dep">~50 logged breaks from Omar&#x27;s own dictations</span></span>
     </span>
     <span class="chev" aria-hidden="true"></span>
   </summary>
@@ -255,9 +255,9 @@ h3{font-family:var(--font-display);font-weight:600;font-size:1.25rem;margin:36px
     <div class="block"><h4>What it does</h4><p>Stops a pause from ending the sentence: &quot;two, actually three. Logs.&quot; should be one sentence.</p></div>
     <div class="grid2">
       <div class="block"><h4>What you see</h4><p>A pause mid-sentence leaves no full stop and no capital.</p></div>
-      <div class="block"><h4>How we know it works</h4><p>Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).</p></div>
+      <div class="block"><h4>How we know it works</h4><p>From PAUSES lines: if gaps before mid-sentence breaks and before real sentence ends separate cleanly (e.g. under vs over some threshold) on Omar&#x27;s own dictations, a rule on pause length ships; if they overlap, it does not. Two text rules and the on-device model scored about 50% (27 Sep).</p></div>
     </div>
-    <div class="block"><h4>Substages</h4><ul class="subs"><li class="hold"><span class="sid">9a</span><span>Rule: merge short fragments <em>~50% right on 69 logged cases</em></span></li><li class="hold"><span class="sid">9b</span><span>Rule: merge after a dangling word <em>~50% right on 25 cases</em></span></li><li class="hold"><span class="sid">9c</span><span>On-device model deciding the break <em>rejected: 19/44 agree, 22 wrong merges, ~8 s each</em></span></li><li class="n"><span class="sid">9d</span><span>Pause length from the recognizer&#x27;s segment times <em>next idea: measurable from audio</em></span></li></ul></div>
+    <div class="block"><h4>Substages</h4><ul class="subs"><li class="hold"><span class="sid">9a</span><span>Rule: merge short fragments <em>~50% right on 69 logged cases</em></span></li><li class="hold"><span class="sid">9b</span><span>Rule: merge after a dangling word <em>~50% right on 25 cases</em></span></li><li class="hold"><span class="sid">9c</span><span>On-device model deciding the break <em>rejected: 19/44 agree, 22 wrong merges, ~8 s each</em></span></li><li class="y"><span class="sid">9d</span><span>Pause length logged at every break (PAUSES in doctor.log) <em>collecting; decide once ~50 real breaks are logged</em></span></li></ul></div>
     <div class="block"><h4>Declared before code</h4><p>Declared 27 Sep before the model run (spikes/pause-breaks/DECLARATION.md): 44 labelled fragments from doctor.log; predict ≥36/44 agreement and ≤3 wrong merges; reject below 33/44 or above 5 wrong merges.</p></div><div class="block"><h4>Result</h4><p>Rejected: 19/44 agreement, 22 wrong merges, median 8.2 s (machine loaded). The model calls almost every pause mid-sentence.</p></div><div class="block"><h4>Records</h4><p><code>spikes/pause-breaks/DECLARATION.md</code></p></div>
   </div>
 </details>

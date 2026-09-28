@@ -365,14 +365,23 @@ final class Listener: @unchecked Sendable {
         feed.yield(silence())
         let locale = settingsStore.current.locale
         let asr = self.asr
+        let pressed = Date()
         let text = Task { () throws -> String in
             let terms = await bias.value
-            var text = ""
+            // The recognizer waits for this, so a slow edit harvest delays the
+            // whole dictation. Logged to explain the slow outliers (27 Sep:
+            // p95 1.6 s against a median of 0.5 s).
+            log(String(format: "  STREAM bias ready +%.0f ms after press",
+                       Date().timeIntervalSince(pressed) * 1000))
+            var segments: [TimedSegment] = []
             // Each element is the whole transcript so far; the last is final.
-            for try await partial in asr.transcribe(audio: audio, locale: locale, biasTerms: terms) {
-                text = partial
+            for try await partial in asr.transcribeSegments(
+                audio: audio, locale: locale, biasTerms: terms) {
+                segments = partial
             }
-            return text
+            let pauses = PauseReport.describe(segments)
+            if !pauses.isEmpty { log("  PAUSES \(pauses)") }
+            return segments.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
         }
         return LiveStream(feed: feed, bias: bias, text: text)
     }

@@ -36,7 +36,7 @@ Declared 27 Sep before code (docs/research/2026-09-27-insertion-bugs.md, decisio
 
 ## Result
 
-First live use, 27 Sep: clipboard restored on a read 3 of 3 times (PASTE restore +68 to +144 ms, ax true, in Claude). The correction missed "At two, actually three" because the recognizer writes small numbers as words; fixed the same night. The sentinel check is still to run.
+Live, 27–28 Sep: clipboard restored on evidence 37/37 (Claude, ChatGPT, Arc); 2 empty results in 42 dictations, both taps under 0.2 s. Corrections fired 3 times, removing only comma-wrapped like/you know. Number-word corrections fixed 27 Sep. Sentinel check still to run.
 
 ## Records
 

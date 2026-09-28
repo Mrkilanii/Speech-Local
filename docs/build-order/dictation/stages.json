@@ -166,7 +166,7 @@
         "docs/decisions/11_backtrack_removes_marked_words_only.md",
         "docs/research/2026-09-27-insertion-bugs.md"
       ],
-      "result": "First live use, 27 Sep: clipboard restored on a read 3 of 3 times (PASTE restore +68 to +144 ms, ax true, in Claude). The correction missed \"At two, actually three\" because the recognizer writes small numbers as words; fixed the same night. The sentinel check is still to run."
+      "result": "Live, 27–28 Sep: clipboard restored on evidence 37/37 (Claude, ChatGPT, Arc); 2 empty results in 42 dictations, both taps under 0.2 s. Corrections fired 3 times, removing only comma-wrapped like/you know. Number-word corrections fixed 27 Sep. Sentinel check still to run."
     },
     {
       "id": "5",
@@ -199,9 +199,13 @@
         {
           "t": "Live latency from the log",
           "s": "n"
+        },
+        {
+          "t": "Explain the p95 outliers (bias timing now logged)",
+          "s": "n"
         }
       ],
-      "result": "First live figures, 27 Sep: STREAM final +323, +434, +603 ms after release on three dictations."
+      "result": "Live, 42 dictations 27–28 Sep: median 502 ms, p90 1.3 s, p95 1.6 s, max 2.7 s; no longer grows with length (34.8 s → 800 ms). Outliers not yet explained — STREAM bias ready now logged to find them."
     },
     {
       "id": "6",
@@ -247,10 +251,10 @@
       "size": "M",
       "does": "Stops a pause from ending the sentence: \"two, actually three. Logs.\" should be one sentence.",
       "see": "A pause mid-sentence leaves no full stop and no capital.",
-      "proof": "Precision on the 2,881 logged dictations must beat a coin toss before anything ships. Two rules measured 27 Sep did not: merging 1–2 word fragments was right about half the time (69 cases), and merging after a dangling word was right about half the time (25 cases).",
+      "proof": "From PAUSES lines: if gaps before mid-sentence breaks and before real sentence ends separate cleanly (e.g. under vs over some threshold) on Omar's own dictations, a rule on pause length ships; if they overlap, it does not. Two text rules and the on-device model scored about 50% (27 Sep).",
       "needs": [
         {
-          "label": "A signal better than a coin toss (pause length, untested)",
+          "label": "~50 logged breaks from Omar's own dictations",
           "met": false
         }
       ],
@@ -271,9 +275,9 @@
           "d": "rejected: 19/44 agree, 22 wrong merges, ~8 s each"
         },
         {
-          "t": "Pause length from the recognizer's segment times",
-          "s": "n",
-          "d": "next idea: measurable from audio"
+          "t": "Pause length logged at every break (PAUSES in doctor.log)",
+          "s": "y",
+          "d": "collecting; decide once ~50 real breaks are logged"
         }
       ],
       "declaration": "Declared 27 Sep before the model run (spikes/pause-breaks/DECLARATION.md): 44 labelled fragments from doctor.log; predict ≥36/44 agreement and ≤3 wrong merges; reject below 33/44 or above 5 wrong merges.",

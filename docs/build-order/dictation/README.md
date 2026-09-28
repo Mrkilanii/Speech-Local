@@ -10,9 +10,9 @@ Hold a key, speak, and the right text lands where you are typing — on the Mac,
 | 2 | [Settings, hardening, languages](01-product-shell.md) | Done | 4/4 | done |
 | 3 | [Spoken formatting and learning](02-spoken-formatting.md) | Done | 3/3 | done |
 | 4 | [Wispr Flow parity, first pass](03-wispr-parity.md) | Building now | 6/8 | L |
-| 5 | [Transcribe while you talk](04-streaming.md) | Building now | 2/3 | M |
+| 5 | [Transcribe while you talk](04-streaming.md) | Building now | 2/4 | M |
 | 6 | [See the text box in Claude desktop](05-electron-fields.md) | Building now | 2/4 | S |
-| 9 | [No full stop where you only paused](06-pause-breaks.md) | Waiting | 0/4 | M |
+| 9 | [No full stop where you only paused](06-pause-breaks.md) | Waiting | 1/4 | M |
 | 7 | [No clipped first word](07-onset.md) | Next | 0/2 | S |
 | 8 | [Starts at login after a rebuild](08-login.md) | Next | 0/1 | S |
 
