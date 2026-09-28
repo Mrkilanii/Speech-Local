@@ -202,32 +202,40 @@
     {
       "id": "C7",
       "slug": "describe-code",
-      "name": "Describe it, get the code",
-      "status": "wait",
-      "size": "L",
+      "name": "Describe it, get the code — rejected",
+      "status": "done",
+      "size": "done",
       "does": "\"write a function that…\" on the rewrite key, using the on-device model.",
       "see": "A described function appears.",
       "proof": "Only if a spike beats decision 01's numbers for code.",
       "needs": [
         {
-          "label": "A spike that beats decision 01",
-          "met": false
-        },
-        {
-          "label": "Latency re-measured on an idle M1 (decision 14)",
-          "met": false
+          "label": "Nothing — decided",
+          "met": true
         }
       ],
       "items": [
         {
-          "t": "Spike: 19/20 correct, deterministic, but median 12.8 s / 26.2 s under heavy load, so rejected (decision 14)",
+          "t": "Declared spike: 20 tasks, hidden tests",
           "s": "y"
         },
         {
-          "t": "Idle-machine latency rerun, same prompt and tasks",
-          "s": "n"
+          "t": "Runs under load",
+          "s": "y",
+          "d": "12.8 s / 26.2 s / 11.6 s"
+        },
+        {
+          "t": "Idle rerun",
+          "s": "y",
+          "d": "6.9 s — still above 6 s"
+        },
+        {
+          "t": "Build it",
+          "s": "hold",
+          "d": "rejected"
         }
-      ]
+      ],
+      "result": "Rejected on latency. 19/20 correct every run; median 12.8 s, 26.2 s and 11.6 s under load, and 6.9 s on an idle machine (28 Sep), against a 6 s limit declared before the first run. Decision 14."
     }
   ],
   "alongside": []

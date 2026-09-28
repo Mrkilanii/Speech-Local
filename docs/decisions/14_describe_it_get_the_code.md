@@ -139,3 +139,12 @@ Same prompt, same 20 tasks, output unchanged. Median **11.6 s** (7.3–19.1),
 warm-up 15.6 s. The fastest single reply (7.3 s) is above the 6 s reject line,
 so the rejection stands at this load. Whether an idle M1 reaches 6 s is still
 not measured; a VPN process was holding a full core throughout.
+
+## Run 4 — 28 Sep 19:12, idle machine (load average 3.1 → 7.8 during the run)
+
+The condition the earlier runs lacked. Output identical to run 1. Median
+**6.9 s** (3.8–8.2), warm-up 13.2 s. **Above the 6 s reject line on an idle
+machine: C7 is rejected, finally.** A spoken request that takes seven seconds
+to type anything, and a first one that takes thirteen, is not dictation. The
+code was right 19 of 20 times; speed, not quality, is what the on-device model
+cannot give here.
